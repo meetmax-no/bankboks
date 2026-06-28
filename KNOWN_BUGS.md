@@ -26,12 +26,6 @@ Severity:
 **Status:** Lavt hendelses-volum, akseptabelt for nå.  
 **Tracking:** D-094, D-095, D-101
 
-### B3 — D-104b: CreateTenantForm step 2 dupliserer felt-definisjoner
-**Beskrivelse:** `CompanyDataSection` (i TenantViewer) og `CreateTenantForm` step 2 har overlappende felt-rendering for B2B-firma-data. D-105 ABSOLUTT regel sier "ingen duplisering". Bør refaktoreres så `<CompanyDataSection mode="create">` brukes begge steder.  
-**Workaround:** Manuell synkronisering — hvis du legger til et felt, oppdater BEGGE steder.  
-**Filer:** `components/platform/TenantViewer.tsx:CreateTenantForm`, `components/platform/TenantViewer.tsx:CompanyDataSection`.  
-**Status:** Planlagt P2 refactor (D-104b).
-
 ---
 
 ## 🟡 P2 — UX/kosmetisk
@@ -72,8 +66,9 @@ Severity:
 
 ### Fixed 2026-06-29
 - ✅ **D-111** B1: Stale `activeLicenses`-felt → fjernet write i invite/accept, alle 6 lesere bruker nå `countLiveActiveLicenses`. Schema-felt beholdt som OPTIONAL response-only (samme mønster som `pendingInvitesCount`)
+- ✅ **D-104b** B3: CreateTenantForm step 2 deduplisert → 3 nye block-komponenter (`SelskapFieldsBlock`, `KontaktFieldsBlock`, `FakturaFieldsBlock`) brukt av både edit- og create-mode. `CompanyDataSection` er nå dispatcher (discriminated union på `mode`). CreateTenantModal step 1 beholder kun subdomain+email, step 2 renderer `<CompanyDataSection mode="create">`
 - ✅ **B4** Reload-knapp i B2B-Konsoll → flyttet til høyre side av SeatBar, ved siden av "+ Ansatt" — secondary outline-button med RefreshCw-ikon. Dobbelt-ikon-bug (`↻`-glyph i locale + lucide-ikon) fikset ved å fjerne glyph fra alle 4 locale-filer
-- ✅ **B5** Postnummer→poststed live-lookup (NO via Bring + DK via DataForsyningen) — delt hook `usePostnrAutofill` brukt på 4 felt-par i TenantViewer
+- ✅ **B5** Postnummer→poststed live-lookup (NO via Bring + DK via DataForsyningen) — delt hook `usePostnrAutofill` brukt på alle felt-par via blocks
 
 ### Fixed 2026-06-28
 - ✅ D-099 cross-tenant data leak ved DNS-propagering (vault-host-guard)

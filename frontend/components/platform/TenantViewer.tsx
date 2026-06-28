@@ -51,6 +51,7 @@ import { ConfigToolsButton } from "./ConfigToolsButton";
 import { ProvisioningTracker } from "./ProvisioningTracker";
 import defaultClientConfig from "../../public/clients/default.json";
 import { validateOrgNumber } from "@/lib/platform/org-number-validation";
+import type { OrgValidationResult } from "@/lib/platform/org-number-validation";
 import { usePostnrAutofill } from "@/lib/postal/use-postnr-autofill";
 
 /**
@@ -1684,6 +1685,7 @@ function TenantDetailCard({
         isB2BParent && (
           <div data-testid="tenant-detail-subtab-selskap">
             <CompanyDataSection
+              mode="edit"
               record={record}
               subdomain={record.subdomain}
               onRefresh={onRefresh}
@@ -1698,6 +1700,7 @@ function TenantDetailCard({
         isB2BParent && (
           <div data-testid="tenant-detail-subtab-kontakt">
             <CompanyDataSection
+              mode="edit"
               record={record}
               subdomain={record.subdomain}
               onRefresh={onRefresh}
@@ -1712,6 +1715,7 @@ function TenantDetailCard({
         isB2BParent && (
           <div data-testid="tenant-detail-subtab-faktura">
             <CompanyDataSection
+              mode="edit"
               record={record}
               subdomain={record.subdomain}
               onRefresh={onRefresh}
@@ -1895,7 +1899,448 @@ function emptyToNull(v: string): string | null {
   return trimmed === "" ? null : trimmed;
 }
 
-function CompanyDataSection({
+// ═══════════════════════════════════════════════════════════════════════
+// D-104b — Felles felt-blokker brukt av både edit- og create-mode i
+// CompanyDataSection. D-105: én sannhetskilde, ingen duplisering.
+// ═══════════════════════════════════════════════════════════════════════
+
+type SelskapBlockValues = {
+  companyName: string;
+  orgNumber: string;
+  companyStreet: string;
+  companyPostalCode: string;
+  companyCity: string;
+  companyCountry: string;
+};
+
+type KontaktBlockValues = {
+  contactName: string;
+  contactEmail: string;
+  contactPhone: string;
+};
+
+type FakturaBlockValues = {
+  billingStreet: string;
+  billingPostalCode: string;
+  billingCity: string;
+  billingCountry: string;
+  billingEmail: string;
+  billingReference: string;
+};
+
+type BlockMode = "edit" | "create";
+
+/** Felles tekst-prefiks for testId-er — preserverer eksisterende testIds
+ *  så Mike's eksisterende E2E-tester ikke brekker. */
+function blockTestIds(mode: BlockMode) {
+  return {
+    /** Brukes som testId-prop til B2BField (som internt prefikser med "tenant-create-"). */
+    b2bField: mode === "edit" ? "edit-" : "",
+    /** Brukes som testId til raw Field-komponenter (uten B2BField-wrapping). */
+    field: mode === "edit" ? "tenant-edit" : "tenant-create",
+  } as const;
+}
+
+function fullSpanClass(mode: BlockMode): string {
+  // Edit-modal har responsiv 1-col-mobile/2-col-sm grid. Create-modal har
+  // alltid 2-col grid (ikke responsiv). Klassene må matche parent.
+  return mode === "edit" ? "col-span-1 sm:col-span-2" : "col-span-2";
+}
+
+function SelskapFieldsBlock({
+  values,
+  onChange,
+  mode,
+  orgValidation,
+}: {
+  values: SelskapBlockValues;
+  onChange: (next: SelskapBlockValues) => void;
+  mode: BlockMode;
+  orgValidation: OrgValidationResult;
+}) {
+  const { t } = useLocale();
+  const ids = blockTestIds(mode);
+  const fullSpan = fullSpanClass(mode);
+
+  // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
+  usePostnrAutofill({
+    country: values.companyCountry,
+    postnr: values.companyPostalCode,
+    setCity: (city) => onChange({ ...values, companyCity: city }),
+  });
+
+  return (
+    <>
+      <B2BField
+        labelKey="admin_tenants.field_company_name"
+        testId={`${ids.b2bField}companyname`}
+        className={fullSpan}
+        value={values.companyName}
+        onChange={(v) => onChange({ ...values, companyName: v })}
+      />
+      <Field
+        label={t("admin_tenants.field_org_number")}
+        testId={`${ids.field}-orgnumber`}
+        hint={
+          values.orgNumber.length > 0 && !orgValidation.valid
+            ? t(orgValidation.reason)
+            : undefined
+        }
+        render={
+          <div className="relative">
+            <input
+              type="text"
+              value={values.orgNumber}
+              onChange={(e) =>
+                onChange({ ...values, orgNumber: e.target.value })
+              }
+              data-testid={`${ids.field}-orgnumber-input`}
+              className={`w-full rounded-lg bg-black/40 border px-3 py-2 pr-8 text-sm text-white outline-none transition ${
+                values.orgNumber.length > 0 && !orgValidation.valid
+                  ? "border-rose-400/60 focus:border-rose-300"
+                  : values.orgNumber.length > 0 && orgValidation.valid
+                    ? "border-emerald-400/60 focus:border-emerald-300"
+                    : "border-white/15 focus:border-blue-300/60"
+              }`}
+            />
+            {values.orgNumber.length > 0 && orgValidation.valid && (
+              <span
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-300 text-base font-bold pointer-events-none"
+                aria-hidden="true"
+                data-testid={
+                  mode === "create"
+                    ? "tenant-create-orgnumber-valid-icon"
+                    : undefined
+                }
+              >
+                ✓
+              </span>
+            )}
+          </div>
+        }
+      />
+      <B2BField
+        labelKey="admin_tenants.field_company_street"
+        testId={`${ids.b2bField}company-street`}
+        className={fullSpan}
+        value={values.companyStreet}
+        onChange={(v) => onChange({ ...values, companyStreet: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_company_postal_code"
+        testId={`${ids.b2bField}company-postal`}
+        value={values.companyPostalCode}
+        onChange={(v) => onChange({ ...values, companyPostalCode: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_company_city"
+        testId={`${ids.b2bField}company-city`}
+        value={values.companyCity}
+        onChange={(v) => onChange({ ...values, companyCity: v })}
+      />
+      <Field
+        label={t("admin_tenants.field_company_country")}
+        testId={`${ids.field}-company-country`}
+        className={fullSpan}
+        render={
+          <DarkSelect
+            testId={`${ids.field}-company-country-input`}
+            value={values.companyCountry}
+            onChange={(v) => onChange({ ...values, companyCountry: v })}
+            options={[
+              { value: "", label: "—" },
+              { value: "NO", label: t("admin_tenants.country_option_no") },
+              { value: "SE", label: t("admin_tenants.country_option_se") },
+              { value: "DK", label: t("admin_tenants.country_option_dk") },
+              { value: "OTHER", label: t("admin_tenants.country_option_other") },
+            ]}
+          />
+        }
+      />
+    </>
+  );
+}
+
+function KontaktFieldsBlock({
+  values,
+  onChange,
+  mode,
+}: {
+  values: KontaktBlockValues;
+  onChange: (next: KontaktBlockValues) => void;
+  mode: BlockMode;
+}) {
+  const ids = blockTestIds(mode);
+  const fullSpan = fullSpanClass(mode);
+
+  return (
+    <>
+      <B2BField
+        labelKey="admin_tenants.field_contact_name"
+        testId={`${ids.b2bField}contactname`}
+        className={fullSpan}
+        value={values.contactName}
+        onChange={(v) => onChange({ ...values, contactName: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_contact_email"
+        testId={`${ids.b2bField}contact-email`}
+        type="email"
+        value={values.contactEmail}
+        onChange={(v) => onChange({ ...values, contactEmail: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_contact_phone"
+        testId={`${ids.b2bField}contact-phone`}
+        type="tel"
+        value={values.contactPhone}
+        onChange={(v) => onChange({ ...values, contactPhone: v })}
+      />
+    </>
+  );
+}
+
+function FakturaFieldsBlock({
+  values,
+  onChange,
+  mode,
+  billingSameAsCompany,
+}: {
+  values: FakturaBlockValues;
+  onChange: (next: FakturaBlockValues) => void;
+  mode: BlockMode;
+  billingSameAsCompany: boolean;
+}) {
+  const ids = blockTestIds(mode);
+  const fullSpan = fullSpanClass(mode);
+
+  // Postnr→poststed live autofill for billing-adresse.
+  usePostnrAutofill({
+    country: values.billingCountry,
+    postnr: values.billingPostalCode,
+    setCity: (city) => onChange({ ...values, billingCity: city }),
+  });
+
+  return (
+    <>
+      <B2BField
+        labelKey="admin_tenants.field_billing_street"
+        testId={`${ids.b2bField}billing-street`}
+        className={fullSpan}
+        disabled={billingSameAsCompany}
+        value={values.billingStreet}
+        onChange={(v) => onChange({ ...values, billingStreet: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_billing_postal_code"
+        testId={`${ids.b2bField}billing-postal`}
+        disabled={billingSameAsCompany}
+        value={values.billingPostalCode}
+        onChange={(v) => onChange({ ...values, billingPostalCode: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_billing_city"
+        testId={`${ids.b2bField}billing-city`}
+        disabled={billingSameAsCompany}
+        value={values.billingCity}
+        onChange={(v) => onChange({ ...values, billingCity: v })}
+      />
+      {/* Eksisterende adferd: billing-country er tekst-input både i edit
+          og create (ulikt company-country som er DarkSelect). Preserveres. */}
+      <B2BField
+        labelKey="admin_tenants.field_billing_country"
+        testId={`${ids.b2bField}billing-country`}
+        disabled={billingSameAsCompany}
+        value={values.billingCountry}
+        onChange={(v) => onChange({ ...values, billingCountry: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_billing_email"
+        testId={`${ids.b2bField}billing-email`}
+        type="email"
+        value={values.billingEmail}
+        onChange={(v) => onChange({ ...values, billingEmail: v })}
+      />
+      <B2BField
+        labelKey="admin_tenants.field_billing_reference"
+        testId={`${ids.b2bField}billing-ref`}
+        value={values.billingReference}
+        onChange={(v) => onChange({ ...values, billingReference: v })}
+      />
+    </>
+  );
+}
+
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// D-104b — CompanyDataSection dispatcher. Discriminated union på mode-prop.
+// edit-mode: per-seksjon Lagre/Tilbakestill (3 PATCH-kall). Brukes i
+//   TenantDetailCard sin Oversikt-fane (Selskap/Kontakt/Faktura-sub-tabs).
+// create-mode: controlled av parent via form/setForm. Ingen Lagre-knapper —
+//   parent (CreateTenantModal) sin "Opprett"-knapp er ansvarlig for submit.
+// ═══════════════════════════════════════════════════════════════════════
+type CompanyDataSectionProps =
+  | {
+      mode: "edit";
+      record: TenantRecord;
+      subdomain: string;
+      onRefresh: () => void;
+      section?: "all" | "selskap" | "kontakt" | "faktura";
+    }
+  | {
+      mode: "create";
+      form: CreateFormState;
+      setForm: (f: CreateFormState) => void;
+    };
+
+function CompanyDataSection(props: CompanyDataSectionProps) {
+  if (props.mode === "edit") {
+    return (
+      <CompanyDataSectionEdit
+        record={props.record}
+        subdomain={props.subdomain}
+        onRefresh={props.onRefresh}
+        section={props.section}
+      />
+    );
+  }
+  return (
+    <CompanyDataSectionCreate form={props.form} setForm={props.setForm} />
+  );
+}
+
+/**
+ * Create-mode rendering: alle 3 felt-blokker (Selskap/Kontakt/Faktura)
+ * stablet flat inn i parent sin grid. Eier `billingSameAsCompany`-state
+ * og mirror-useEffect så CreateTenantModal slipper å duplisere det.
+ */
+function CompanyDataSectionCreate({
+  form,
+  setForm,
+}: {
+  form: CreateFormState;
+  setForm: (f: CreateFormState) => void;
+}) {
+  const { t } = useLocale();
+  const [billingSameAsCompany, setBillingSameAsCompany] = useState(false);
+
+  // Auto-mirror selskap → faktura når checkbox er på.
+  useEffect(() => {
+    if (!billingSameAsCompany) return;
+    setForm({
+      ...form,
+      billingStreet: form.companyStreet,
+      billingPostalCode: form.companyPostalCode,
+      billingCity: form.companyCity,
+      billingCountry: form.companyCountry,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    billingSameAsCompany,
+    form.companyStreet,
+    form.companyPostalCode,
+    form.companyCity,
+    form.companyCountry,
+  ]);
+
+  // Org.nr-validering basert på valgt land — samme regel som edit-mode.
+  const orgValidation = useMemo(
+    () => validateOrgNumber(form.orgNumber, form.companyCountry),
+    [form.orgNumber, form.companyCountry],
+  );
+
+  return (
+    <>
+      <SelskapFieldsBlock
+        mode="create"
+        values={{
+          companyName: form.companyName,
+          orgNumber: form.orgNumber,
+          companyStreet: form.companyStreet,
+          companyPostalCode: form.companyPostalCode,
+          companyCity: form.companyCity,
+          companyCountry: form.companyCountry,
+        }}
+        onChange={(next) =>
+          setForm({
+            ...form,
+            companyName: next.companyName,
+            orgNumber: next.orgNumber,
+            companyStreet: next.companyStreet,
+            companyPostalCode: next.companyPostalCode,
+            companyCity: next.companyCity,
+            companyCountry: next.companyCountry,
+          })
+        }
+        orgValidation={orgValidation}
+      />
+      <KontaktFieldsBlock
+        mode="create"
+        values={{
+          contactName: form.contactName,
+          contactEmail: form.contactEmail,
+          contactPhone: form.contactPhone,
+        }}
+        onChange={(next) =>
+          setForm({
+            ...form,
+            contactName: next.contactName,
+            contactEmail: next.contactEmail,
+            contactPhone: next.contactPhone,
+          })
+        }
+      />
+      {/* "Samme som selskap"-checkbox — auto-mirrorer adresse-feltene */}
+      <Field
+        label=""
+        testId="tenant-create-billing-same"
+        className="col-span-2"
+        render={
+          <label className="flex items-center gap-2 h-[38px] px-3 rounded-lg bg-indigo-500/10 border border-indigo-400/30 cursor-pointer hover:border-indigo-300/50 transition">
+            <input
+              type="checkbox"
+              checked={billingSameAsCompany}
+              onChange={(e) => setBillingSameAsCompany(e.target.checked)}
+              data-testid="tenant-create-billing-same-input"
+              className="h-4 w-4 accent-indigo-400"
+            />
+            <span className="text-sm text-indigo-100">
+              {t("admin_tenants.billing_same_as_company")}
+            </span>
+          </label>
+        }
+      />
+      <FakturaFieldsBlock
+        mode="create"
+        billingSameAsCompany={billingSameAsCompany}
+        values={{
+          billingStreet: form.billingStreet,
+          billingPostalCode: form.billingPostalCode,
+          billingCity: form.billingCity,
+          billingCountry: form.billingCountry,
+          billingEmail: form.billingEmail,
+          billingReference: form.billingReference,
+        }}
+        onChange={(next) =>
+          setForm({
+            ...form,
+            billingStreet: next.billingStreet,
+            billingPostalCode: next.billingPostalCode,
+            billingCity: next.billingCity,
+            billingCountry: next.billingCountry,
+            billingEmail: next.billingEmail,
+            billingReference: next.billingReference,
+          })
+        }
+      />
+    </>
+  );
+}
+
+
+
+function CompanyDataSectionEdit({
   record,
   subdomain,
   onRefresh,
@@ -2087,19 +2532,8 @@ function CompanyDataSection({
     record.companyCountry,
   ]);
 
-  // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
-  usePostnrAutofill({
-    country: companyForm.companyCountry,
-    postnr: companyForm.companyPostalCode,
-    setCity: (city) =>
-      setCompanyForm((prev) => ({ ...prev, companyCity: city })),
-  });
-  usePostnrAutofill({
-    country: billingForm.billingCountry,
-    postnr: billingForm.billingPostalCode,
-    setCity: (city) =>
-      setBillingForm((prev) => ({ ...prev, billingCity: city })),
-  });
+  // Postnr→poststed autofill: håndteres internt i SelskapFieldsBlock og
+  // FakturaFieldsBlock (D-104b — én sannhetskilde). Ingen hook her.
 
   const billingDirty =
     billingForm.billingStreet !== nullToEmpty(record.billingStreet) ||
@@ -2205,91 +2639,28 @@ function CompanyDataSection({
       >
         {sectionHeader("Selskap")}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <B2BField
-            labelKey="admin_tenants.field_company_name"
-            testId="edit-companyname"
-            className="col-span-1 sm:col-span-2"
-            value={companyForm.companyName}
-            onChange={(v) => setCompanyForm({ ...companyForm, companyName: v })}
-          />
-          <Field
-            label={t("admin_tenants.field_org_number")}
-            testId="tenant-edit-orgnumber"
-            hint={
-              companyForm.orgNumber.length > 0 && !orgValidation.valid
-                ? t(orgValidation.reason)
-                : undefined
+          <SelskapFieldsBlock
+            mode="edit"
+            values={{
+              companyName: companyForm.companyName,
+              orgNumber: companyForm.orgNumber,
+              companyStreet: companyForm.companyStreet,
+              companyPostalCode: companyForm.companyPostalCode,
+              companyCity: companyForm.companyCity,
+              companyCountry: companyForm.companyCountry,
+            }}
+            onChange={(next) =>
+              setCompanyForm({
+                ...companyForm,
+                companyName: next.companyName,
+                orgNumber: next.orgNumber,
+                companyStreet: next.companyStreet,
+                companyPostalCode: next.companyPostalCode,
+                companyCity: next.companyCity,
+                companyCountry: next.companyCountry,
+              })
             }
-            render={
-              <div className="relative">
-                <input
-                  type="text"
-                  value={companyForm.orgNumber}
-                  onChange={(e) =>
-                    setCompanyForm({
-                      ...companyForm,
-                      orgNumber: e.target.value,
-                    })
-                  }
-                  data-testid="tenant-edit-orgnumber-input"
-                  className={`w-full rounded-lg bg-black/40 border px-3 py-2 pr-8 text-sm text-white outline-none transition ${
-                    companyForm.orgNumber.length > 0 && !orgValidation.valid
-                      ? "border-rose-400/60 focus:border-rose-300"
-                      : companyForm.orgNumber.length > 0 && orgValidation.valid
-                        ? "border-emerald-400/60 focus:border-emerald-300"
-                        : "border-white/15 focus:border-blue-300/60"
-                  }`}
-                />
-                {companyForm.orgNumber.length > 0 && orgValidation.valid && (
-                  <span
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-300 text-base font-bold pointer-events-none"
-                    aria-hidden="true"
-                  >
-                    ✓
-                  </span>
-                )}
-              </div>
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_company_street"
-            testId="edit-company-street"
-            className="col-span-1 sm:col-span-2"
-            value={companyForm.companyStreet}
-            onChange={(v) =>
-              setCompanyForm({ ...companyForm, companyStreet: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_company_postal_code"
-            testId="edit-company-postal"
-            value={companyForm.companyPostalCode}
-            onChange={(v) =>
-              setCompanyForm({ ...companyForm, companyPostalCode: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_company_city"
-            testId="edit-company-city"
-            value={companyForm.companyCity}
-            onChange={(v) =>
-              setCompanyForm({ ...companyForm, companyCity: v })
-            }
-          />
-          <Field
-            label={t("admin_tenants.field_company_country")}
-            testId="tenant-edit-company-country"
-            className="col-span-1 sm:col-span-2"
-            render={
-              <DarkSelect
-                testId="tenant-edit-company-country-input"
-                value={companyForm.companyCountry}
-                onChange={(v) =>
-                  setCompanyForm({ ...companyForm, companyCountry: v })
-                }
-                options={COUNTRY_OPTIONS}
-              />
-            }
+            orgValidation={orgValidation}
           />
         </div>
         {companyError && (
@@ -2318,31 +2689,19 @@ function CompanyDataSection({
       >
         {sectionHeader("Kontakt")}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <B2BField
-            labelKey="admin_tenants.field_contact_name"
-            testId="edit-contactname"
-            className="col-span-1 sm:col-span-2"
-            value={contactForm.contactName}
-            onChange={(v) =>
-              setContactForm({ ...contactForm, contactName: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_contact_email"
-            testId="edit-contact-email"
-            type="email"
-            value={contactForm.contactEmail}
-            onChange={(v) =>
-              setContactForm({ ...contactForm, contactEmail: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_contact_phone"
-            testId="edit-contact-phone"
-            type="tel"
-            value={contactForm.contactPhone}
-            onChange={(v) =>
-              setContactForm({ ...contactForm, contactPhone: v })
+          <KontaktFieldsBlock
+            mode="edit"
+            values={{
+              contactName: contactForm.contactName,
+              contactEmail: contactForm.contactEmail,
+              contactPhone: contactForm.contactPhone,
+            }}
+            onChange={(next) =>
+              setContactForm({
+                contactName: next.contactName,
+                contactEmail: next.contactEmail,
+                contactPhone: next.contactPhone,
+              })
             }
           />
         </div>
@@ -2387,58 +2746,27 @@ function CompanyDataSection({
           </span>
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <B2BField
-            labelKey="admin_tenants.field_billing_street"
-            testId="edit-billing-street"
-            className="col-span-1 sm:col-span-2"
-            disabled={billingSameAsCompany}
-            value={billingForm.billingStreet}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingStreet: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_billing_postal_code"
-            testId="edit-billing-postal"
-            disabled={billingSameAsCompany}
-            value={billingForm.billingPostalCode}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingPostalCode: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_billing_city"
-            testId="edit-billing-city"
-            disabled={billingSameAsCompany}
-            value={billingForm.billingCity}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingCity: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_billing_country"
-            testId="edit-billing-country"
-            disabled={billingSameAsCompany}
-            value={billingForm.billingCountry}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingCountry: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_billing_email"
-            testId="edit-billing-email"
-            type="email"
-            value={billingForm.billingEmail}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingEmail: v })
-            }
-          />
-          <B2BField
-            labelKey="admin_tenants.field_billing_reference"
-            testId="edit-billing-ref"
-            value={billingForm.billingReference}
-            onChange={(v) =>
-              setBillingForm({ ...billingForm, billingReference: v })
+          <FakturaFieldsBlock
+            mode="edit"
+            billingSameAsCompany={billingSameAsCompany}
+            values={{
+              billingStreet: billingForm.billingStreet,
+              billingPostalCode: billingForm.billingPostalCode,
+              billingCity: billingForm.billingCity,
+              billingCountry: billingForm.billingCountry,
+              billingEmail: billingForm.billingEmail,
+              billingReference: billingForm.billingReference,
+            }}
+            onChange={(next) =>
+              setBillingForm({
+                ...billingForm,
+                billingStreet: next.billingStreet,
+                billingPostalCode: next.billingPostalCode,
+                billingCity: next.billingCity,
+                billingCountry: next.billingCountry,
+                billingEmail: next.billingEmail,
+                billingReference: next.billingReference,
+              })
             }
           />
         </div>
@@ -3609,44 +3937,10 @@ function CreateTenantModal({
   // Iter 20.8: 3-stegs wizard for B2B-mode. B2C beholder linear-layout.
   const isWizard = lockedCustomerType === "b2b";
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [billingSameAsCompany, setBillingSameAsCompany] = useState(false);
 
-  // Auto-mirror selskap → faktura når checkbox er på.
-  useEffect(() => {
-    if (!billingSameAsCompany) return;
-    setForm({
-      ...form,
-      billingStreet: form.companyStreet,
-      billingPostalCode: form.companyPostalCode,
-      billingCity: form.companyCity,
-      billingCountry: form.companyCountry,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    billingSameAsCompany,
-    form.companyStreet,
-    form.companyPostalCode,
-    form.companyCity,
-    form.companyCountry,
-  ]);
-
-  // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
-  usePostnrAutofill({
-    country: form.companyCountry,
-    postnr: form.companyPostalCode,
-    setCity: (city) => setForm({ ...form, companyCity: city }),
-  });
-  usePostnrAutofill({
-    country: form.billingCountry,
-    postnr: form.billingPostalCode,
-    setCity: (city) => setForm({ ...form, billingCity: city }),
-  });
-
-  // Iter 20.7: live org.nr-validering på blur basert på valgt land.
-  const orgValidation = useMemo(
-    () => validateOrgNumber(form.orgNumber, form.companyCountry),
-    [form.orgNumber, form.companyCountry],
-  );
+  // D-104b (2026-06-29): billing-same-state, mirror-useEffect,
+  // postnr-autofill og org-validering eies nå av <CompanyDataSection
+  // mode="create">. Bare lokal felt-styring igjen.
 
   // Iter 2.x — inline blur-sjekk mot /api/admin/subdomain-check.
   // Gjenbruker `isSubdomainAvailable()` server-side så denne sjekken og
@@ -4033,168 +4327,17 @@ function CreateTenantModal({
             </>
           ) : (
             <>
-              {(!isWizard || step === 1) && (<>
-              <Field
-                label={t("admin_tenants.field_company_name")}
-                testId="tenant-create-companyname"
-                className="col-span-2"
-                render={
-                  <input
-                    type="text"
-                    value={form.companyName}
-                    onChange={(e) =>
-                      setForm({ ...form, companyName: e.target.value })
-                    }
-                    data-testid="tenant-create-companyname-input"
-                    className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/60"
-                  />
-                }
-              />
-              <Field
-                label={t("admin_tenants.field_org_number")}
-                testId="tenant-create-orgnumber"
-                hint={
-                  orgValidation.valid
-                    ? undefined
-                    : t(orgValidation.reason)
-                }
-                render={
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={form.orgNumber}
-                      onChange={(e) =>
-                        setForm({ ...form, orgNumber: e.target.value })
-                      }
-                      data-testid="tenant-create-orgnumber-input"
-                      className={`w-full rounded-lg bg-black/40 border px-3 py-2 pr-8 text-sm text-white outline-none transition ${
-                        form.orgNumber.length > 0 && !orgValidation.valid
-                          ? "border-rose-400/60 focus:border-rose-300"
-                          : form.orgNumber.length > 0 && orgValidation.valid
-                          ? "border-emerald-400/60 focus:border-emerald-300"
-                          : "border-white/15 focus:border-blue-300/60"
-                      }`}
-                    />
-                    {form.orgNumber.length > 0 && orgValidation.valid && (
-                      <span
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-300 text-base font-bold pointer-events-none"
-                        aria-hidden="true"
-                        data-testid="tenant-create-orgnumber-valid-icon"
-                      >
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                }
-              />
-              <Field
-                label={t("admin_tenants.field_contact_name")}
-                testId="tenant-create-contactname"
-                render={
-                  <input
-                    type="text"
-                    value={form.contactName}
-                    onChange={(e) =>
-                      setForm({ ...form, contactName: e.target.value })
-                    }
-                    data-testid="tenant-create-contactname-input"
-                    className="w-full rounded-lg bg-black/40 border border-white/15 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/60"
-                  />
-                }
-              />
-              </>)}
-              {(!isWizard || step === 2) && (<>
-              {/* D-052 utvidet B2B-felter — Iter 20.7: oversatt labels + country-velger.
-                  Iter 20.9 (Mike 2026-06-04): MVA-nr fjernet — samme som org.nr
-                  (norsk konvensjon: MVA = "NO" + org.nr + "MVA"), så ingen
-                  separat input. Backend-feltet er beholdt for fremtidig
-                  internasjonal-bruk men ikke eksponert i UI. */}
-              <B2BField labelKey="admin_tenants.field_company_street" testId="company-street"
-                className="col-span-2"
-                value={form.companyStreet}
-                onChange={(v) => setForm({ ...form, companyStreet: v })} />
-              <B2BField labelKey="admin_tenants.field_company_postal_code" testId="company-postal"
-                value={form.companyPostalCode}
-                onChange={(v) => setForm({ ...form, companyPostalCode: v })} />
-              <B2BField labelKey="admin_tenants.field_company_city" testId="company-city"
-                value={form.companyCity}
-                onChange={(v) => setForm({ ...form, companyCity: v })} />
-              {/* Iter 20.8: "Samme som selskap"-checkbox auto-mirrorer adresse-feltene */}
-              <Field
-                label=""
-                testId="tenant-create-billing-same"
-                className="col-span-2"
-                render={
-                  <label className="flex items-center gap-2 h-[38px] px-3 rounded-lg bg-indigo-500/10 border border-indigo-400/30 cursor-pointer hover:border-indigo-300/50 transition">
-                    <input
-                      type="checkbox"
-                      checked={billingSameAsCompany}
-                      onChange={(e) => setBillingSameAsCompany(e.target.checked)}
-                      data-testid="tenant-create-billing-same-input"
-                      className="h-4 w-4 accent-indigo-400"
-                    />
-                    <span className="text-sm text-indigo-100">
-                      {t("admin_tenants.billing_same_as_company")}
-                    </span>
-                  </label>
-                }
-              />
-              <Field
-                label={t("admin_tenants.field_company_country")}
-                testId="tenant-create-company-country"
-                render={
-                  <DarkSelect
-                    testId="tenant-create-company-country-input"
-                    value={form.companyCountry}
-                    onChange={(v) =>
-                      setForm({ ...form, companyCountry: v })
-                    }
-                    options={[
-                      { value: "", label: "—" },
-                      { value: "NO", label: t("admin_tenants.country_option_no") },
-                      { value: "SE", label: t("admin_tenants.country_option_se") },
-                      { value: "DK", label: t("admin_tenants.country_option_dk") },
-                      { value: "OTHER", label: t("admin_tenants.country_option_other") },
-                    ]}
-                  />
-                }
-              />
-              <B2BField labelKey="admin_tenants.field_contact_email" testId="contact-email" type="email"
-                value={form.contactEmail}
-                onChange={(v) => setForm({ ...form, contactEmail: v })} />
-              <B2BField labelKey="admin_tenants.field_contact_phone" testId="contact-phone" type="tel"
-                value={form.contactPhone}
-                onChange={(v) => setForm({ ...form, contactPhone: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_street" testId="billing-street"
-                className="col-span-2"
-                disabled={billingSameAsCompany}
-                value={form.billingStreet}
-                onChange={(v) => setForm({ ...form, billingStreet: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_postal_code" testId="billing-postal"
-                disabled={billingSameAsCompany}
-                value={form.billingPostalCode}
-                onChange={(v) => setForm({ ...form, billingPostalCode: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_city" testId="billing-city"
-                disabled={billingSameAsCompany}
-                value={form.billingCity}
-                onChange={(v) => setForm({ ...form, billingCity: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_country" testId="billing-country"
-                disabled={billingSameAsCompany}
-                value={form.billingCountry}
-                onChange={(v) => setForm({ ...form, billingCountry: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_email" testId="billing-email" type="email"
-                value={form.billingEmail}
-                onChange={(v) => setForm({ ...form, billingEmail: v })} />
-              <B2BField labelKey="admin_tenants.field_billing_reference" testId="billing-ref"
-                value={form.billingReference}
-                onChange={(v) => setForm({ ...form, billingReference: v })} />
-              {/* adminSubdomain settes automatisk = subdomain på server.
-                  Mike's beslutning 2026-06-02: ikke duplikat-input.
-                  Iter 20.9 (2026-06-04): tenantPrefix utledes automatisk fra
-                  prefiks-input på steg 1 — ingen manuell input lenger.
-                  Iter 20.9 (Mike 2026-06-04): maks-lisenser flyttet til steg 3
-                  (Lisens & plan) — hører naturlig hjemme der, ikke under adresser. */}
-              </>)}
+              {/* D-104b (2026-06-29): Steg 1 har kun subdomain + email +
+                  customerType. Steg 2 renderer ALLE B2B-firma-felter via
+                  <CompanyDataSection mode="create"> — én sannhetskilde
+                  delt med edit-mode i TenantDetailCard. */}
+              {(!isWizard || step === 2) && (
+                <CompanyDataSection
+                  mode="create"
+                  form={form}
+                  setForm={setForm}
+                />
+              )}
             </>
           )}
           {(!isWizard || step === 3) && (<>
