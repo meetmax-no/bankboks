@@ -444,25 +444,26 @@ export function EmployeeListSection({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Oppdater — venstre */}
-          <button
-            onClick={() => void refresh()}
-            disabled={loading}
-            className="text-xs text-white/55 hover:text-white px-2 py-1 rounded"
-            data-testid="employee-list-refresh"
-            aria-label={t("am_admin_employees.refresh_aria")}
-          >
-            {loading
-              ? t("am_admin_employees.refresh_busy")
-              : t("am_admin_employees.refresh_btn")}
-          </button>
-          {/* Seats-progress-bar — midten (D-092 hybrid-seat) */}
+          {/* Seats-progress-bar — venstre (D-092 hybrid-seat) */}
           <SeatProgressBar
             activeSeats={activeSeats}
             pendingSeats={pendingSeats}
             maxSeats={hasCap ? totalSeats : null}
             tooltip={t("am_admin_employees.seats_tooltip")}
           />
+          {/* Oppdater — ved siden av "+ Ansatt" (secondary outline) */}
+          <button
+            onClick={() => void refresh()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/15 hover:border-white/30 text-white/70 hover:text-white text-xs font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
+            data-testid="employee-list-refresh"
+            aria-label={t("am_admin_employees.refresh_aria")}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            {loading
+              ? t("am_admin_employees.refresh_busy")
+              : t("am_admin_employees.refresh_btn")}
+          </button>
           {/* + Ansatt — helt til høyre */}
           {!invitesBlocked && !seatsFull && (
             <button
