@@ -55,10 +55,13 @@ Severity:
 **Forslag:** Periodisk cleanup av ubrukte nøkler (gjort etter D-106).  
 **Status:** Pågående hygiene.
 
-### T4 — Ingen audit-log for Test Tools-bruk
-**Beskrivelse:** Når Mike-admin bruker `OrgAdminListCard` / `OrphanInvitesCard` til å se PII for orphan-cleanup, logges det ingenting. D-078a noterer dette som P1 i ROADMAP.  
-**Filer:** `app/api/admin/org-admins/all/route.ts`, `app/api/admin/orphan-invites/route.ts`.  
-**Status:** P1 i backlog.
+### T4 — Test Tools eksponerer PII uten audit-log
+**Beskrivelse:** `OrgAdminListCard` og `OrphanInvitesCard` lar Mike-admin se ansatt-PII (navn, e-post) på tvers av tenants — som per D-078 ikke skal være mulig. Begrunnet som "nødvendig for orphan-cleanup", men det er ingen audit-log på bruken.  
+**Filer:** `app/api/admin/org-admins/all/route.ts`, `app/api/admin/orphan-invites/all/route.ts`, `components/platform/OrgAdminListCard.tsx`, `components/platform/OrphanInvitesCard.tsx`.  
+**Status: VENTER PÅ BESLUTNING (Mike 2026-06-29)** — to alternativer:  
+&nbsp;&nbsp;**(a)** Behold funksjonen + legg på audit-log (hver Mike-admin-tilgang loggføres med tidspunkt, prefix, formål). GDPR-konformt med revisjons-spor.  
+&nbsp;&nbsp;**(b)** Slett funksjonen helt. Orphan-cleanup må gjøres via annen mekanisme (f.eks. automatisk cron eller server-side rydding uten UI-eksponering).  
+Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutning.**
 
 ---
 
