@@ -1,0 +1,35 @@
+{
+  "_meta": {
+    "comment": "Ko | Do · Vault — plan-katalog (v4.3 Iter 3 stub). Brukt av /platform/test for plan-selection demo. Trial-lengde og priser styres NÅ utelukkende av public/clients/default.json -> pricing.* (Mike 2026-06-07). Stripe-pris-IDer fylles inn ved deploy. Enterprise har contactOnly=true — ingen Stripe-flow, kun mailto-CTA.",
+    "see_also": "/app/memory/DECISIONS.md (D-037, D-038), public/clients/default.json (pricing)",
+    "last_updated": "2026-06-07"
+  },
+
+  "plans": [
+    {
+      "id": "trial",
+      "stripePriceId": null,
+      "ctaTone": "neutral",
+      "contactOnly": false
+    },
+    {
+      "id": "monthly",
+      "stripePriceId": null,
+      "ctaTone": "primary",
+      "contactOnly": false
+    },
+    {
+      "id": "yearly",
+      "stripePriceId": null,
+      "ctaTone": "accent",
+      "contactOnly": false
+    },
+    {
+      "id": "enterprise",
+      "stripePriceId": null,
+      "ctaTone": "contact",
+      "contactOnly": true,
+      "contactEmail": "kontakt@kodovault.no"
+    }
+  ]
+}

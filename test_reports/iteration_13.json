@@ -1,0 +1,84 @@
+{
+  "summary": "STATIC CODE REVIEW only (per Mike's explicit constraint — no app start, no Playwright, no live testing; pod lacks Upstash credentials). Reviewed 10 new/updated files for Iter 20.3 am-admin module: notify-email.ts (sendInviteEmail), am-admin-session-helper.ts, 7 new am-admin API routes, public /api/tenant/status, Mike's auto-mail integration in /api/admin/invites, and type definitions (InviteRecord + TenantRecord). All 16 review areas covered. Implementation is largely correct and follows established D-078/D-079 patterns; found 1 documentation/behavior mismatch (minor), 2 dead-code guards (low risk), 1 case-sensitivity nuance, and 1 response-shape inconsistency between Mike's POST and am-admin POST. No critical security issues.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/am-admin/invites/[token] POST (resend)",
+        "issue": "Header docstring says 'POST → resend (re-send invite-mail + bump expiresAt)' but code does NOT bump expiresAt. Either fix the comment or actually extend expiresAt on successful resend (recommended: extend to now+7d if currently <7d remaining, to avoid orphan-expiring invites the user just got a fresh mail for)."
+      },
+      {
+        "endpoint": "/api/am-admin/invites/[token] POST",
+        "issue": "Does not block resend when invite.status === 'expired' or expiresAt is in the past. Will happily mail a recipient a link that immediately fails. Recommend rejecting with 409 invite_expired (or auto-renewing per above)."
+      },
+      {
+        "endpoint": "/api/am-admin/tenants/[subdomain] DELETE & /suspend POST",
+        "issue": "The 'cannot_delete_parent' / 'cannot_suspend_parent' guard (subdomain === admin.tenantPrefix) is UNREACHABLE — assertSubdomainBelongsToOrg already requires subdomain.startsWith(prefix+'-'), so plain 'am' is rejected upstream with 403 forbidden_cross_org. Defense-in-depth is fine, but document this or remove the dead branch to keep coverage honest."
+      },
+      {
+        "endpoint": "/api/am-admin/tenants/[subdomain]/unsuspend POST",
+        "issue": "Asymmetric vs suspend: unsuspend has no explicit 'cannot_unsuspend_parent' guard. Functionally equivalent because assertSubdomainBelongsToOrg blocks plain prefix, but inconsistent w/ suspend route (minor readability/audit nit)."
+      },
+      {
+        "endpoint": "lib/platform/am-admin-session-helper.ts assertSubdomainBelongsToOrg",
+        "issue": "Lowercases prefix but does NOT lowercase the subdomain param. Mixed-case URL '/api/am-admin/tenants/AM-Nils/suspend' returns 403 forbidden_cross_org instead of the more accurate 404. Minor — store is lowercase-only so functional behavior is correct, just confusing error code."
+      },
+      {
+        "endpoint": "/api/admin/invites POST (Mike route, auto-mail addition)",
+        "issue": "Response shape diverges from /api/am-admin/invites POST: returns {mailSent, mailReason}, while am-admin returns {mailSent, mailDetail}. Pick one key name across the codebase for tooling consistency."
+      },
+      {
+        "endpoint": "/api/admin/invites POST",
+        "issue": "Re-fetches parent inside the audit-log try block (line 177) shadowing the outer parent (line 106). Dead duplicate fetch — uses 1 extra Upstash round-trip per invite. Remove inner re-fetch."
+      },
+      {
+        "endpoint": "/api/tenant/status GET",
+        "issue": "Does not validate subdomain format (no isValidSubdomainFormat call). An attacker can probe arbitrary strings — getTenant will tolerate them but it costs a Redis lookup each. Combined with 60/min rate limit it's acceptable; recommend rejecting obviously-invalid formats fast to reduce backend load."
+      },
+      {
+        "endpoint": "/api/tenant/status GET",
+        "issue": "Spec lists 'returns suspended/locked/cancelled boolean flags' and code matches — but tenant.status can also be 'deleted'. A deleted tenant record (if still persisted briefly) would surface status='deleted' with no boolean flag. Consider adding `deleted: tenant.status === 'deleted'` for vault-pod template parity."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Either remove 'bump expiresAt' wording from /api/am-admin/invites/[token] POST docstring OR implement actual expiresAt bump on successful resend (recommended).",
+    "Reject resend when invite.status === 'expired' OR Date.now() > expiresAt (409 invite_expired).",
+    "Document the dead 'cannot_delete_parent'/'cannot_suspend_parent' guard as belt-and-suspenders, or remove since assertSubdomainBelongsToOrg already blocks it.",
+    "Add explicit cannot_unsuspend_parent guard for symmetry with suspend route.",
+    "Unify response key (mailSent + mailDetail vs mailReason) between /api/admin/invites POST and /api/am-admin/invites POST.",
+    "Remove duplicate findB2BTenantByPrefix call in /api/admin/invites POST audit-log block (outer parent already in scope).",
+    "Add isValidSubdomainFormat short-circuit in /api/tenant/status to drop garbage probes before hitting Upstash.",
+    "Consider adding `deleted` boolean flag to /api/tenant/status response for future vault-pod template completeness.",
+    "Optional: lowercase the subdomain param in assertSubdomainBelongsToOrg for cleaner 404-vs-403 differentiation."
+  ],
+  "critical_code_review_comments": [
+    "sendInviteEmail() is correctly implemented: null-recipient skip, isEmailEnabled() skip, locale-routed template via loadTemplate(...'invite'), injects firstName/orgName/inviteUrl, swallows Resend errors into {ok:false,error}, uses INVITE_SUBJECTS map. ✓",
+    "Cross-org isolation is enforced consistently: every am-admin route calls requireAmAdmin → admin.tenantPrefix is the ONLY source of truth, and assertSubdomainBelongsToOrg / explicit `invite.parentTenant === admin.tenantPrefix` check on token routes. parentTenant in POST is forcibly overridden (line 76 invites/route.ts). ✓",
+    "Idempotency is correct on suspend (already-suspended returns ok+idempotent:true) and unsuspend (non-suspended returns ok+idempotent:true). State-machine guards on suspend block 'deleted'/'cancelled' → 409. ✓",
+    "InviteRecord & TenantRecord type updates are coherent: mailSentAt added with null default in buildInviteRecord, createdBy union 'admin'|'am-admin' with default 'admin', TenantRecord.suspendedAt added + initialized to null in buildTenantRecord, ProvisioningStage union extended with all 6 new members (tenant_suspended/unsuspended, org_admin_created/suspended/deleted, invite_mail_sent). ✓",
+    "All new am-admin routes set `export const runtime = 'nodejs'` + `dynamic = 'force-dynamic'`. ✓",
+    "Public /api/tenant/status follows anti-enumeration pattern (unknown vs 404), has 60/min rate-limit, Cache-Control max-age=30. ✓ Minor gap: deleted flag and format validation.",
+    "Audit logging is symmetric: invite_sent + invite_mail_sent logged on parent; tenant_suspended/unsuspended logged on BOTH parent and child (good for cross-axis searches). ✓",
+    "Mike's POST in /api/admin/invites preserves backwards compatibility: createdBy defaults to 'admin', original invite_sent logging path unchanged, auto-mail is additive. ✓ Minor: response key mismatch with am-admin variant (mailReason vs mailDetail).",
+    "GAP: No offline unit-tests added for new routes (Iter 20.1 had org-admin-store.test.ts with 41 assertions). Recommend adding mock-Redis tests for suspend/unsuspend idempotency, am-admin invite parentTenant override, and assertSubdomainBelongsToOrg cross-org rejection.",
+    "GAP: sendInviteEmail() has no test in __tests__ — unit-testable with mocked fs.readFile + Resend SDK stub. Worth adding before Iter 20.4."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "static review only — no APIs exercised",
+    "frontend": "skipped per instructions"
+  },
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.3 static review complete. No critical issues. 9 minor cleanup items in action_items. Next agent: when Upstash creds are available, run offline unit tests covering: (1) suspend idempotency, (2) unsuspend symmetry, (3) cross-org rejection in assertSubdomainBelongsToOrg, (4) sendInviteEmail null-recipient + disabled-email skip paths, (5) Mike-vs-am-admin response shape parity (mailSent flag), (6) /api/tenant/status anti-enumeration (unknown vs real status). Pre-existing offline test scaffold at /app/frontend/lib/__tests__/org-admin-store.test.ts uses mock-Redis pattern that can be replicated. Iter 20.1's 41 passing assertions remain green (not re-run, no code change near that surface). Iter 20.4 follow-ups deferred per Mike: i18n keys for hardcoded NO UI strings, MPW model, admin-notes, backup-export. Tenant-pod template upgrade calling /api/tenant/status at vault-unlock is out-of-scope until pod-template Iter.",
+  "rca of the issue": "N/A — code review only. Highest-priority polish items: (1) docstring/behavior mismatch on resend route (bump expiresAt promised but not implemented) and (2) Mike-vs-am-admin response key inconsistency (mailReason vs mailDetail). Both are easy single-line fixes with no architectural impact.",
+  "test_credentials": "N/A — no auth flows exercised."
+}

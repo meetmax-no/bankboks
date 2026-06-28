@@ -1,0 +1,81 @@
+{
+  "summary": "STATIC CODE REVIEW only of Iter 20.4 (a+b+c) — B2B fakturering (D-080). Per Mike: no app start, no Playwright, no curl (pod mangler Upstash creds). Reviewed lib/platform/b2b-billing.ts (180L pure logic), lib/platform/lifecycle-cron.ts (decideAction B2B-branch), lib/stripe/event-handlers.ts (handleSubscriptionCreated + handleInvoicePaid + cascadeUnlockB2BChildren), lib/stripe/client.ts (getB2BPriceId), app/api/cron/lifecycle-sweep/route.ts (B2B_GRACE_LOCK case), app/api/am-admin/invites/route.ts (grace-blokk), app/api/tenant/{status,info}/route.ts (parent-leak-guards), app/api/am-admin/auth/me/route.ts (billing-state respons), components/platform/am-admin/{BillingStatusBanner,OrgInvitesSection,EmployeeListSection}.tsx, lib/platform/tenant-types.ts (Plan/B2B_DEFAULT_TRIAL_DAYS=45), lib/platform/tenant-store.ts (migrateTenant backfill). VERIFIED: yarn tsc --noEmit ✓, yarn build ✓, yarn lint:all ✓ (5/5 lints pass), npx tsx b2b-billing.test.ts ✓ 16/16, npx tsx lifecycle-cron.test.ts ✓ 33/33. Implementation matches D-080 spec og blokker-svar 1-5. Funnet 1 MEDIUM (potensiell Stripe API-felt-flytting), 2 LOW (Norwegian-grammatikk + designvalg dokumentasjon), 1 INFO (cascade-locked child design). Ingen kritiske security/lekkasje-issues. B2C-flyter er bevart (B2B-branchen guarded med customerType==='b2b' && parentTenant===null).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "lib/stripe/event-handlers.ts:147-152 (handleSubscriptionCreated)",
+        "issue": "MEDIUM — `subscription.current_period_end` ble flyttet fra Subscription-objektet til SubscriptionItem-objektet i Stripe API-versjon 2025-09-30+ (Acacia/Charlemagne). Koden caster `(subscription as unknown as { current_period_end?: number })` for å hente det. Hvis Stripe-kontoen kjører nyere API-versjon vil periodEndSec være `undefined` og nextBillingDate faller tilbake til `fresh.nextBillingDate` (= null for ny subscription). Resultat: cron vil aldri trigge B2B_GRACE_LOCK fordi nextBillingDate er null (computeB2BBillingState returnerer 'active' uten dato). handleInvoicePaid setter den fra `invoice.lines.data[0].period.end` så det selvkorrigerer ved første faktura, MEN trial-til-active overgangen i handleSubscriptionCreated mister datoen. Anbefaling: fallback til `subscription.items.data[0].current_period_end` hvis topp-nivå er undefined."
+      },
+      {
+        "endpoint": "lib/stripe/event-handlers.ts:432 (handleInvoicePaid)",
+        "issue": "LOW — bruker `invoice.lines.data[0].period.end` (første linje). For typiske single-item B2B-subscriptions er det riktig, men for multi-item invoices (sjelden) plukkes vilkårlig linje. Hvis Mike noensinne kombinerer linjer (eks. seat-tillegg på samme invoice) bør koden hente max(period.end) eller filtrere på price-id. Acceptable som-er."
+      },
+      {
+        "endpoint": "app/api/cron/lifecycle-sweep/route.ts:283-287 (B2B_GRACE_LOCK cascade)",
+        "issue": "INFO — Cascade-låste children får `parentLockedAt: now.toISOString()` men IKKE `lockedAt`. Konsekvens: decideAction() i lifecycle-cron.ts:68 bailer ut tidlig (`if (tenant.status === 'locked' && tenant.lockedAt)`) for disse barn, så de 28-dagers auto-delete-pathen kjøres aldri på cascade-locked children. Dette er trolig BEVISST design (children skal kun gjenopprettes ved parent-betaling via cascadeUnlockB2BChildren, ikke slettes individuelt), men er ikke kommentert i koden. Anbefaler én linje kommentar i route.ts:286 som forklarer at lockedAt forblir null med vilje. Hvis parent senere DELETES (28d), trenger cron-route en separat pass for å delete-cascade barn — har ikke verifisert at den finnes."
+      },
+      {
+        "endpoint": "lib/platform/b2b-billing.ts:121",
+        "issue": "LOW — `graceEndDate = new Date(billingDate.getTime() + B2B_GRACE_DAYS * MS_PER_DAY)` er en rå ms-addisjon, ikke UTC-midnatt-justert som daysBetween() er. For typisk Stripe period.end-tid (vilkårlig UTC-tidspunkt) gir det asymmetrisk vinduer (e.g. 7d 03:14:22 i stedet for 7d-til-midnatt). Phase-overganger er likevel deterministiske og testene passerer; bare kosmetisk."
+      },
+      {
+        "endpoint": "lib/stripe/event-handlers.ts:154-162 (handleSubscriptionCreated)",
+        "issue": "LOW — putTenant skriver `status: 'active'` ubetinget uten å sjekke om fresh.status er 'deleted'/'cancelled'. handleInvoicePaid har asymmetri her (eksplisitt liste over flippable statuser linje 441-451). Stripe skal ikke fyre subscription.created på sletteet tenant, men defensiv-symmetri ville vært penere."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "BillingStatusBanner.tsx (pre_expiry-fase)",
+        "issue": "LOW — Norsk grammatikk-bug på linje 95: 'Forny abonnementet i god tid for å unngå kontoens kontoene mister tilgang.' Duplisert 'kontoens kontoene'. Bør være 'for å unngå at kontoene mister tilgang.'",
+        "selector": "[data-testid='billing-banner'][data-phase='pre_expiry']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/b2b-billing.test.ts (16/16 ✓)",
+    "/app/frontend/lib/__tests__/lifecycle-cron.test.ts (33/33 ✓)"
+  ],
+  "action_items": [
+    "FIX (MEDIUM): handleSubscriptionCreated — legg til fallback `subscription.items.data[0].current_period_end` for nyere Stripe API-versjoner. Uten dette mister nye B2B-subscriptions nextBillingDate-cachen inntil første invoice.paid (cron vil ikke kunne grace-låse i mellomtiden).",
+    "FIX (LOW UI): BillingStatusBanner.tsx:95 — rett norsk grammatikk: 'for å unngå at kontoene mister tilgang.'",
+    "DOC (INFO): app/api/cron/lifecycle-sweep/route.ts:286 — legg til kommentar som forklarer hvorfor `lockedAt` forblir null på cascade-låste children (= ekskluderer dem fra 28-d auto-delete; gjenoppretting skjer kun via parent-betaling).",
+    "CONSIDER (LOW): handleInvoicePaid — for multi-item invoices, hent max(period.end) i stedet for [0].",
+    "CONSIDER (LOW): handleSubscriptionCreated — guard status='active'-skriving mot 'deleted'/'cancelled' for symmetri med handleInvoicePaid."
+  ],
+  "critical_code_review_comments": [
+    "✓ computeB2BBillingState() er ren: ingen async, ingen side-effekter, deterministisk. Tar (tenant, now: Date) → B2BBillingState. B2B_GRACE_DAYS=7 og B2B_PRE_EXPIRY_WARN_DAYS=7 matcher D-080 spec.",
+    "✓ B2B-branch i decideAction (lifecycle-cron.ts:126-146) er korrekt guarded med customerType==='b2b' && parentTenant===null && status==='active'. Child kan ALDRI trigge B2B_GRACE_LOCK (verifisert av test 'B2B child → ALDRI B2B_GRACE_LOCK'). B2C kan ALDRI trigge (verifisert av test).",
+    "✓ Cascade-låsing i lifecycle-sweep filter `t.parentTenant === tenant.subdomain` (eksakt match, ikke prefix) — kan ikke krysse til andre orgs. Ekskluderer også `t.subdomain !== tenant.subdomain` (selv-referense beskyttelse) og allerede locked/deleted.",
+    "✓ handleInvoicePaid race-condition-mitigert: re-fetch tenant rett før skriving (linje 420 fresh) — kommentar peker på prod-bug 2026-06-06 (stripe-test-zsd049). cascade-unlock-trigger bruker `wasLocked && updates.status==='active' && customerType==='b2b' && parentTenant===null` — alle 4 vilkår må holde.",
+    "✓ cascadeUnlockB2BChildren filter: parentTenant===parentSubdomain && parentLockedAt!==null && status==='locked'. Den ekstra parentLockedAt-sjekken sikrer at vi KUN gjenoppretter barn cron-en låste — ikke barn admin-en suspenderte separat. Per-child try/catch + count for delobservasjon. Errors loggeres men feiler ikke hele kjeden.",
+    "✓ /api/tenant/status (linje 86-94): B2B parent (customerType==='b2b' && parentTenant===null) returnerer 'unknown' — `<prefix>.kodovault.no` lekker IKKE parent-metadata. For B2B children: kun parent.inGracePeriod + parent.graceEndsAt eksponeres via buildB2BChildParentInfo. Ingen email/firstName/lastName.",
+    "✓ /api/tenant/info (linje 76-81): B2B parent returnerer 404 tenant_not_found. Konsistent med /status.",
+    "✓ /api/am-admin/auth/me: parent-respons inkluderer kun subdomain/status/plan/trialEndsAt/nextBillingDate/maxLicenses/activeLicenses/billingState. INGEN email/firstName/lastName/passwordHash. billingState er null-safe når parent ikke finnes (sjelden edge: admin-konto før parent).",
+    "✓ /api/am-admin/invites POST (linje 110-126): shouldBlockNewInvites → 403 grace_period_active med detail+phase+graceEndsAt. Lisens-tak-sjekk (linje 131-143) kommer ETTER blokk-sjekken, men siden blokk returnerer tidlig forblir license-check intakt i normalfasen. Defense-in-depth med UI (OrgInvitesSection invitesBlocked-state).",
+    "✓ BillingStatusBanner: returnerer null for 'active'/'n/a'. role='status' for trial/pre_expiry. role='alert' for grace/expired/locked. aria-live='polite' (grace) og 'assertive' (expired). data-testid + data-phase attribut for testbarhet.",
+    "✓ OrgInvitesSection: billingPhase-prop, invitesBlocked-state styrer både '+ Ny invitasjon'-knapp visning (vises 'deaktivert' i grace) og viser rød advarsel-blokk. Defense-in-depth ✓ (POST blokker også uavhengig av UI).",
+    "✓ EmployeeListSection (linje 137): filtrerer ut used-invites — kun pending+expired blir vist som invites. Used-invites er allerede registrert som tenant så de vises der i stedet. Riktig label-mapping 'Invitert'/'Invitert (utløpt)'.",
+    "✓ B2B_DEFAULT_TRIAL_DAYS=45 brukes KUN når customerType==='b2b' (tenant-types.ts:329-332 ternary). B2C-tenants beholder getDefaultTrialDays() (30d via default.json). Test 16 i b2b-billing.test.ts verifiserer dette.",
+    "✓ migrateTenant (tenant-store.ts:82-87) backfiller nextBillingDate=null og parentLockedAt=null hvis felt mangler — eksisterende tenants knekkes ikke ved upgrade.",
+    "✓ getB2BPriceId (client.ts:69-81) henter STRIPE_PRICE_B2B_SEMIANNUAL/YEARLY fra env med fail-fast throw — ingen hardkoding.",
+    "✓ Alle 33 unit-tester passerer (b2b-billing 16 + lifecycle-cron 33 inkluderer 7 nye B2B grace-lock + 3 invite-blokk). yarn tsc --noEmit grønt. yarn build grønt. yarn lint:all grønt (5/5 lints).",
+    "✓ Test 5 'B2C tenant → ALDRI B2B_GRACE_LOCK selv om grace-vinduet passet' bekrefter at B2B-grenen ikke kan trigges på B2C — kritisk regresjons-test."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "static review only — no APIs exercised. 33/33 unit-tester grønne. TSC + lint:all + build grønt.",
+    "frontend": "skipped per Mike's eksplisitte instruksjon (pod mangler Upstash creds, ingen Playwright)"
+  },
+  "seed_data_creation": "none",
+  "test_credentials": "N/A — no auth flows exercised",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.4 (a+b+c) static review complete. Ingen kritiske issues. 1 MEDIUM Stripe API-versjon-fallback bør fikses før produksjons-deploy (handleSubscriptionCreated.current_period_end kan flyttes til SubscriptionItem i nyere Stripe API). 1 LOW norsk grammatikk-typo i BillingStatusBanner pre_expiry. 1 INFO cascade-locked children mangler kommentar om hvorfor lockedAt forblir null (designvalg, ikke bug). Iter 20.5 (MPW) og 20.6 (B2B-velkomstskjerm + Matrise 6) kommer etterpå — IKKE i scope. Når Upstash creds er tilgjengelig, bør neste runner kjøre offline mock-Redis tester for: (1) cascade-lock idempotens (re-kjør gir samme resultat), (2) cascade-unlock filter ekskluderer non-cascade-locked children (parentLockedAt!==null guard), (3) handleSubscriptionCreated på subscription med items[0].current_period_end men uten topp-nivå, (4) computeB2BBillingState boundary-tester (akkurat ved grace-start og grace-slutt), (5) cross-org isolation: cascade-lås i org A lekker ikke til org B.",
+  "rca of the issue": "N/A — code review only. Høyest-priority polish: (1) Stripe API current_period_end-flytt i nyere versjoner kan etterlate nextBillingDate=null etter trial→active overgang inntil første invoice.paid lander, hvilket vil pause B2B_GRACE_LOCK-evalueringen i mellomtiden. Lett fix: legg til `subscription.items.data[0]?.current_period_end` fallback. (2) UI-typo i pre_expiry-banner — ren tekst-fiks."
+}

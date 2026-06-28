@@ -1,0 +1,74 @@
+{
+  "summary": "STRICTLY STATIC code review of Iter 20.6 (B2B Welcome-skjerm + Matrise 6 + endelig Iter 20-stack QA). ALLE 198 unit-tester GRØNNE (am-admin-mpw 23 + am-admin-mpw-store 26 + am-admin-notes-store 21 + am-admin-backup 48 + delete-tenant 14 + b2b-billing 16 + lifecycle-cron 33 + admin-auth 17 = 198 ✓). yarn lint:all ✓ (5/5 lint-suites). yarn tsc --noEmit ✓. i18n bekreftet: 15 welcome_b2b.*-nøkler × 4 språk = 60 strenger (spec sa 14, men implementasjonen har 15 — bullet1-4 × 2 + 7 strukturelle = 15; minor avvik fra spec men ikke et problem). 1224 nøkler/locale i sync. Matrise 6 i DECISIONS.md skannet: 35 entry-points (✅ alle filstier eksisterer på disk). Dashboard-integrasjon verifisert (MpwProvider wrap, MpwSection + BackupSection + EmployeeListSection rendret). FANT 1 HIGH-bug (redirect-host-stripping i welcome-b2b feiler på apex kodovault.no) + 3 MEDIUM/LOW dokumentasjons-inkonsistenser + 1 React anti-pattern.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/welcome-b2b/[subdomain]/page.tsx — handleContinue (linje 77-87)",
+        "issue": "HIGH — REDIRECT-LOGIKK FEILER PÅ APEX kodovault.no. Koden gjør `host.replace(/^[^.]+\\./, '')` for å hente 'root'-domenet, men dette antar at host har MINST 3 segmenter (something.kodovault.no). Hvis bruker er på `kodovault.no` (apex) eller `www.kodovault.no` (etter www-strip blir det `kodovault.no`), strippes første segment slik: 'kodovault.no' → 'no'. Resultat: `window.location.href = 'https://<subdomain>.no'` (UGYLDIG URL). I produksjon kjøres invite-flowen typisk på apex (kodovault.no/invite?token=...) og redirecter til /welcome-b2b/... på SAMME host, så welcome-pagen vil i de fleste tilfeller være på apex. Fortsett-knappen vil da redirecte til `https://<subdomain>.no` istedenfor `https://<subdomain>.kodovault.no`. FIX: erstatt logikken med eksplisitt root-detektering — hvis host === 'kodovault.no' (etter www-strip) bruk det direkte; ellers strip kun hvis det er ≥3 segmenter. Eks: ```ts\nconst host = window.location.host.replace(/^www\\./, '');\nlet root = host;\nif (host.endsWith('kodovault.no')) {\n  root = 'kodovault.no';\n} else if (host.includes('.')) {\n  root = host.replace(/^[^.]+\\./, '');\n}\nwindow.location.href = `${proto}//${subdomain}.${root}`;\n``` ALTERNATIVT: hardkod 'kodovault.no' siden vi allerede har sjekket `host.endsWith('kodovault.no')`.",
+        "selector": "[data-testid=\"welcome-b2b-continue-btn\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "app/welcome-b2b/[subdomain]/page.tsx — useMemo for setLocale (linje 52-56)",
+        "issue": "MEDIUM — REACT ANTI-PATTERN: useMemo brukes for å trigger en SIDE-EFFECT (setLocale-kall). useMemo er for memoization, ikke side-effects. Konsekvenser: (1) React 18 strict-mode kan discarde memos og kalle dem fler ganger — setLocale-kallet under render kan trigger 'Cannot update a component while rendering a different component'-warning. (2) Hvis setLocale fra i18n-context fører til re-render av Provider, kan dette skape infinite render-loop. (3) Hvis URL-locale-en endres via popstate eller pushState uten unmount, vil useMemo evalueres på nytt og kalle setLocale igjen. FIX: bytt til useEffect: ```ts\nuseEffect(() => {\n  if (isSupportedLocale(urlLocale)) setLocale(urlLocale);\n}, [urlLocale, setLocale]);\n``` Også: oppdater import-linjen fra `import { use, useMemo } from 'react'` til `import { use, useEffect } from 'react'`.",
+        "selector": "N/A",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/am-admin-mpw.test.ts (23/23 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-mpw-store.test.ts (26/26 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-notes-store.test.ts (21/21 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-backup.test.ts (48/48 ✓)",
+    "/app/frontend/lib/__tests__/delete-tenant.test.ts (14/14 ✓)",
+    "/app/frontend/lib/__tests__/b2b-billing.test.ts (16/16 ✓)",
+    "/app/frontend/lib/__tests__/lifecycle-cron.test.ts (33/33 ✓)",
+    "/app/frontend/lib/__tests__/admin-auth.test.ts (17/17 ✓)"
+  ],
+  "action_items": [
+    "FIX (HIGH): welcome-b2b/[subdomain]/page.tsx handleContinue — redirect-host-stripping virker IKKE på apex (kodovault.no) eller www.kodovault.no. Bytt til eksplisitt root-detektering eller hardkod 'kodovault.no'. Uten fix vil B2B-onboarding-redirecten gå til https://<sub>.no (ugyldig URL) i produksjon.",
+    "FIX (MEDIUM): bytt useMemo→useEffect for setLocale-side-effekten i welcome-b2b. useMemo er feil verktøy for side-effects og kan forårsake React strict-mode warnings og potensielle render-loops.",
+    "FIX (LOW): coverage-matrix-lint.test.ts EXEMPT-beskrivelser er INKONSISTENT — spec sa 'alle 15 oppdatert fra kommende Matrise 6 → dekket av Matrise 6 i DECISIONS.md (Iter 20.6)'. Faktisk status: 5/15 sier 'dekket av' (mpw status/setup/route, notes, backup), 10/15 sier fortsatt 'del av' (auth login/logout/me, tenants list/suspend/unsuspend/delete, invites GET-POST/resend, create-org-admin). Også: line 76-77 kommentar sier 'Vil bli del av Matrise 6 ... i Iter 20.5' — utdatert siden Matrise 6 nå ER ferdig i Iter 20.6. Normaliser alle 15 til 'dekket av Matrise 6 i DECISIONS.md (Iter 20.6)' og oppdater kommentar.",
+    "FIX (LOW): DECISIONS.md Matrise 6 test-coverage-raden (linje 3434) sier '132/132 unit-tester (am-admin-mpw 23 + am-admin-mpw-store 26 + am-admin-notes-store 21 + am-admin-backup 48 + delete-tenant 14)'. Spec/faktisk totalt for Iter 20-stacken er 198 unit-tester (legg til b2b-billing 16 + lifecycle-cron 33 + admin-auth 17 = 66 til). Oppdater til 198/198 for ekte coverage-bilde, eller la stå hvis matrisen kun skal dekke am-admin-eksklusive tester.",
+    "INFO: 15 welcome_b2b.* nøkler × 4 språk = 60 strenger (spec sa 14×4=56). Implementasjonen har 1 ekstra nøkkel (next_step_hint). Ikke et problem — kan oppdatere spec-beskrivelsen for nøyaktighet.",
+    "INFO: tidligere iter-16 MEDIUM-bug (MAX_CIPHER_BASE64=10_000 for lav for multi-byte UTF-8 i admin-notes) er FORTSATT ikke addressert i denne 20.6-leveransen. Sjekk om main agent har fikset (verifiser app/api/am-admin/employees/[subdomain]/notes/route.ts linje ~36)."
+  ],
+  "critical_code_review_comments": [
+    "✓ ZERO-KNOWLEDGE INVARIANT (welcome-b2b): pagen er PURE STATIC — ingen fetch-kall, ingen DB-lookup, ingen API-interaksjon. Leser KUN subdomain (route-param) + parent/locale (query-params). Validering skjer via regex (PREFIX_RX/SUBDOMAIN_RX), aldri server-trip. Server kan ikke se hva ansatt blir vist.",
+    "✓ INPUT-VALIDERING (welcome-b2b): SUBDOMAIN_RX og PREFIX_RX brukes til å validere route-param og query før render. Invalid input → 'welcome-b2b-invalid'-skjerm istedenfor crash. parent === '' godtas (åpner for ingen-parent-fallback).",
+    "✓ A11Y: alle 5 lucide-ikoner (ShieldCheck, EyeOff, KeyRound, Download, ArrowRight) har aria-hidden='true' (linje 156, 177). Knappen har tekstinnhold (t('welcome_b2b.btn_continue')) + visuelt ikon. Kontrast: hvit på #0b0e14 = ratio ~16:1 ✓.",
+    "✓ data-testid DEKNING: welcome-b2b-page, welcome-b2b-bullets, welcome-b2b-continue-btn, welcome-b2b-parent-line, welcome-b2b-bullet-1..-4, welcome-b2b-invalid, welcome-b2b-next-step — alle spec-krav dekket + bonus next-step-id.",
+    "✓ INVITE-REDIRECT-HOOK: app/invite/page.tsx:162-166 — etter accept hentes parent fra validate.invite.parentTenant (state.invite, server-validert) og redirecter til `/welcome-b2b/${subdomain}?parent=${parent}&locale=${locale}` med korrekt encodeURIComponent. Ingen URL-injection mulig siden alle parametere er encoded.",
+    "✓ Matrise 6 FILSTIER VERIFISERT: alle 35 entry-point-stier i Matrise 6 (DECISIONS.md:3397-3434) eksisterer på disk. Manuell krysssjekk: 34 unike filer + middleware.ts. Ingen orphan-referanser.",
+    "✓ DASHBOARD-INTEGRASJON: app/platform/am-admin/page.tsx wrapper hele dashboardet i <MpwProvider>. MpwSection + BackupSection rendret på linje 192-193. EmployeeListSection på linje 187 (bruker AdminNotesModal internt via 'Notater'-knappen). Logisk flow: setup MPW → unlock → notater per ansatt → backup-eksport.",
+    "✓ ALLE 198 UNIT-TESTER GRØNNE: 23+26+21+48+14+16+33+17 = 198 ✓. yarn lint:all ✓ (D-069/D-071/D-077/coverage-matrix/i18n-sync). yarn tsc --noEmit ✓.",
+    "✓ I18N 100% SYNC: 1224 nøkler i no/sv/da/en. 15 welcome_b2b.*-nøkler i alle 4 språk. i18n-sync-lint passerer.",
+    "✓ ZERO HARDKODET BRUKERSYNLIG TEKST i welcome-b2b/page.tsx — alle synlige strenger går gjennom t() unntatt logo/brand som ikke vises (intet 'Ko|Do · Vault'-hardkodet). Klassenavnene er rene CSS, ingen menneskelig tekst.",
+    "✓ CROSS-ORG-ISOLASJON KONSISTENT: assertSubdomainBelongsToOrg brukes konsistent i alle am-admin-ruter (verifisert i tidligere iter-16). Validator er aktiv på GET/PUT/DELETE for notes, list/suspend/unsuspend/delete for tenants, og resend/delete for invites.",
+    "✓ TOCTOU LUKKET PÅ MPW-SETUP: setMpwVerifierIfAbsent bruker Redis SETNX atomisk (verifisert iter-16). Test 'TOCTOU-safe' i am-admin-mpw-store.test.ts (26/26 ✓).",
+    "✓ CSV-INJECTION-MITIGERING AKTIV: csvEscape prefikser =/+/-/@/TAB/CR med apostrof (verifisert iter-17 + tests). am-admin-backup.test.ts 48/48 ✓.",
+    "✓ SUPER-ADMIN-GATING på destructive ops: 'Glemt MPW'-reset (DELETE /api/am-admin/mpw) krever super-admin-rolle (verifisert i mpw/route.ts). MpwSection viser reset-knapp kun når isSuperAdmin=true (page.tsx linje 192)."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% statisk — 198/198 unit-tester + 5/5 lint-suites + tsc/build grønt. Ingen backend-issues funnet i Iter 20.6 (welcome-b2b er pure static, ingen API)",
+    "frontend": "90% — 1 HIGH redirect-bug (host-stripping på apex) + 1 MEDIUM React anti-pattern (useMemo for side-effect). Begge er trivielle fixes men HIGH er PROD-blokkerende."
+  },
+  "test_credentials": "N/A — strict static review per direktiv.",
+  "seed_data_creation": "Ingen.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.6 er ALMOST READY for deployment. Blokkerende: HIGH redirect-bug i welcome-b2b/handleContinue — host-stripping `/^[^.]+\\./` gir feil resultat på apex kodovault.no (produserer https://<sub>.no istedenfor https://<sub>.kodovault.no). Dette MÅ fikses før prod-launch siden invite-flow typisk kjører på apex. Også: useMemo→useEffect-bytte for setLocale-side-effekten (anti-pattern). To LOW docs-inkonsistenser (EXEMPT-tekster og Matrise 6 test-count). Iter 20-stacken er ellers 198/198 unit-tester grønne, alle filstier i Matrise 6 verifisert på disk, og dashboard-integrasjonen er korrekt. Etter at HIGH+MEDIUM er fikset er Iter 20 deployment-ready.",
+  "rca of the issue": {
+    "bug": "HIGH — welcome-b2b/handleContinue redirect-logikk produserer ugyldig URL på apex-host",
+    "reproduction": "1) Bruker mottar invite-email med lenke `https://kodovault.no/invite?token=<uuid>`. 2) Bruker åpner lenken på apex-host kodovault.no. 3) Fyller ut form og klikker 'Aktiver konto'. 4) POST /api/invite/accept lykkes. 5) Klient redirecter til `https://kodovault.no/welcome-b2b/amlaw-kari?parent=amlaw&locale=no`. 6) Welcome-pagen rendres på apex (host=kodovault.no). 7) Bruker klikker 'Fortsett →'. 8) handleContinue kjører: host='kodovault.no' (etter www-strip), root = host.replace(/^[^.]+\\./, '') = 'kodovault.no'.replace('kodovault.', '') = 'no'. 9) window.location.href = 'https://amlaw-kari.no'. 10) DNS-resolusjon feiler → bruker ser browser-feil, kan ikke fullføre onboarding.",
+    "mitigation": "Endre handleContinue i app/welcome-b2b/[subdomain]/page.tsx:77-87 til: ```ts\nfunction handleContinue() {\n  const host = window.location.host.replace(/^www\\./, '');\n  const proto = window.location.protocol;\n  if (host === 'kodovault.no' || host.endsWith('.kodovault.no')) {\n    window.location.href = `${proto}//${subdomain}.kodovault.no`;\n  } else {\n    // Lokalt fallback (dev/preview) — bare gå til '/' på samme host\n    window.location.href = '/';\n  }\n}\n``` Dette håndterer både apex (kodovault.no), www (etter strip blir kodovault.no), og enhver eksisterende subdomain på kodovault.no. Lokalt utviklingsmiljø (localhost, preview-deploy URLs) faller til '/' som før."
+  }
+}

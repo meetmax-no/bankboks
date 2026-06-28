@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kontoen er nu slettet</title>
+</head>
+<body style="margin:0;padding:0;background-color:#0a0e1a;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0e1a;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+      <tr><td style="padding-bottom:32px;">
+        <p style="margin:0;font-size:13px;letter-spacing:0.15em;color:#f5a623;text-transform:uppercase;">Ko | Do · Vault</p>
+      </td></tr>
+
+      <tr><td style="padding-bottom:24px;">
+        <h1 style="margin:0;font-size:28px;font-weight:700;color:#ffffff;line-height:1.3;">
+          Hej {{firstName}} — kontoen er nu slettet.
+        </h1>
+      </td></tr>
+
+      <tr><td style="padding-bottom:24px;">
+        <p style="margin:0;font-size:15px;color:#aaaaaa;line-height:1.7;font-weight:300;">
+          Som varslet er din vault (<a href="https://{{subdomain}}.kodovault.no" style="color:#aaaaaa;text-decoration:none;" target="_blank" rel="noopener noreferrer">{{subdomain}}.kodovault.no</a>) nu permanent slettet.
+          Alle krypterede data, sikkerhedskopier og kontooplysninger er fjernet fra vores systemer.
+        </p>
+      </td></tr>
+
+      {{stripeHistoryBlock}}
+
+      <tr><td style="padding-bottom:24px;">
+        <p style="margin:0;font-size:13px;color:#888888;line-height:1.7;">
+          <strong style="color:#ffffff;">Vil du starte forfra?</strong><br>
+          Du kan oprette en ny vault på <a href="https://{{subdomain}}.kodovault.no" style="color:#f5a623;text-decoration:underline;" target="_blank" rel="noopener noreferrer">{{subdomain}}.kodovault.no</a> når du måtte ønske.
+          Nyt subdomæne, ny hovedadgangskode, en frisk start.
+        </p>
+      </td></tr>
+
+      <tr><td style="padding-bottom:24px;">
+        <p style="margin:0 0 6px 0;font-size:15px;color:#ffffff;font-weight:600;line-height:1.3;">
+          Hjælp os med at blive bedre
+        </p>
+        <p style="margin:0 0 14px 0;font-size:14px;color:#cccccc;line-height:1.5;">
+          Hvorfor stoppede du? Det tager under et minut, og er anonymt.
+        </p>
+        <table cellpadding="0" cellspacing="0"><tr>
+          <td style="border-radius:100px;background-color:#f5a623;">
+            <a href="{{exitSurveyUrl}}" style="display:inline-block;padding:10px 24px;color:#0a0e1a;font-size:13px;font-weight:700;text-decoration:none;letter-spacing:0.02em;border-radius:100px;">Svar her →</a>
+          </td>
+        </tr></table>
+      </td></tr>
+
+      <tr>
+        <td style="padding-bottom:24px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="border-top:1px solid rgba(255,255,255,0.08);font-size:0;">&nbsp;</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+
+      <tr><td style="padding-bottom:8px;padding-top:16px;">
+        <p style="margin:0;font-size:14px;color:#ffffff;font-weight:500;">Michael</p>
+        <p style="margin:4px 0 0;font-size:13px;color:#aaaaaa;font-weight:300;">Ko | Do · Consult</p>
+      </td></tr>
+
+      <tr><td style="padding-top:32px;">
+        <p style="margin:0;font-size:12px;color:#aaaaaa;line-height:1.7;">
+          Du modtager denne bekræftelse som sidste meddelelse fra Ko | Do · Vault.<br>
+          Spørgsmål om regnskabsspor? <a href="mailto:support@kodovault.no" style="color:#f5a623;text-decoration:none;">support@kodovault.no</a>
+        </p>
+      </td></tr>
+
+    </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

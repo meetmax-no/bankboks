@@ -1,0 +1,37 @@
+{
+  "summary": "Re-test #2 of zxcvbn password-strength in ChangeMasterDialog. The previous .next/cache blocker IS fixed (CSS now 200, page boots, JS chunks compile). However a DEEPER pre-existing env blocker is now exposed: /api/vault returns 500 because Upstash Redis credentials are missing in this preview env (KV_REST_API_URL / KV_REST_API_TOKEN / UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN — none are set; no /app/frontend/.env exists). Result: vault.status === 'error' → page renders the `data-testid=vault-sync-error` card with 'Server ikke tilgjengelig' / 'Kunne ikke koble til Upstash' and the setup-password-input / login-password-input forms NEVER mount. Therefore ChangeMasterDialog cannot be reached via Playwright. Per the review-request instruction ('IKKE forsøk å fakse en pass'), no test bypass was attempted. The 8/8 acceptance criteria for zxcvbn-strength validation REMAIN verified at the code + runtime level (see iteration_3.json) — no regression suspected, only an env-level blocker for full E2E.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "App boot — vault GET",
+        "issue": "GET /api/vault returns 500 'Failed to parse URL from /pipeline'. Supervisor frontend log shows: '[Upstash Redis] Unable to find environment variable: UPSTASH_REDIS_REST_URL' + 'UPSTASH_REDIS_REST_TOKEN'. /app/frontend/app/api/vault/route.ts:46 uses Redis.fromEnv() which requires KV_REST_API_URL+TOKEN (Vercel Marketplace style) or UPSTASH_REDIS_REST_URL+TOKEN. None are set; no .env file exists in /app/frontend/. This makes vault.status='error' permanently and blocks the rest of the UI.",
+        "affected_selectors": ["vault-sync-error", "vault-retry-btn", "setup-password-input", "login-password-input", "header-settings-btn", "settings-change-master", "cm-current-input", "cm-new-input", "cm-strength", "cm-strength-bar-score-0", "cm-strength-bar-score-1", "cm-strength-bar-score-2", "cm-strength-bar-score-3", "cm-strength-bar-score-4", "cm-strength-text"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "PROVIDE UPSTASH REDIS CREDENTIALS in /app/frontend/.env (or .env.local) so the vault can bootstrap. Required keys: either `KV_REST_API_URL`+`KV_REST_API_TOKEN` (Vercel Marketplace convention used by Redis.fromEnv()) or `UPSTASH_REDIS_REST_URL`+`UPSTASH_REDIS_REST_TOKEN`. After adding, `sudo supervisorctl restart frontend`. Without this no E2E flow that touches the vault (setup, login, settings, change-master) is reachable.",
+    "Alternative path (if Upstash is not available in this preview env): add a dev-only client-side bypass — e.g. `?local=1` query-param or `NEXT_PUBLIC_LOCAL_VAULT=1` env that makes `use-vault` skip the /api/vault GET and short-circuit to `needs-setup` so the zxcvbn integration can be exercised without server storage. Currently there is no such escape hatch in app/page.tsx — the only options are vault-retry-btn or fail.",
+    "After credentials are in place, run the full Playwright suite outlined in the review-request features list (Test 1..Test 6). Implementation has ALREADY been statically + runtime-verified as correct in iteration_3 (8/8 PASS); E2E is the only outstanding verification."
+  ],
+  "critical_code_review_comments": [
+    "ChangeMasterDialog.tsx + lib/password-strength.ts + 4 locale files (no/sv/da/en) remain CORRECT per iteration_3 review. No changes needed at the feature layer.",
+    "Re-confirmed selectors in ChangeMasterDialog.tsx (lines 255-281): cm-strength container is gated by `next.length >= 12 && strength`, cm-strength-bar-score-{0..4} is dynamic from strength.score, cm-strength-text uses tier-mapped i18n keys (strength_too_weak / strength_fair / strength_strong). The submit-button gating (canSubmit, lines 105-112) blocks tooWeak.",
+    "Pre-existing env-config gap: /app/frontend/app/api/vault/route.ts uses Redis.fromEnv() without a runtime guard / friendly bootstrap fallback. The whole app is hard-coupled to Upstash being reachable on every initial GET. Recommend adding a server-side guard that returns a structured 'storage-unavailable' response so the client can offer a local-only mode, OR document the required env-vars in README/.env.example. This is environmental hardening, NOT a regression of this iteration's feature."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (skipped per request)",
+    "frontend": "E2E Playwright: 0/6 executed (blocked at vault-error before setup-password-input renders). Static/runtime verification from iteration_3: 8/8 PASS — unchanged."
+  },
+  "test_credentials": "No /app/memory/test_credentials.md present. TestVaultPass123! cannot be applied because the setup/login form never renders.",
+  "seed_data_creation": "None — could not reach a state where data could be seeded.",
+  "retest_needed": true,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "STATE: zxcvbn implementation has been verified 8/8 PASS at code + runtime level over TWO previous testing iterations (iter_3 and iter_4). The ONLY blocker preventing E2E Playwright verification is the missing Upstash Redis credentials in this preview env. Once main agent supplies KV_REST_API_URL+KV_REST_API_TOKEN (or UPSTASH_REDIS_REST_URL+TOKEN) and restarts frontend: (1) load http://localhost:3000/, (2) fill setup-password-input + setup-confirm-input with 'TestVaultPass123!', tick setup-understood-checkbox, click setup-submit-btn, (3) wait for header-settings-btn → click → settings-tab-security → settings-change-master, (4) cm-current-input = 'TestVaultPass123!', then for each test pwd in cm-new-input wait ~1.5s for 200ms debounce + lazy zxcvbn load, then assert cm-strength + cm-strength-bar-score-{N} + cm-strength-text content. Test strings + expected scores were already verified at the zxcvbn level: '123456789012'=1 weak, 'Sommer2024!'=2 fair, 'korrekt hest batteri stifte'=4 strong, empty/under-12 hides cm-strength. For i18n switch language-flag-en/sv/da/no BEFORE opening dialog.",
+  "rca of the issue": "Root cause of E2E blocker (NOT of the zxcvbn feature, which is fine): /app/frontend/app/api/vault/route.ts:46 calls Redis.fromEnv() at request time. In this preview environment NO Upstash env vars are set and no /app/frontend/.env exists, so the Upstash SDK initializes without url/token and the first vault-fetch on page load throws 'Failed to parse URL from /pipeline'. The client `use-vault` hook then sets status='error' and the whole rest of the UI (including setup, login, settings, and the new ChangeMasterDialog) becomes unreachable. Reproduction: `curl -s http://localhost:3000/api/vault` → 500. Mitigation options listed under action_items: (a) supply Upstash creds, OR (b) add a local-only fallback that bypasses the server on dev preview."
+}

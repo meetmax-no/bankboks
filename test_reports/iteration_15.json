@@ -1,0 +1,73 @@
+{
+  "summary": "STRICTLY STATIC code review of Iter 20.5a + 20.5b (am-admin MPW). All 42 unit tests green, TypeScript noEmit clean, all 5 lint suites pass (D-069 lifecycle, D-071 isolation, D-077 tenant-env, coverage-matrix, i18n-sync 4×1184 keys). Zero-knowledge invariant holds. One UX-critical bug found in MpwSection auto-lock effect.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/am-admin/mpw/setup",
+        "issue": "TOCTOU race: getMpwVerifier()→setMpwVerifier() is non-atomic. Two concurrent setup-requests from different super-admins could both pass the 409-check and the second SET silently overwrites the first verifier (org would lose ALL data previously encrypted under the discarded MPW). Consider SETNX/Lua. Low-probability edge-case since UI flow is single-admin, but worth noting for hardening."
+      },
+      {
+        "endpoint": "POST /api/am-admin/mpw/setup audit-log",
+        "issue": "logEvent uses parent.subdomain looked up via findB2BTenantByPrefix(admin.tenantPrefix). If the parent lookup returns null (e.g. prefix → subdomain mapping drift), the setup STILL succeeds but no audit-event is written — no surfaced warning to user. Wrapped in try/catch which is good, but consider at least a structured warning log."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "MpwSection (the auto-lock useEffect at lines 74-78)",
+        "issue": "CRITICAL UX BUG — auto-lock fires on transient 'loading' status, immediately locking the just-set/unlock'd key. Sequence: handleSubmit → setUnlocked(...) → onClose → handleClose → refresh() → setStatus({phase:'loading'}). React commits with phase='loading' AND isUnlocked=true → effect fires → lock() → user is locked out one frame after unlock. Contradicts the explicit comment in MpwSetupModal.handleSubmit (line 232-233): 'Sett aktiv nøkkel umiddelbart slik at brukeren ikke må unlock'e rett etter setup'. Same bug hits the unlock flow.",
+        "selector": "components/platform/am-admin/MpwSection.tsx:74-78",
+        "priority": "HIGH"
+      },
+      {
+        "component": "MpwSetupModal — canSubmit gating",
+        "issue": "tooWeak = strength !== null && pwd.length >= 12 && strength.score < 3. If user types 12+ chars and clicks submit during the 200ms zxcvbn debounce window (strength still null), canSubmit can be true even for a weak password. Score≥3 invariant is only enforced after first strength compute. Either gate canSubmit on strength !== null, or run a synchronous zxcvbn check just before submit.",
+        "selector": "components/platform/am-admin/MpwSection.tsx:189-193",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/am-admin-mpw.test.ts (23/23 passed)",
+    "/app/frontend/lib/__tests__/am-admin-mpw-store.test.ts (19/19 passed)",
+    "/app/frontend/lib/__tests__/coverage-matrix-lint.test.ts (green)",
+    "/app/frontend/lib/__tests__/isolation-lint.test.ts (green)",
+    "/app/frontend/lib/__tests__/i18n-sync-lint.test.ts (green)"
+  ],
+  "action_items": [
+    "Fix MpwSection auto-lock effect (HIGH): change condition to `if (status.phase === 'none' && isUnlocked) lock();` so it only fires when MPW is actually removed, not on transient loading/error states. Currently the user is auto-locked immediately after setup/unlock, defeating the stated UX goal.",
+    "Tighten MpwSetupModal canSubmit (LOW): require `strength !== null && strength.score >= 3` so the zxcvbn score≥3 invariant is never relaxed during the 200ms debounce window.",
+    "Optional hardening: make POST /api/am-admin/mpw/setup atomic (SETNX/Lua) to close the concurrent-setup TOCTOU window.",
+    "Optional: zxcvbn 12-char minimum + score≥3 + 'I understand' + double input + per-locale type-to-confirm strings are all verified present. i18n is 100% in sync across no/sv/da/en (34 keys each — note: problem statement said 35 but actual count is 34 and 4 locales match; no missing-key drift)."
+  ],
+  "critical_code_review_comments": [
+    "Zero-knowledge invariant VERIFIED: server-side code in /api/am-admin/mpw/{status,setup,route} contains zero `password|pwd` references except a single docstring comment. Client only sends `{ envelope }` over the wire — pwd state is read-only on-client in createMpwVerifier/verifyMpw.",
+    "PBKDF2 600 000 iterations + AES-GCM 256/12-byte IV/16-byte salt matches stated B2C-vault parity (MPW_PBKDF2_ITERATIONS constant exported for cross-module consistency).",
+    "DELETE /api/am-admin/mpw correctly gated by requireSuperAdmin (verifies admin.role === 'super-admin'). UI mirrors this by only rendering the 'Glemt MPW?'-button when MpwSection is passed isSuperAdmin=true.",
+    "MpwContext keeps CryptoKey only in React useState + useRef (no localStorage/sessionStorage usage anywhere in the MPW module — grep confirmed). CryptoKey is derived with extractable=false → cannot be exported even if a memory dump is taken. lock() explicitly nulls both ref and state. Unmount triggers normal GC.",
+    "MpwResetModal locale-specific type-to-confirm strings VERIFIED: no=SLETT MPW, sv=RADERA MPW, da=SLET MPW, en=DELETE MPW. Match comes from t('am_admin_mpw.reset_required_text') and is compared via .trim() === requiredText, so leading/trailing whitespace tolerated but case-sensitive (correct).",
+    "All 3 new API routes pin `runtime = 'nodejs'` + `dynamic = 'force-dynamic'` — Edge runtime won't accidentally pick them up.",
+    "lib/platform/am-admin-mpw-store.ts validates tenantPrefix via the documented regex /^[a-z][a-z0-9-]{0,30}[a-z0-9]$/ in all 4 exports (get/set/delete/has). lowercase()'d before both validation and key-construction (idempotent). isMpwEnvelope type-guard is invoked on both write (defensive) and read (recovery from corrupt blobs returns null instead of throwing).",
+    "Type-guard isMpwEnvelope is comprehensive: tests cover null, undefined, primitives, wrong version, wrong field types, missing iterations — 8 type-guard tests all green.",
+    "ProvisioningStage extended with am_admin_mpw_setup + am_admin_mpw_reset — used by audit-log calls in the routes. Coverage-matrix-lint passes with 3 new EXEMPT entries as expected."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (42/42 unit tests + 5/5 lint suites + tsc --noEmit clean)",
+    "frontend": "Static review only — 1 HIGH UX bug + 1 LOW gating bug found"
+  },
+  "test_credentials": "N/A — no E2E performed (pod lacks Upstash creds, per instructions).",
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.5a (crypto + store) + 20.5b (API + UI) are STATICALLY clean. Next agent should focus on (a) re-verifying the auto-lock fix in MpwSection.tsx:74-78, (b) confirming canSubmit gating on strength!==null, (c) optionally adding an integration test with mocked Upstash for the setup→409→delete→setup-again flow. Iter 20.5c (per-employee adminNotes) + 20.5d (CSV backup) are NOT yet implemented — Upstash-creds-blocker prevents any E2E in this pod.",
+  "rca of the issue": {
+    "bug": "MpwSection auto-lock fires on transient loading status",
+    "reproduction": "1) Implementer setup-flow med valid pwd ≥ 12 chars + match + checkbox + 'I understand'. 2) handleSubmit → POST /api/am-admin/mpw/setup → 201 OK. 3) setUnlocked({key, salt, iterations}) committed. 4) onClose → handleClose → refresh() → setStatus({phase:'loading'}). 5) React render-commit with status.phase='loading' AND isUnlocked=true. 6) useEffect at line 74-78 evaluates `status.phase !== 'set' && isUnlocked` → true → lock() invoked → ref+state nullet. 7) refresh() async-fetcher completes → setStatus({phase:'set'}) but isUnlocked is now false. User must immediately click 'Lås opp' and re-enter password — directly contradicting the stated UX goal.",
+    "mitigation": "Endre line 75 fra `if (status.phase !== 'set' && isUnlocked)` til `if (status.phase === 'none' && isUnlocked)`. Da fires effect KUN når MPW faktisk er fjernet (etter reset), ikke under loading/error. Alternativt: la `refresh()` slippe initial setStatus({phase:'loading'}) hvis status allerede er 'set' (optimistisk refresh)."
+  }
+}

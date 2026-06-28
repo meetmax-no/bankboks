@@ -1,0 +1,32 @@
+{
+  "summary": "Static code-review (no E2E, per explicit user directive — K8s preview pod lacks Upstash creds, /api/vault returns 500; same approach as iter_3/iter_4) of Iter 19.9.7 locale-fix to admin-tenant flows. All 7 acceptance criteria from the review-request VERIFIED at code level. LocaleRadioGroup is correctly reused 1:1 from Iter 19.9 (no duplication). Both TenantViewer create-modal and PaymentLinkModal now require an explicit locale-choice before submit. i18n key `admin_tenants.error_locale_required` exists on all 4 locale files. All 4 locale files have synchronized key-count (1069). Backend routes already accept/propagate `locale` field. No regressions detected.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "VERIFIED — TenantViewer.tsx:44 imports LocaleRadioGroup from existing component path (no duplicate component created). CreateFormState (l.68-102) extended with `locale: 'no'|'sv'|'da'|'en'|null`. EMPTY_FORM (l.104-135) initialises `locale: null` so admin must make an explicit choice — no default to 'no'.",
+    "VERIFIED — TenantViewer.tsx onCreate (l.232-251): locale-guard placed BEFORE setCreateBusy(true) and BEFORE fetch. Sets `createError = t('admin_tenants.error_locale_required')` then returns. Payload (l.250) carries `locale: createForm.locale`. Submit-button (l.3021) disabled when `!form.subdomain || !form.email || !form.locale`. LocaleRadioGroup render (l.2975-2981) is wrapped in col-span-2 between lifecycle-emails and notes — matches the spec position.",
+    "VERIFIED — PaymentLinkModal.tsx imports (l.19-23) bring in LocaleRadioGroup + Locale type. Local form-state (l.56-68) has `locale: null as Locale | null`. onSubmit (l.76-110): guard at l.80-85 calls setError, setBusy(false), returns BEFORE fetch — payload at l.91 (`JSON.stringify(form)`) carries locale automatically. closeAndReset (l.123-139) resets locale to null. LocaleRadioGroup render (l.271-275) sits AFTER notes and BEFORE the error-block exactly per spec. Submit-button (l.297) disabled when `busy || !form.subdomain || !form.email || !form.locale`.",
+    "VERIFIED — Backend chain intact: lib/platform/tenant-types.ts l.213 declares `locale?: 'no'|'sv'|'da'|'en'` in CreateTenantInput; l.354 `locale: input.locale ?? null` in buildTenantRecord. app/api/admin/tenants/route.ts:106 propagates `body as CreateTenantInput` → createTenant() → buildTenantRecord — locale flows through. app/api/admin/create-payment-link/route.ts:52 (PaymentLinkRequestBody.locale) + l.106 (`locale: body.locale` inside CreateTenantInput) wires the field end-to-end.",
+    "VERIFIED — i18n: `admin_tenants.error_locale_required` present in all 4 locale files (no.json:1068, sv.json:1068, da.json:1069, en.json:1070). All four files report 1069 keys total — perfectly synced (matches the 1065 in the request description ±4 minor diffs from inline counting, but all four equal). `register.field_locale` is unchanged from Iter 19.9 and reused in both modals with identical label-text.",
+    "VERIFIED — LocaleRadioGroup itself (components/platform/LocaleRadioGroup.tsx) is untouched — same file, same Props (`value: Locale|null, onChange, disabled?, label`), same 4 hard-coded OPTIONS. Both new call-sites pass the same `value/onChange/label` triplet — no prop-mismatch. No new copy of the component anywhere under components/.",
+    "MINOR (non-blocking, optional hardening — NOT regressions of this iter): (1) PaymentLinkModal.onSubmit calls `setBusy(true)` on l.78 BEFORE the locale-guard on l.81-85, causing a 1-tick busy-flicker if the submit was ever triggered without locale. The submit-button is already disabled in that state so it's only reachable via Enter on a bare form — cosmetic only. Optional fix: move setBusy(true) below the guard. (2) Neither backend route (/api/admin/tenants, /api/admin/create-payment-link) explicitly whitelists `body.locale` against ['no','sv','da','en'] — they trust the client. Since both are admin-gated and the form is the only entry-point, low risk; but adding a 1-line validator (`if (body.locale && !['no','sv','da','en'].includes(body.locale)) return 400`) would harden against tampering.",
+    "BUILD STATUS — per the review-request meta, yarn tsc --noEmit + yarn next build + yarn lint:all are all green; no compile errors observable from the file contents reviewed."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (skipped per user directive)",
+    "frontend": "Code-review only: 7/7 acceptance criteria VERIFIED. 0 issues."
+  },
+  "test_credentials": "Not applicable — no runtime testing performed per user directive.",
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 19.9.7 locale-fix is code-correct. If a future iteration unblocks the Upstash env (KV_REST_API_URL/TOKEN), a real E2E playwright run would: (a) open admin → tenants → 'Opprett ny tenant' → verify [data-testid=locale-radio-group] sits between lifecycle-checkbox and notes-field, attempt submit WITHOUT picking a locale → expect submit-btn disabled + (if forced) [data-testid=tenant-create-error] shows the error_locale_required text, then pick locale-radio-input-en → submit-btn enabled → POST to /api/admin/tenants succeeds with locale=en. (b) open admin → 'Send betalingslink' → same gating but error appears in [data-testid=payment-link-error]; payload posts locale=en. Repeat for each of the 4 locale options.",
+  "rca of the issue": "N/A — this iteration is a static code-review of a feature implementation, not a bug-fix verification. The original bug (admin-flows lacked locale picker → tenant.locale=null forever → lifecycle-mailer fell back to NO) is correctly addressed: client-side mandatory picker + onSubmit guard + submit-btn disabled + payload propagation + backend storage of input.locale in buildTenantRecord. Defense in depth would add server-side enum-whitelisting (see minor comment 2) but that is optional and not blocking."
+}

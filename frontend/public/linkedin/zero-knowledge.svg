@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <!-- Venstre side: kald, mørk (hva serveren ser) -->
+    <linearGradient id="serverBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0e1a"/>
+      <stop offset="100%" stop-color="#1a1f2e"/>
+    </linearGradient>
+
+    <!-- Høyre side: varm, lys (hva du ser) -->
+    <linearGradient id="userBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f2138"/>
+      <stop offset="100%" stop-color="#1e3a5f"/>
+    </linearGradient>
+
+    <!-- Glass for paneler -->
+    <linearGradient id="glassDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.08)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
+    </linearGradient>
+
+    <linearGradient id="glassLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.15)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.05)"/>
+    </linearGradient>
+
+    <linearGradient id="keyGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Bakgrunn: split i to -->
+  <rect x="0" y="0" width="800" height="900" fill="url(#serverBg)"/>
+  <rect x="800" y="0" width="800" height="900" fill="url(#userBg)"/>
+
+  <!-- Subtil delelinje -->
+  <line x1="800" y1="0" x2="800" y2="900" stroke="rgba(251,191,36,0.3)" stroke-width="2"/>
+
+  <!-- Tittel -->
+  <text x="800" y="80" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="38" font-weight="700" fill="#ffffff" letter-spacing="-1">
+    Zero-Knowledge, visualisert
+  </text>
+  <text x="800" y="115" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="16" font-weight="400" fill="rgba(255,255,255,0.55)" letter-spacing="2">
+    SAMME DATA · TO VERDENER · DU EIER NØKKELEN
+  </text>
+
+  <!-- ============== VENSTRE: HVA SERVEREN SER ============== -->
+  <g>
+    <!-- Header-pille -->
+    <rect x="60" y="160" width="280" height="50" rx="25" fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.4)" stroke-width="1.5"/>
+    <text x="200" y="192" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="16" font-weight="700" fill="#fca5a5" letter-spacing="1">
+      🚫 HVA SERVEREN SER
+    </text>
+
+    <!-- Sub-tittel -->
+    <text x="60" y="245" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">
+      UPSTASH REDIS · vault:default
+    </text>
+
+    <!-- "Code"-panel med kryptert blob -->
+    <rect x="60" y="265" width="680" height="540" rx="14" fill="url(#glassDark)" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+
+    <!-- Editor header dots -->
+    <circle cx="85" cy="290" r="5" fill="#ef4444"/>
+    <circle cx="103" cy="290" r="5" fill="#f59e0b"/>
+    <circle cx="121" cy="290" r="5" fill="#10b981"/>
+    <text x="400" y="294" text-anchor="middle" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.4)">
+      encrypted-blob.json
+    </text>
+
+    <line x1="60" y1="310" x2="740" y2="310" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+
+    <!-- Kode (kryptert ulesbar tekst) -->
+    <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="rgba(255,255,255,0.55)">
+      <text x="80" y="345">{</text>
+      <text x="100" y="370">  <tspan fill="#a78bfa">"version"</tspan>: 1,</text>
+      <text x="100" y="395">  <tspan fill="#a78bfa">"salt"</tspan>: <tspan fill="#fbbf24">"k7Hd3p2NfQ8eL9..."</tspan>,</text>
+      <text x="100" y="420">  <tspan fill="#a78bfa">"iv"</tspan>: <tspan fill="#fbbf24">"x9Mz3kQ7BvR2"</tspan>,</text>
+      <text x="100" y="445">  <tspan fill="#a78bfa">"iterations"</tspan>: 600000,</text>
+      <text x="100" y="475">  <tspan fill="#a78bfa">"cipher"</tspan>: <tspan fill="#fbbf24">"</tspan></text>
+    </g>
+
+    <!-- "Ulesbar krypt-tekst" - mange linjer -->
+    <g font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="11" fill="rgba(251,191,36,0.55)">
+      <text x="100" y="500">    f8h3k9m2N4QpR7vS9wXyL3bC8dF2gH6jK4nP8qT</text>
+      <text x="100" y="520">    R5vY9zA2bD4eF7gH9jK2lM5nP7qS9tU2vW4xY6</text>
+      <text x="100" y="540">    A8bC2dE4fG7hJ9kL2mN4pQ7rS9tU2vW4xY6zA8</text>
+      <text x="100" y="560">    bC2dE4fG7hJ9kL2mN4pQ7rS9tU2vW4xY6zA8bC</text>
+      <text x="100" y="580">    2dE4fG7hJ9kL2mN4pQ7rS9tU2vW4xY6zA8bCdE</text>
+      <text x="100" y="600">    4fG7hJ9kL2mN4pQ7rS9tU2vW4xY6zA8bCdE4fG</text>
+      <text x="100" y="620">    7hJ9kL2mN4pQ7rS9tU2vW4xY6zA8bCdE4fG7hJ</text>
+      <text x="100" y="640">    ... 47kB av kryptert binær ...</text>
+    </g>
+
+    <text x="100" y="675" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="#fbbf24">
+      "
+    </text>
+    <text x="80" y="700" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="13" fill="rgba(255,255,255,0.55)">
+      }
+    </text>
+
+    <!-- Status-linjer i bunn av panel -->
+    <g transform="translate(60, 745)">
+      <rect x="0" y="0" width="680" height="46" rx="10" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.2)" stroke-width="1"/>
+      <text x="20" y="20" font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="#fca5a5" font-weight="600">
+        ❌ Ingen lesbare felt
+      </text>
+      <text x="20" y="38" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(252,165,165,0.7)">
+        Selv Upstash, Vercel og hostere kan ikke se passord, brukernavn, URLer eller titler
+      </text>
+    </g>
+  </g>
+
+  <!-- ============== HØYRE: HVA DU SER ============== -->
+  <g>
+    <!-- Header-pille -->
+    <rect x="1260" y="160" width="280" height="50" rx="25" fill="rgba(16,185,129,0.18)" stroke="rgba(16,185,129,0.5)" stroke-width="1.5"/>
+    <text x="1400" y="192" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="16" font-weight="700" fill="#6ee7b7" letter-spacing="1">
+      ✓ HVA DU SER
+    </text>
+
+    <text x="860" y="245" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="rgba(255,255,255,0.4)" letter-spacing="1.5">
+      KO|DO VAULT · etter dekryptering i nettleseren
+    </text>
+
+    <!-- Vault-liste mockup -->
+    <rect x="860" y="265" width="680" height="540" rx="14" fill="url(#glassLight)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+
+    <!-- Mock-entries -->
+    <g font-family="-apple-system, system-ui, sans-serif">
+      <!-- Entry 1 — Github -->
+      <g transform="translate(880, 290)">
+        <rect x="0" y="0" width="640" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <circle cx="34" cy="34" r="18" fill="#1e293b"/>
+        <text x="34" y="40" text-anchor="middle" font-size="18">⚙️</text>
+        <text x="68" y="28" font-size="15" font-weight="700" fill="#ffd700">⭐</text>
+        <text x="92" y="29" font-size="15" font-weight="600" fill="white">GitHub · Personal</text>
+        <text x="68" y="50" font-size="12" fill="rgba(255,255,255,0.55)">mike@kodo.no</text>
+        <text x="68" y="62" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.35)">••••••••••••••••</text>
+        <rect x="540" y="22" width="80" height="22" rx="11" fill="rgba(96,165,250,0.2)" stroke="rgba(96,165,250,0.4)" stroke-width="1"/>
+        <text x="580" y="37" text-anchor="middle" font-size="10" fill="#93c5fd" font-weight="600">💼 Jobb</text>
+      </g>
+
+      <!-- Entry 2 — Pass -->
+      <g transform="translate(880, 370)">
+        <rect x="0" y="0" width="640" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <circle cx="34" cy="34" r="18" fill="#1e293b"/>
+        <text x="34" y="40" text-anchor="middle" font-size="18">🛂</text>
+        <text x="68" y="28" font-size="15" font-weight="700" fill="#ffd700">⭐</text>
+        <text x="92" y="29" font-size="15" font-weight="600" fill="white">Pass · Norge 🇳🇴</text>
+        <text x="68" y="50" font-size="12" fill="rgba(255,255,255,0.55)">Utløper: 2031-08-14</text>
+        <text x="68" y="62" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.35)">Pass-nr: ••••••••</text>
+        <rect x="540" y="22" width="80" height="22" rx="11" fill="rgba(74,222,128,0.2)" stroke="rgba(74,222,128,0.4)" stroke-width="1"/>
+        <text x="580" y="37" text-anchor="middle" font-size="10" fill="#86efac" font-weight="600">🏠 Personlig</text>
+      </g>
+
+      <!-- Entry 3 — DnB -->
+      <g transform="translate(880, 450)">
+        <rect x="0" y="0" width="640" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <circle cx="34" cy="34" r="18" fill="#1e293b"/>
+        <text x="34" y="40" text-anchor="middle" font-size="18">🏦</text>
+        <text x="92" y="29" font-size="15" font-weight="600" fill="white">DnB Nettbank</text>
+        <text x="68" y="50" font-size="12" fill="rgba(255,255,255,0.55)">123 45 67890</text>
+        <text x="68" y="62" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.35)">PIN: ••••</text>
+        <rect x="540" y="22" width="80" height="22" rx="11" fill="rgba(245,158,11,0.2)" stroke="rgba(245,158,11,0.4)" stroke-width="1"/>
+        <text x="580" y="37" text-anchor="middle" font-size="10" fill="#fcd34d" font-weight="600">🏦 Bank</text>
+      </g>
+
+      <!-- Entry 4 — Kjørekort -->
+      <g transform="translate(880, 530)">
+        <rect x="0" y="0" width="640" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <circle cx="34" cy="34" r="18" fill="#1e293b"/>
+        <text x="34" y="40" text-anchor="middle" font-size="18">🚗</text>
+        <text x="92" y="29" font-size="15" font-weight="600" fill="white">Førerkort</text>
+        <text x="68" y="50" font-size="12" fill="rgba(255,255,255,0.55)">Klasse B · Utstedt 2018</text>
+        <text x="68" y="62" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.35)">Nr: ••••••••</text>
+        <rect x="540" y="22" width="80" height="22" rx="11" fill="rgba(74,222,128,0.2)" stroke="rgba(74,222,128,0.4)" stroke-width="1"/>
+        <text x="580" y="37" text-anchor="middle" font-size="10" fill="#86efac" font-weight="600">🏠 Personlig</text>
+      </g>
+
+      <!-- Entry 5 — Apple ID -->
+      <g transform="translate(880, 610)">
+        <rect x="0" y="0" width="640" height="68" rx="10" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+        <circle cx="34" cy="34" r="18" fill="#1e293b"/>
+        <text x="34" y="40" text-anchor="middle" font-size="18">🍎</text>
+        <text x="92" y="29" font-size="15" font-weight="600" fill="white">Apple ID</text>
+        <text x="68" y="50" font-size="12" fill="rgba(255,255,255,0.55)">mike@icloud.com</text>
+        <text x="68" y="62" font-family="ui-monospace, Menlo, monospace" font-size="11" fill="rgba(255,255,255,0.35)">••••••••••••••••</text>
+        <rect x="540" y="22" width="80" height="22" rx="11" fill="rgba(167,139,250,0.2)" stroke="rgba(167,139,250,0.4)" stroke-width="1"/>
+        <text x="580" y="37" text-anchor="middle" font-size="10" fill="#c4b5fd" font-weight="600">👥 Sosial</text>
+      </g>
+
+      <!-- "+ N flere" -->
+      <text x="1200" y="710" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(255,255,255,0.35)">
+        + 87 oppføringer til
+      </text>
+    </g>
+
+    <!-- Status-linje bunn -->
+    <g transform="translate(860, 745)">
+      <rect x="0" y="0" width="680" height="46" rx="10" fill="rgba(16,185,129,0.1)" stroke="rgba(16,185,129,0.25)" stroke-width="1"/>
+      <text x="20" y="20" font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="#6ee7b7" font-weight="600">
+        ✓ Klartekst kun i nettleser-minnet
+      </text>
+      <text x="20" y="38" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(110,231,183,0.7)">
+        Auto-låst etter 15 min · utklippstavlen tømmes etter 30 sek · ingen lokal lagring
+      </text>
+    </g>
+  </g>
+
+  <!-- ============== SENTRAL NØKKEL ============== -->
+  <g transform="translate(800, 470)">
+    <!-- Stor sirkel-bakgrunn -->
+    <circle r="70" fill="rgba(251,191,36,0.1)" stroke="rgba(251,191,36,0.4)" stroke-width="2"/>
+    <circle r="55" fill="url(#keyGrad)" filter="url(#glow)"/>
+
+    <!-- Nøkkel-symbol -->
+    <g transform="translate(0, 0)" fill="white">
+      <circle cx="-12" cy="0" r="14" fill="none" stroke="white" stroke-width="4"/>
+      <line x1="2" y1="0" x2="22" y2="0" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      <line x1="14" y1="0" x2="14" y2="8" stroke="white" stroke-width="4" stroke-linecap="round"/>
+      <line x1="20" y1="0" x2="20" y2="6" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    </g>
+
+    <text y="100" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="14" font-weight="700" fill="#fbbf24" letter-spacing="2">
+      DITT MASTER-PASSORD
+    </text>
+    <text y="120" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(251,191,36,0.7)">
+      Nøkkelen som åpner høyre side
+    </text>
+  </g>
+
+  <!-- Footer -->
+  <text x="800" y="860" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(255,255,255,0.35)" letter-spacing="3">
+    Ko|Do · Vault — LEAN SECURITY, IKKE SECURITY-AS-A-SERVICE
+  </text>
+</svg>

@@ -1,0 +1,36 @@
+{
+  "summary": "Iter 19.9.13 static review — coverage-matrix-lint integration into yarn lint:all. Verified all 10 testpoints via static code-review + lint-execution (no Playwright/app-start per K8s preview constraints — same as iter_3..iter_8). All 4 ADR-lints green at 1.47s, lint:coverage-matrix isolated green at 0.26s, orphan-detection sanity-check confirmed (removed one path → exit 1 with correct error; restored → green).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_results": {
+    "1_lint_all_chain": "PASS — package.json:15 chains all 4 lints with && (not ||): 'yarn lint:d069 && yarn lint:isolation && yarn lint:tenant-env && yarn lint:coverage-matrix'. All 4 ran sequentially and all 4 passed (exit 0). Total wall-time 1.588s (matches reported 1.47s).",
+    "2_isolated_coverage_matrix": "PASS — `yarn lint:coverage-matrix` exit 0. Output: '✓ Coverage-matrix-lint grønt — alle ruter dekket eller exempt'. Scanned 22 routes, 31 path-references in DECISIONS.md, 15 EXEMPT entries.",
+    "3_exempt_15_entries": "PASS — EXEMPT_ROUTES counted 15 entries (lint output confirms '15 ruter på EXEMPT-listen'). Line 73: 'app/api/cron/cleanup-pending/route.ts': 'B2B invite-utløp (expiresAt < now → status=expired) — del av invite-flyt, vurder Matrise når Iter 20 ferdig' — matches spec exactly (same begrunnelse-mønster som /api/admin/invites/* på linje 71-72).",
+    "4_matrise1_admin_row": "PASS — DECISIONS.md:3304 'Backend-API admin' viser `app/api/admin/tenants/route.ts`, `app/api/admin/create-payment-link/route.ts` (full kanonisk path med .ts-suffix).",
+    "5_matrise1_kanonisk_row": "PASS — DECISIONS.md:3303 'Backend-API kanonisk' viser `app/api/register/route.ts`, `app/api/register/paid/route.ts`, `app/api/invite/accept/route.ts`.",
+    "6_matrise2_gdpr_rows": "PASS — DECISIONS.md:3333 Selvbetjent: `components/DeleteAccountDialog.tsx` → `app/api/account/delete/route.ts`. Line 3334 Admin: `components/platform/TenantViewer.tsx` → `app/api/admin/tenants/[subdomain]/route.ts` DELETE.",
+    "7_four_route_categories": "PASS — Sanity-check utført: midlertidig fjernet `app/api/account/delete/route.ts` fra DECISIONS.md → lint exit 1 med korrekt feilmelding 'ruter er hverken i DECISIONS.md-matriser eller på EXEMPT-listen'. Restaurert → grønt igjen. Bekrefter at orphan-detection fungerer. Dead-exempt-sjekk er også implementert (linje 156-161 i lint-skriptet).",
+    "8_package_json_entries": "PASS — package.json:14 'lint:coverage-matrix': 'tsx lib/__tests__/coverage-matrix-lint.test.ts'. Line 15 lint:all chain rekkefølge stemmer eksakt: d069 → isolation → tenant-env → coverage-matrix.",
+    "9_build_time_unchanged": "PASS — Total lint:all wall-time 1.588s (real). Lint er tsx-utførelse av et 209-linjers test-skript, ingen build-konsekvens, ingen Next.js touch.",
+    "10_backward_compat": "PASS — lint:d069 (linje 11), lint:isolation (linje 12), lint:tenant-env (linje 13) er uendret og kjørbare individuelt. Kun lint:all er utvidet."
+  },
+  "critical_code_review_comments": [
+    "Lint-skriptet er solid skrevet: bruker både backtick-regex og naive plain-text regex som defensive fallback for å fange path-referanser i ulike markdown-formater. Dual orphan + dead-exempt-sjekk gir cleanup-press.",
+    "EXEMPT_ROUTES-listen er nå på 15 oppføringer — selv kommentar i lint-headeren (linje 26-27) sier 'Hvis listen vokser over ~15 ruter, vurder om malen er for streng'. Vi er nå på grensen — anbefal at Iter 20 invite-flyt-matrise (planlagt) flytter de 3 invite-relaterte EXEMPT-entries (linje 71-73) inn i ny matrise, så listen krymper tilbake til ~12.",
+    "Liten observasjon: lint-skriptet bruker `execSync('find ...')` (linje 87) som er Unix-spesifikt. Ikke et issue for CI/Linux/macOS, men verdt å notere hvis noen kjører Windows-dev. Lavt prioritet — kan ignoreres."
+  ],
+  "test_report_links": ["/app/frontend/lib/__tests__/coverage-matrix-lint.test.ts", "/app/frontend/package.json", "/app/memory/DECISIONS.md"],
+  "action_items": [],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (10/10 testpoints PASS via static review + lint-execution + orphan-sanity-check)"},
+  "test_credentials": "N/A — kun kode-review/lint-execution.",
+  "seed_data_creation": "Ingen — kun midlertidig sed-edit av DECISIONS.md for orphan-sanity-check, full restaurering verifisert (grønt etter restore).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 19.9.13 ferdig: coverage-matrix-lint integrert i yarn lint:all, alle 4 ADR-lints kjeder grønt på 1.47s. Forrige iter (iter_8) 6/6 PASS. K8s preview-blocker (Upstash-creds) gjelder fortsatt — kun statisk review/lint-execution mulig, ingen Playwright. Neste iter (sannsynlig Iter 20 B2B-invite-flyt) bør vurdere å lage egen Matrise 4 for invite-flyt slik at de 3 EXEMPT-entries (admin/invites/route.ts, admin/invites/[token]/route.ts, cron/cleanup-pending/route.ts) flyttes inn i matrise og EXEMPT-listen krymper.",
+  "rca of the issue": "Ingen issues funnet. Iter 19.9.13 leveranse er komplett og verifisert."
+}

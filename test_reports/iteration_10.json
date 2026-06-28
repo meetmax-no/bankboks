@@ -1,0 +1,32 @@
+{
+  "summary": "Static code review of Iter 19.9.14 (vercel-build pre-build-hook via package.json). Verified package.json scripts-blokk er korrekt strukturert (vercel-build entry på linje 9 med yarn lint:all && next build, fail-fast &&, build uendret på linje 8). KRITISK FUNN: vercel.json:4 har eksplisitt 'buildCommand': 'next build' som OVERSTYRER package.json's vercel-build-script per Vercel-konvensjon — lint-kjeden kjøres IKKE på Vercel-deploy. Hovedagentens antagelse om at 'ingen vercel.json-endring nødvendig' er feil for denne kodebasen.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Vercel build pipeline (lint pre-build-hook)",
+        "issue": "vercel.json:4 setter eksplisitt 'buildCommand': 'next build', som per Vercel-dokumentasjonen overstyrer vercel-build-scriptet i package.json. Effekt: yarn lint:all kjøres ALDRI på Vercel-deploy, kun ved lokal `yarn vercel-build` eller CI. Regression-guard for nye ruter uten matrise-referanse er dermed INAKTIV på Vercel-pipelinen — Vercel vil bygge og deploye selv om lint:coverage-matrix feiler.",
+        "affected_selectors": ["/app/frontend/vercel.json:4", "/app/frontend/package.json:9"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX vercel.json: endre linje 4 til '\"buildCommand\": \"yarn vercel-build\"' ELLER '\"buildCommand\": \"yarn lint:all && next build\"' ELLER fjern buildCommand-linjen helt (da plukker Vercel opp vercel-build-scriptet automatisk per default-konvensjon). Uten denne endringen er Iter 19.9.14 funksjonelt en no-op for Vercel-deploy.",
+    "Verifiser fix lokalt ved å sjekke vercel CLI output (vercel build) eller via deploy-preview-logs at lint:d069/isolation/tenant-env/coverage-matrix faktisk kjøres før next build."
+  ],
+  "critical_code_review_comments": [
+    "Hovedagentens kontekst-note pkt 5 ('Ingen vercel.json-endring nødvendig') er feil for denne kodebasen siden vercel.json eksisterer med eksplisitt buildCommand. Vercel-auto-detect av vercel-build gjelder kun når buildCommand er unset i både vercel.json og dashboard.",
+    "Selve package.json-endringen (vercel-build-entry) er korrekt strukturert: &&-kjede gir fail-fast, build-scriptet er bevart uendret for lokal dev-iterasjon, lint:all chainer alle 4 lints korrekt med && (linje 16). Backward-compat ivaretatt.",
+    "Anbefaling: Når fix lander, vurder også å fjerne 'buildCommand' fra vercel.json helt og la package.json være single source of truth — reduserer config-divergens-risiko."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "50% (package.json korrekt, vercel.json blokkerer effekten)"},
+  "seed_data_creation": "Ingen — kun statisk kode-review per brukers forbud mot app-start/Playwright.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 19.9.14 forsøkte å koble lint:all som Vercel pre-build-hook via package.json vercel-build-entry. Endringen i package.json er korrekt, men vercel.json:4 har 'buildCommand': 'next build' som overstyrer Vercel's auto-detect av vercel-build. Hovedagent må enten (a) oppdatere vercel.json buildCommand til 'yarn vercel-build' / 'yarn lint:all && next build', eller (b) fjerne buildCommand-linjen for å aktivere auto-detect. Lokal `yarn vercel-build` fungerer (25.78s grønt per hovedagent-måling), men Vercel deploy-pipelinen kjører fortsatt kun `next build` uten lint-fase.",
+  "rca of the issue": "ROOT CAUSE: Vercel platform precedence rule — når 'buildCommand' er eksplisitt definert i vercel.json (eller dashboard), ignoreres 'vercel-build'-scriptet i package.json. Vercel-build er en FALLBACK-mekanisme, ikke en additiv hook. REPRO: 1) sjekk /app/frontend/vercel.json linje 4 -> 'buildCommand': 'next build'. 2) Vercel deploy vil kjøre `next build` direkte, ikke `yarn vercel-build`. 3) yarn lint:all kjøres aldri på Vercel. MITIGATION: Endre vercel.json:4 til '\"buildCommand\": \"yarn lint:all && next build\"' (eksplisitt, mest robust) eller '\"buildCommand\": \"yarn vercel-build\"' (DRY mot package.json) eller fjern linjen helt (auto-detect av vercel-build). Re-verifiser med en test-deploy eller `vercel build` lokalt."
+}

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8" />
+<title>Ko|Do Vault — Lean Security · Produkt-flyer</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    color: #1a202c;
+    line-height: 1.55;
+    font-size: 10.5pt;
+    background: #fff;
+  }
+
+  .page {
+    max-width: 178mm;
+    margin: 0 auto;
+    padding: 0;
+  }
+
+  .page + .page {
+    page-break-before: always;
+  }
+
+  h1 {
+    font-size: 22pt;
+    font-weight: 700;
+    margin: 0;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+  }
+
+  h2.tagline {
+    font-size: 11pt;
+    font-weight: 500;
+    color: #475569;
+    margin: 2mm 0 6mm 0;
+    letter-spacing: 0.02em;
+  }
+
+  h3 {
+    font-size: 12pt;
+    font-weight: 700;
+    margin: 6mm 0 2mm 0;
+    color: #0f172a;
+  }
+
+  h4 {
+    font-size: 10.5pt;
+    font-weight: 700;
+    margin: 4mm 0 1mm 0;
+    color: #0f172a;
+  }
+
+  p {
+    margin: 0 0 3mm 0;
+  }
+
+  .lead {
+    font-size: 11pt;
+    color: #334155;
+    margin-bottom: 4mm;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 3mm;
+    margin-bottom: 4mm;
+  }
+
+  .header-brand {
+    font-size: 22pt;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: -0.02em;
+  }
+
+  .header-meta {
+    font-size: 8pt;
+    color: #64748b;
+    text-align: right;
+    line-height: 1.3;
+  }
+
+  .principle-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3mm;
+    margin: 3mm 0 4mm 0;
+  }
+
+  .principle {
+    background: #f1f5f9;
+    border-left: 3px solid #059669;
+    padding: 3mm 3mm 3mm 3mm;
+    border-radius: 1mm;
+  }
+
+  .principle .num {
+    font-size: 9pt;
+    color: #059669;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+  }
+
+  .principle .title {
+    font-size: 10.5pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0.5mm 0 1.5mm 0;
+  }
+
+  .principle .body {
+    font-size: 9pt;
+    color: #334155;
+    line-height: 1.45;
+  }
+
+  table.compare {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2mm 0 4mm 0;
+    font-size: 9.5pt;
+  }
+
+  table.compare th {
+    text-align: left;
+    padding: 2mm 3mm;
+    background: #1e293b;
+    color: #fff;
+    font-weight: 600;
+  }
+
+  table.compare td {
+    padding: 2mm 3mm;
+    border-bottom: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+
+  table.compare td:first-child {
+    color: #64748b;
+  }
+
+  table.compare td:last-child {
+    color: #0f172a;
+    font-weight: 500;
+  }
+
+  ul.feature-list {
+    margin: 1mm 0 3mm 0;
+    padding-left: 5mm;
+  }
+
+  ul.feature-list li {
+    margin-bottom: 1.2mm;
+  }
+
+  .pillar {
+    margin-bottom: 2mm;
+  }
+
+  .pillar .label {
+    font-weight: 700;
+    color: #059669;
+  }
+
+  .pillar.future .label {
+    color: #2563eb;
+  }
+
+  .pillar.missing .label {
+    color: #94a3b8;
+  }
+
+  .ask-box {
+    background: #fef3c7;
+    border-left: 3px solid #d97706;
+    padding: 4mm 4mm 3mm 4mm;
+    margin: 4mm 0;
+    border-radius: 1mm;
+  }
+
+  .ask-box h3 {
+    margin-top: 0;
+    color: #92400e;
+  }
+
+  .ask-box ol {
+    margin: 1mm 0 2mm 4mm;
+    padding: 0;
+  }
+
+  .ask-box li {
+    margin-bottom: 1.5mm;
+  }
+
+  .footer {
+    margin-top: 6mm;
+    padding-top: 3mm;
+    border-top: 1px solid #e2e8f0;
+    font-size: 8.5pt;
+    color: #64748b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer strong {
+    color: #0f172a;
+  }
+
+  .quote {
+    border-left: 3px solid #1e293b;
+    padding: 2mm 4mm;
+    color: #334155;
+    margin: 3mm 0;
+    font-style: italic;
+    font-size: 10pt;
+  }
+
+  .architecture-summary {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 3mm 4mm;
+    border-radius: 2mm;
+    margin: 2mm 0 4mm 0;
+    font-size: 9.5pt;
+  }
+
+  @media print {
+    body {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ PAGE 1 ============ -->
+<section class="page">
+
+  <div class="header-row">
+    <div class="header-brand">Ko | Do Vault</div>
+    <div class="header-meta">
+      Lean Security · Not Security as a Service<br>
+      Bygget i Oslo · Hostet i Europa
+    </div>
+  </div>
+
+  <p class="lead">
+    En personlig digital safe for dine passord, kort, ID-er og dokumenter.
+    Du eier dataene dine — fullt og helt. Ingen vendor lock-in. Schrems II-rein.
+  </p>
+
+  <h3>Spørsmålet du kanskje aldri har stilt deg selv</h3>
+
+  <p>Hvor lagrer du i dag:</p>
+  <ul class="feature-list">
+    <li><strong>Passord</strong> til de 30-50 tjenestene du bruker?</li>
+    <li><strong>Foto av pass og førerkort</strong> når du sjekker inn på hotell?</li>
+    <li><strong>Skattepapirer, kontrakter, lønnslipper</strong> du faktisk vil ha for hånden?</li>
+    <li><strong>PDF-er fra advokat, lege eller bank</strong> som ikke skal i feil hender?</li>
+  </ul>
+
+  <p>
+    For de fleste er svaret en blanding av iCloud Keychain, en notat-app, Drive
+    og e-post. Data spredt over et halvt dusin tjenester, eid av amerikanske
+    selskap, mange uten klar Schrems II-status. Det er ikke fordi du ikke bryr
+    deg — det er fordi det ikke har vært et bedre alternativ.
+  </p>
+
+  <h3>Det vi bygger</h3>
+
+  <p>
+    Ko|Do Vault samler <strong>passord, kort, ID-er og dokumenter i én sikker,
+    web-basert vault</strong>. Du logger inn med ett master-passord (eller
+    Touch/Face ID), og alt ditt er der. Ingen apper å installere. Multi-enhet
+    fra dag én.
+  </p>
+
+  <table class="compare">
+    <thead>
+      <tr>
+        <th>Det andre gjør</th>
+        <th>Det Ko|Do gjør</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Passord ett sted (1Password), dokumenter et annet (Dropbox)</td>
+        <td>Samme app, samme master-passord, samme sikkerhet</td>
+      </tr>
+      <tr>
+        <td>Lagrer din data på sine servere</td>
+        <td>Du eier dataene — på din egen Drive, Dropbox eller USB</td>
+      </tr>
+      <tr>
+        <td>Krever desktop-installasjon (Cryptomator)</td>
+        <td>Helt web-basert. Fungerer i nettleseren</td>
+      </tr>
+      <tr>
+        <td>US-eid, US-jurisdiksjon</td>
+        <td>Hostet i EU, norsk-bygget, Schrems II-rein</td>
+      </tr>
+      <tr>
+        <td>Engelsk-først</td>
+        <td>Norsk-først, med svensk/dansk/engelsk på vei</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Tre prinsipper hugget i stein</h3>
+
+  <div class="principle-grid">
+    <div class="principle">
+      <div class="num">01</div>
+      <div class="title">Du eier dataene dine</div>
+      <div class="body">Alt lagres på servere i EU. Eksporter til JSON eller backup-fil når som helst. Slutter Ko|Do en dag — du har fortsatt din vault.</div>
+    </div>
+    <div class="principle">
+      <div class="num">02</div>
+      <div class="title">Zero-knowledge</div>
+      <div class="body">Master-passordet forlater aldri din enhet. Hele vault-en krypteres lokalt med AES-256-GCM. Selv vi som driver tjenesten kan ikke lese dataene dine.</div>
+    </div>
+    <div class="principle">
+      <div class="num">03</div>
+      <div class="title">100% eller null</div>
+      <div class="body">Hvis en funksjon kun er 95% sikker, bygges den ikke. Ingen «husk meg i 30 dager». Ingen recovery-spørsmål. Ingen falsk trygghet.</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span><strong>Side 1 / 2</strong> — Ko|Do Vault — produkt-skisse februar 2026</span>
+    <span>kodovault.no</span>
+  </div>
+
+</section>
+
+<!-- ============ PAGE 2 ============ -->
+<section class="page">
+
+  <div class="header-row">
+    <div class="header-brand">Ko | Do Vault</div>
+    <div class="header-meta">
+      Hvordan det funker · Hva som finnes · Hva som kommer
+    </div>
+  </div>
+
+  <h3>Hvordan det funker</h3>
+
+  <p>
+    Vault-en din er en kryptert pakke som lagres som binær data hos en
+    europeisk hostingleverandør. Når du logger inn, sendes pakken til din
+    nettleser og dekrypteres <em>der</em> — lokalt, med master-passordet ditt.
+    Du gjør endringer, og pakken krypteres på nytt før den sendes tilbake.
+  </p>
+
+  <div class="quote">
+    Serveren ser aldri klartekst. Hosting-leverandøren ser aldri klartekst.
+    Vi ser aldri klartekst.
+  </div>
+
+  <div class="architecture-summary">
+    <strong>For større dokumenter</strong> (PDF-er, bilder, kontrakter) bruker
+    du <em>din egen</em> Drive, Dropbox eller USB. Ko|Do håndterer kryptering
+    og synkronisering — Google og Dropbox ser bare en binær fil de ikke kan
+    åpne. Du eier ikke bare dataene, du eier også lageret.
+  </div>
+
+  <h3>Hva som finnes i dag <span style="font-size:9pt; color:#64748b; font-weight:400;">(februar 2026)</span></h3>
+
+  <div class="pillar">
+    <span class="label">✓ Passord-vault</span> — kategorier, søk, kopier-til-clipboard, auto-lås
+  </div>
+  <div class="pillar">
+    <span class="label">✓ Bankkort og virtuelle kort</span> — med innebygd kamera-skanning. Bildet går rett i vault-en — aldri innom telefonens bildegalleri eller iCloud
+  </div>
+  <div class="pillar">
+    <span class="label">✓ Sikker overlevering</span> — send krypterte filer til en mottaker uten konto. Du oppgir passord muntlig, mottaker pakker ut i nettleseren sin
+  </div>
+  <div class="pillar">
+    <span class="label">✓ Backup og eksport</span> — JSON eller binær fil
+  </div>
+  <div class="pillar">
+    <span class="label">✓ Touch/Face ID</span> — via WebAuthn på alle moderne enheter
+  </div>
+
+  <h3>Hva som kommer</h3>
+
+  <div class="pillar future">
+    <span class="label">→ v4.1 — ID-er</span> — Pass, førerkort, helsekort, forsikring — strukturert og søkbart
+  </div>
+  <div class="pillar future">
+    <span class="label">→ v4.2 — 2FA TOTP</span> — Tids-koder direkte i vault-en. Slipp egen authenticator-app
+  </div>
+  <div class="pillar future">
+    <span class="label">→ v4.3 — Flerspråk</span> — Norsk, svensk, dansk, engelsk
+  </div>
+  <div class="pillar future">
+    <span class="label">→ v4.5 — Dokument-laget</span> — Egen «sikker disk» med dine dokumenter på din egen Drive/Dropbox/USB
+  </div>
+
+  <h4>Hvem dette er for</h4>
+  <p style="font-size: 10pt; margin-bottom: 3mm;">
+    Folk som har <strong>mer enn ett passord-problem</strong>. Som har forstått
+    at iCloud Keychain ikke er nok. Som ikke vil overlate alt til 1Password
+    eller bygge sin egen løsning. Spesielt:
+    <strong>norske kunnskapsarbeidere</strong> med sensitive yrkesdata —
+    advokater, konsulenter, leger, journalister, ledere.
+  </p>
+
+  <h4>Pris</h4>
+  <p style="font-size: 10pt; margin-bottom: 0;">
+    Ennå ikke fastsatt. Sannsynlig modell: <strong>49 kr/mnd for Pro</strong>
+    (alt inkludert) eller <strong>gratis basis-versjon</strong> med begrenset
+    størrelse. Lansering forventet sommeren 2026.
+  </p>
+
+  <div class="ask-box">
+    <h3 style="margin-bottom: 2mm;">Et spørsmål til deg</h3>
+    <p style="margin: 1mm 0 2mm 0;">
+      Du holder denne i hånda fordi noen viste deg den og spurte hva du tenker.
+      <strong>Det vi ønsker svar på er ikke om du skal kjøpe.</strong> Det vi
+      ønsker er ærlig refleksjon:
+    </p>
+    <ol>
+      <li>Kjenner du igjen problemet vi beskriver?</li>
+      <li>Bruker du noe lignende i dag, eller har du gitt opp å finne noe?</li>
+      <li>Tror du folk i din bransje ville hatt nytte av dette?</li>
+      <li>Er det noe vi har misforstått, eller noe vi mangler?</li>
+    </ol>
+    <p style="margin: 2mm 0 0 0;"><strong>Ingen forplikter seg til noe. Tilbakemeldingen din er det vi trenger.</strong></p>
+  </div>
+
+  <div class="footer">
+    <span>
+      <strong>Michael Aagreen</strong> · kontakt@kodovault.no
+    </span>
+    <span>kodovault.no · Lean Security</span>
+  </div>
+
+</section>
+
+</body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "summary": "Static code review of Iter 19.9.15 (Mike #3 P1) — mobile inline-search visibility fix on Vault/Cards/IDs dashboards. App-start / Playwright / screenshot forbidden in this K8s preview pod (Upstash creds missing — same blocker as iter_3..iter_10). Verified all 6 specified changes + 4 supporting grep/ROADMAP checks. All green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PRE-EXISTING (not introduced by 19.9.15) — CardsDashboard.tsx (line 262-270) and IdsDashboard.tsx (line 293-301) inline-search <input> lack aria-label, while VaultDashboard.tsx line 296 has aria-label={t('vault.search_aria')}. Minor a11y inconsistency. Cards has aria via t('cards.search_placeholder') only as placeholder — recommend adding aria-label={t('cards.search_aria')} (key likely needs to be added) when next i18n-touch happens. Not a blocker for Iter 19.9.15.",
+    "PRE-EXISTING — Clear-button data-testid naming is inconsistent across dashboards: 'vault-search-clear-btn' (VaultDashboard) vs 'cards-inline-search-clear' (CardsDashboard) vs 'ids-inline-search-clear' (IdsDashboard). Not changed by 19.9.15 (backward-compat preserved). Suggest aligning to one convention in a future cleanup iteration; document in ROADMAP Iter 20 backlog if relevant.",
+    "GOOD — CSS strategy is sound and idiomatic Tailwind: flex-wrap on parent + w-full sm:w-auto sm:flex-1 on the search wrapper child = forced wrap below the 640px sm-breakpoint, inline flex-1 fill above it. Identical visual behavior on desktop confirmed (no .hidden class anymore = always rendered; previously hidden on mobile via .hidden sm:flex). Standard responsive pattern.",
+    "GOOD — All three dashboards use identical mobile pattern (flex-wrap toolbar + w-full sm:w-auto sm:flex-1 search wrapper). UX consistency across Vault/Cards/IDs confirmed.",
+    "GOOD — data-testids unchanged on all 3 search inputs and clear buttons. Backward-compat for existing E2E tests preserved."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static review only — no runtime testing possible in K8s preview due to Upstash creds blocker)"},
+  "test_credentials": "N/A — no auth flows tested",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "K8s preview-pod CANNOT run the app (Upstash REDIS creds missing — persistent blocker since iter_3). All testing in iter_3..iter_11 has been static code review only. If Upstash creds become available, restart frontend supervisor and run Playwright suites against Vault/Cards/IDs at mobile viewport (390x844) to verify the search field wraps below mode-toggle and is full-width on mobile, then again at desktop (1920x1080) to verify it sits inline filling remaining space. Suggested data-testids for assertions: vault-toolbar, vault-inline-search, cards-toolbar, cards-inline-search, ids-toolbar, ids-inline-search.",
+  "static_review_findings": {
+    "1_toolbar_flex_wrap_class": {
+      "VaultDashboard.tsx_line_214": "flex flex-wrap items-center gap-2 mb-3 ✅",
+      "CardsDashboard.tsx_line_190": "flex flex-wrap items-center gap-2 mb-3 ✅",
+      "IdsDashboard.tsx_line_222": "flex flex-wrap items-center gap-2 mb-3 ✅"
+    },
+    "2_search_wrapper_responsive_class": {
+      "VaultDashboard.tsx_line_286": "flex w-full sm:w-auto sm:flex-1 relative ✅",
+      "CardsDashboard.tsx_line_260": "flex w-full sm:w-auto sm:flex-1 relative ✅",
+      "IdsDashboard.tsx_line_291": "flex w-full sm:w-auto sm:flex-1 relative ✅"
+    },
+    "3_grep_hidden_sm_flex_flex_1": "0 matches in /app/frontend (verified via grep -rn 'hidden sm:flex flex-1' --include='*.tsx' --include='*.ts') ✅",
+    "4_other_hidden_sm_flex_intact": "3 unrelated occurrences remain untouched as expected: AppHeader.tsx:182 (header right-cluster), app/page.tsx:919 + :958 (landing page CTAs). None are dashboard search fields. ✅",
+    "5_data_testids_preserved": "vault-inline-search, cards-inline-search, ids-inline-search + vault-search-clear-btn / cards-inline-search-clear / ids-inline-search-clear all present and unchanged. ✅",
+    "6_input_functionality_unchanged": "query/setQuery state, onChange handler, placeholder via t(), Search icon, clear button — all identical to pre-iter logic. Only wrapper div className changed. ✅",
+    "7_roadmap_iter20_section": "ROADMAP.md line 422-437: new section '🔧 Iter 20 — Forberedelser & utsatt teknisk gjeld (NY 2026-06-25)' present with 4 quick-wins (lint:i18n-sync, B2B invite-matrise, yarn.lock commit, vercel.json buildCommand cleanup) + 2 arkitektur-spørsmål. ✅"
+  },
+  "rca_of_the_issue": "N/A — this was a UX fix, not a bug-fix iteration. Mike #3 (P1) on 13-point UX list: mobile users could not search in Cards/IDs/Vault because inline search was gated behind 'hidden sm:flex' (desktop only). Fix replaces that with always-visible search field using 'flex w-full sm:w-auto sm:flex-1' on the wrapper, combined with 'flex-wrap' on the parent toolbar — forcing the search field to wrap to its own line on mobile while keeping inline layout on desktop. Implementation is correct, idempotent across all three dashboards, and preserves backward-compat for E2E tests."
+}

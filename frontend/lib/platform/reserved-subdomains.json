@@ -1,0 +1,55 @@
+{
+  "_meta": {
+    "comment": "Reserverte subdomener — eksakt-match, lowercase. Aldri tilgjengelig for selvregistrering. Brukes av lib/platform/subdomain.ts og /api/admin/subdomain-check + /api/admin/tenants POST. Suffiks-regelen '*-admin' (D-038) håndteres i kode, ikke her. Legg til nye navn under riktig seksjon. Mike kan editere fritt — endringer slår inn ved neste Vercel-deploy.",
+    "see_also": "/app/memory/DECISIONS.md (D-038)",
+    "last_updated": "2026-06-01"
+  },
+
+  "system_dns": [
+    "admin",
+    "api",
+    "app",
+    "www",
+    "mail",
+    "ftp",
+    "smtp",
+    "imap",
+    "pop",
+    "cdn",
+    "mx"
+  ],
+
+  "platform_app_roles": [
+    "start",
+    "test",
+    "sub",
+    "register",
+    "platform",
+    "billing",
+    "pay",
+    "support",
+    "help",
+    "status",
+    "health",
+    "docs",
+    "blog"
+  ],
+
+  "environments": [
+    "demo",
+    "dev",
+    "staging",
+    "prod",
+    "beta",
+    "alpha",
+    "sandbox"
+  ],
+
+  "kodo_specific": [
+    "kodo",
+    "kodovault",
+    "vault",
+    "michael",
+    "mike"
+  ]
+}

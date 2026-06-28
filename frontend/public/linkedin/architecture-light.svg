@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" width="1600" height="900">
+  <defs>
+    <!-- Lys bakgrunn (varm hvit med svak gradient) -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="50%" stop-color="#f1f5f9"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+
+    <!-- "Glass" på lys bakgrunn (subtil hvit/mørk) -->
+    <linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.8)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.5)"/>
+    </linearGradient>
+
+    <linearGradient id="upstashGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+
+    <linearGradient id="driveGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1e40af"/>
+    </linearGradient>
+
+    <linearGradient id="deviceGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#059669"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563eb"/>
+    </marker>
+
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.15"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- Tittel -->
+  <text x="800" y="80" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="42" font-weight="700" fill="#0f172a" letter-spacing="-1">
+    Ko<tspan fill="#3b82f6">|</tspan>Do · Vault
+  </text>
+  <text x="800" y="120" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="20" font-weight="400" fill="rgba(15,23,42,0.5)" letter-spacing="2">
+    HYBRID ZERO-KNOWLEDGE ARKITEKTUR
+  </text>
+
+  <line x1="800" y1="180" x2="800" y2="780" stroke="rgba(15,23,42,0.08)" stroke-width="1" stroke-dasharray="4 8"/>
+
+  <!-- SENTRAL: ENHET -->
+  <g transform="translate(600, 340)">
+    <rect x="0" y="0" width="400" height="220" rx="20" fill="url(#glassGrad)" stroke="rgba(15,23,42,0.1)" stroke-width="1.5" filter="url(#softShadow)"/>
+
+    <rect x="60" y="30" width="280" height="160" rx="10" fill="rgba(15,23,42,0.04)" stroke="rgba(15,23,42,0.08)" stroke-width="1"/>
+    <circle cx="80" cy="50" r="5" fill="#ef4444"/>
+    <circle cx="98" cy="50" r="5" fill="#f59e0b"/>
+    <circle cx="116" cy="50" r="5" fill="#10b981"/>
+    <line x1="60" y1="68" x2="340" y2="68" stroke="rgba(15,23,42,0.08)" stroke-width="1"/>
+
+    <g transform="translate(200, 130)">
+      <circle r="35" fill="url(#deviceGrad)" filter="url(#softShadow)"/>
+      <path d="M -10 -5 v -8 a 10 10 0 0 1 20 0 v 8" fill="none" stroke="white" stroke-width="3" stroke-linecap="round"/>
+      <rect x="-14" y="-5" width="28" height="20" rx="3" fill="white"/>
+      <circle cx="0" cy="3" r="2.5" fill="#5b21b6"/>
+      <line x1="0" y1="3" x2="0" y2="9" stroke="#5b21b6" stroke-width="2" stroke-linecap="round"/>
+    </g>
+
+    <text x="200" y="200" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="14" font-weight="600" fill="#0f172a">
+      DIN ENHET
+    </text>
+
+    <text x="200" y="260" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="13" fill="rgba(15,23,42,0.7)">
+      Master-passord
+    </text>
+    <text x="200" y="280" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(15,23,42,0.45)">
+      PBKDF2 · 600 000 iter · AES-256-GCM
+    </text>
+  </g>
+
+  <g transform="translate(800, 240)">
+    <text text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="14" font-weight="600" fill="#7c3aed" letter-spacing="2">
+      ALL KRYPTO SKJER LOKALT I NETTLESEREN
+    </text>
+    <text x="0" y="22" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="rgba(15,23,42,0.55)">
+      Server ser kun ulesbar binær — aldri klartekst
+    </text>
+  </g>
+
+  <!-- VENSTRE: UPSTASH -->
+  <g transform="translate(80, 240)">
+    <rect x="0" y="0" width="380" height="420" rx="20" fill="url(#glassGrad)" stroke="rgba(16,185,129,0.4)" stroke-width="2" filter="url(#softShadow)"/>
+
+    <g transform="translate(190, 60)">
+      <circle r="40" fill="url(#upstashGrad)" opacity="0.95"/>
+      <path d="M -18 5 a 12 12 0 0 1 12 -12 a 14 14 0 0 1 26 4 a 10 10 0 0 1 0 20 h -38 a 8 8 0 0 1 0 -12 z" fill="white" transform="translate(0,-3)"/>
+    </g>
+
+    <text x="190" y="135" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="22" font-weight="700" fill="#0f172a">
+      🔑 PASSORD-LAGET
+    </text>
+    <text x="190" y="160" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#047857" letter-spacing="2">
+      UPSTASH REDIS
+    </text>
+
+    <g transform="translate(40, 200)">
+      <text font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="rgba(15,23,42,0.45)" letter-spacing="1.5">
+        INNHOLD
+      </text>
+      <g transform="translate(0, 30)" font-family="-apple-system, system-ui, sans-serif" font-size="14" fill="rgba(15,23,42,0.85)">
+        <text y="0">• Passord</text>
+        <text y="26">• Pass &amp; ID-kort</text>
+        <text y="52">• Kjørekort</text>
+        <text y="78">• Forsikringskort</text>
+        <text y="104">• Kort-PINer &amp; virtuelle kort</text>
+      </g>
+    </g>
+
+    <g transform="translate(40, 360)">
+      <text font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#047857" font-weight="600">
+        Lite · Brukes ofte · Tilgjengelig overalt
+      </text>
+      <text y="20" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(15,23,42,0.5)">
+        Cross-device via nettleser · ~$0,45/mnd
+      </text>
+    </g>
+  </g>
+
+  <!-- HØYRE: DRIVE -->
+  <g transform="translate(1140, 240)">
+    <rect x="0" y="0" width="380" height="420" rx="20" fill="url(#glassGrad)" stroke="rgba(59,130,246,0.4)" stroke-width="2" filter="url(#softShadow)"/>
+
+    <g transform="translate(190, 60)">
+      <circle r="40" fill="url(#driveGrad)" opacity="0.95"/>
+      <g transform="translate(-15, -12)">
+        <path d="M 0 12 L 12 -8 L 18 -8 L 6 12 Z" fill="white"/>
+        <path d="M 12 -8 L 24 12 L 12 12 L 6 -8 Z" fill="rgba(255,255,255,0.85)"/>
+        <path d="M 6 12 L 24 12 L 18 24 L 0 24 Z" fill="rgba(255,255,255,0.7)"/>
+      </g>
+    </g>
+
+    <text x="190" y="135" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="22" font-weight="700" fill="#0f172a">
+      📁 DOKUMENT-LAGET
+    </text>
+    <text x="190" y="160" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e40af" letter-spacing="2">
+      DIN GOOGLE DRIVE
+    </text>
+
+    <g transform="translate(40, 200)">
+      <text font-family="-apple-system, system-ui, sans-serif" font-size="12" fill="rgba(15,23,42,0.45)" letter-spacing="1.5">
+        INNHOLD
+      </text>
+      <g transform="translate(0, 30)" font-family="-apple-system, system-ui, sans-serif" font-size="14" fill="rgba(15,23,42,0.85)">
+        <text y="0">• Kontrakter &amp; avtaler</text>
+        <text y="26">• Forsikringspapirer</text>
+        <text y="52">• Vitnemål &amp; attester</text>
+        <text y="78">• Skattepapirer</text>
+        <text y="104">• Skannede dokumenter</text>
+      </g>
+    </g>
+
+    <g transform="translate(40, 360)">
+      <text font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#1e40af" font-weight="600">
+        Stort · Sjelden · Du eier dataene 100%
+      </text>
+      <text y="20" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(15,23,42,0.5)">
+        BYO Storage · Gratis · Bytt cloud når du vil
+      </text>
+    </g>
+  </g>
+
+  <!-- PILER -->
+  <g>
+    <path d="M 460 410 Q 530 410 600 410" fill="none" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)" opacity="0.9"/>
+    <text x="530" y="395" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#047857" font-weight="600">
+      🔒 .enc blob
+    </text>
+    <path d="M 600 460 Q 530 460 460 460" fill="none" stroke="#059669" stroke-width="2.5" marker-end="url(#arrow-green)" opacity="0.9" transform="rotate(180, 530, 460)"/>
+    <text x="530" y="478" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#047857" font-weight="600">
+      🔓 dekrypt lokalt
+    </text>
+  </g>
+
+  <g>
+    <path d="M 1000 410 Q 1070 410 1140 410" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)" opacity="0.9"/>
+    <text x="1070" y="395" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#1e40af" font-weight="600">
+      🔒 .enc fil
+    </text>
+    <path d="M 1140 460 Q 1070 460 1000 460" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow-blue)" opacity="0.9" transform="rotate(180, 1070, 460)"/>
+    <text x="1070" y="478" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="#1e40af" font-weight="600">
+      🔓 dekrypt lokalt
+    </text>
+  </g>
+
+  <!-- BUNN -->
+  <g transform="translate(800, 720)">
+    <text text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="14" font-weight="600" fill="rgba(15,23,42,0.55)" letter-spacing="2">
+      SAMME MASTER-PASSORD · ALLE DINE ENHETER · KUN NETTLESER
+    </text>
+
+    <g transform="translate(-220, 30)" fill="rgba(15,23,42,0.45)" font-family="-apple-system, system-ui, sans-serif" font-size="13">
+      <rect x="-10" y="0" width="20" height="32" rx="3" fill="none" stroke="rgba(15,23,42,0.45)" stroke-width="1.5"/>
+      <text y="55" text-anchor="middle">Mobil</text>
+    </g>
+    <g transform="translate(-80, 30)" fill="rgba(15,23,42,0.45)" font-family="-apple-system, system-ui, sans-serif" font-size="13">
+      <rect x="-14" y="0" width="28" height="32" rx="3" fill="none" stroke="rgba(15,23,42,0.45)" stroke-width="1.5"/>
+      <text y="55" text-anchor="middle">Nettbrett</text>
+    </g>
+    <g transform="translate(60, 30)" fill="rgba(15,23,42,0.45)" font-family="-apple-system, system-ui, sans-serif" font-size="13">
+      <rect x="-18" y="2" width="36" height="22" rx="2" fill="none" stroke="rgba(15,23,42,0.45)" stroke-width="1.5"/>
+      <line x1="-22" y1="26" x2="22" y2="26" stroke="rgba(15,23,42,0.45)" stroke-width="1.5"/>
+      <text y="55" text-anchor="middle">Laptop</text>
+    </g>
+    <g transform="translate(220, 30)" fill="rgba(15,23,42,0.45)" font-family="-apple-system, system-ui, sans-serif" font-size="13">
+      <rect x="-22" y="0" width="44" height="26" rx="2" fill="none" stroke="rgba(15,23,42,0.45)" stroke-width="1.5"/>
+      <rect x="-6" y="26" width="12" height="6" fill="rgba(15,23,42,0.45)"/>
+      <text y="55" text-anchor="middle">Desktop</text>
+    </g>
+  </g>
+
+  <text x="800" y="860" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="11" fill="rgba(15,23,42,0.4)" letter-spacing="3">
+    LEAN SECURITY — IKKE SECURITY-AS-A-SERVICE
+  </text>
+</svg>

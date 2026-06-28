@@ -1,0 +1,70 @@
+{
+  "summary": "Iter 19.9.9 statisk kode-review (ingen app-start, ingen Playwright — K8s preview-pod mangler Upstash-creds, samme blocker som iter_3/4/5). Verifisert alle 7 review-punkter fra spec. 5/7 fullt godkjent uten anmerkning, 2 anmerkninger funnet (1 UX-bug i clear-knapp for email/createdBy, 1 pre-eksisterende latent issue i audit-lines-fletting når status+identitet endres i samme PATCH). Lint/TSC/build grønt bekreftet av hovedagent.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PATCH /api/admin/tenants/[subdomain]",
+        "issue": "Pre-eksisterende latent: route.ts linje 263 `if (auditLines.length > 0 && !statusChanged)` — hvis en PATCH-request kombinerer status-endring + identitets-felt-endringer (firstName/lastName/email/locale/createdBy) i samme call, blir audit-linjene for identitets-feltene FORKASTET og bare status_change-eventet lagres. Med UI per-felt onBlur-commit treffer ikke dette i praksis, men curl-tampering eller fremtidig batch-PATCH-UI kan eksponere det. Anbefaling: emit BÅDE status_change-event OG admin_override-event når begge endres, ELLER inkluder identitets-differ i status_change-detaljen."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "StringEditor (brukt for email + createdBy i Identitet-seksjonen)",
+        "issue": "Clear-knappen (✕) og onBlur-commit på tomt felt kaller onSave(null), men parent-handler (TenantDetailCard linje 1437 og 1450-1452) ignorerer null silent: `onSave={(v)=>{ if (v !== null) onPatch({email:v}); }}`. Resultat: bruker klikker ✕ → input vises tom → ingen PATCH sendes → serveren beholder gammel verdi → record.email/createdBy uendret → ved neste re-render (eller refresh) hopper feltet tilbake til gammel verdi uten feedback. Stille divergens mellom UI og DB.",
+        "selector": "[data-testid=tenant-detail-email-clear], [data-testid=tenant-detail-createdby-clear]",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "StringEditor email + createdBy",
+        "issue": "Server returnerer 400 invalid_email / invalid_string ved ugyldig input, men onUpdateTenant (linje 410+) propagerer feilen til generell top-level setError-state, ikke per-felt-feedback. Bruker ser ikke hvilket felt som feilet, kun en global feilmelding på toppen av kortet. Mindre kritisk men inkonsistent med inline-mønster.",
+        "selector": "[data-testid=tenant-detail-email], [data-testid=tenant-detail-createdby]",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "TenantDetailCard / Identitet-seksjonen",
+        "issues": ["Inline-norske strings ('Identitet & kommunikasjon', 'Fornavn', 'Etternavn', '(ikke satt)') — bekreftet bevisst per spec (intern admin UI, ingen i18n). Ingen action."]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "FIX (MEDIUM): StringEditor for email/createdBy — håndter clear-knapp meningsfullt. Enten (a) skjul ✕-knappen når feltet er obligatorisk, eller (b) la null faktisk sendes til server hvor 400-feilen kan vises som validering, eller (c) avvis lokalt med inline-feilmelding 'kan ikke være tom'. Nåværende silent-ignore-mønster fører til UI/DB-divergens.",
+    "OPTIONAL (LOW): Forbedre feilkommunikasjon ved server-side 400-respons (invalid_email/invalid_string/invalid_locale) — toast eller inline-felt-feedback i stedet for generell setError-banner.",
+    "OPTIONAL (LOW): Vurder å fjerne suppresjons-logikken `&& !statusChanged` i route.ts linje 263 så audit-linjer ikke tapes ved kombinerte PATCH-calls. Lav risiko med dagens UI, men defense-in-depth-prinsipp tilsier å bevare alle audit-trail-data."
+  ],
+  "critical_code_review_comments": [
+    "POSITIV: AUDIT_FIELDS-utvidelsen i tenant-audit.ts er minimal og korrekt — gjenbruker eksisterende buildAuditLines-loop, ingen ny logikk. D-054-mønsteret holder.",
+    "POSITIV: VALID_LOCALES whitelist + isValidEmail-helper i route.ts er ren defense-in-depth — server validerer uavhengig av UI. Korrekt mønster.",
+    "POSITIV: BASE_FIELDS_B2C og BASE_FIELDS_B2B begge ryddet — ingen duplisering av identitets-felt mellom read-only metadata og redigerbar Identitet-seksjon. Verifisert linje 1152-1211.",
+    "POSITIV: LocaleSelectEditor onChange-commit (umiddelbar save) er korrekt UX-valg for select — unngår 'glemt å trykke save' problem. data-testid OK.",
+    "POSITIV: Stripe-header viser nå kun 'Stripe' (linje 1463), '(D-053)' fjernet per Mike-direktiv. data-testid=tenant-detail-stripe bevart.",
+    "POSITIV: DECISIONS.md-seksjonen er godt strukturert — bakgrunn (Iter 19.9.8 regression), mal, utfylt eksempel, og når-bruke/når-ikke-regler. Forbilledlig dokumentasjon.",
+    "BUG (UX): Clear-knapp + onBlur-tom på email/createdBy → silent-ignore → UI/DB-divergens (se ui_bugs).",
+    "LATENT: route.ts linje 263 audit-suppression når statusChanged=true forkaster identitets-audit-linjer ved batch-PATCH. Ikke trigget av nåværende UI, men anti-pattern for audit-trail.",
+    "TYPE-SVAKHET (minor, spec-driven): `record.createdBy = body.createdBy.trim() as CreatedBy` caster fritekst til strikt union. Per Mike-direktiv akseptert; lifecycle-guards bruker strict `=== 'admin'` så ukjente verdier defaultes til non-admin atferd. Dokumentert i route.ts kommentar linje 228-230.",
+    "OBSERVASJON: Per-felt onBlur er ikke debounced — hver felt-redigering trigger en egen PATCH. Akseptabelt for admin-tool med lav skrive-frekvens, men hvis bulk-redigering blir vanlig kan request-flom oppstå. Ingen action nå."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (kode-review only)",
+    "frontend": "N/A (kode-review only)"
+  },
+  "test_credentials": "N/A — ingen runtime-testing utført per brukerinstruks (K8s pod mangler Upstash-creds).",
+  "seed_data_creation": "Ingen.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter 19.9.9 review fullført. Hovedfunn: (1) StringEditor silent-ignore-pattern for email/createdBy null gir UI/DB-divergens — bør fikses før produksjon. (2) route.ts linje 263 audit-suppression er pre-eksisterende latent issue, kan utsettes. Alle 7 spec-punkter ellers verifisert OK. Forrige 5 iter (3/4/5/6 inkludert denne) har alle vært kode-review pga manglende Upstash-creds i K8s preview-pod — bruker forventer at fremtidige iters fortsatt blir kode-review inntil creds er tilgjengelig.",
+  "rca_of_the_issue": {
+    "ui_bug_clear_silent_ignore": {
+      "reproduction": "1. Åpne TenantDetailCard for en tenant. 2. Klikk ✕-knappen til høyre for email-feltet (data-testid=tenant-detail-email-clear). 3. Observer: input blir tom. 4. Refresh siden eller naviger bort og tilbake. 5. Observer: email-feltet viser fortsatt gammel verdi.",
+      "root_cause": "TenantDetailCard.tsx linje 1436-1438 og 1450-1452 har handler `onSave={(v)=>{ if (v !== null) onPatch({email:v}); }}` — null-verdier blir silent dropped uten brukerfeedback. StringEditor (linje 3173-3179) commit() sender null både via ✕-knapp og via onBlur når input er tom.",
+      "mitigation": "Tre alternativer: (a) Skjul/disable ✕-knappen for obligatoriske felter via en `nullable: false`-prop på StringEditor, (b) Send null til server og la 400-respons bli vist som inline-validering, (c) Lokal inline-feilmelding 'kan ikke være tom' i StringEditor når commit prøver å sende null mens nullable=false."
+    }
+  }
+}

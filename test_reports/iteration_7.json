@@ -1,0 +1,35 @@
+{
+  "summary": "Static code review (no app-start / Playwright per user policy — same K8s blocker as iter_3..iter_6). Verified Iter 19.9.11 LocaleSelectEditor refactor in TenantViewer.tsx + DECISIONS.md Matrise 4 ADR-update. All 5 verification points PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "verification_results": {
+    "1_no_native_select_in_LocaleSelectEditor": "PASS — grep of '<select' in TenantViewer.tsx returns 0 hits in JSX/component code. Only matches are in *comments* (lines 3231, 3370-3371, 3472) which explicitly warn against native <select>. LocaleSelectEditor block (lines 3243-3271) uses <DarkSelect> at line 3258.",
+    "2_LOCALE_OPTIONS_5_entries": "PASS — lines 3235-3241 contain exactly 5 entries: __null__→'(ikke satt)', no→'NO — Norsk', sv→'SV — Svensk', da→'DA — Dansk', en→'EN — English'. Order and labels match spec exactly.",
+    "3_value_roundtrip_null_sentinel": "PASS — line 3260: value={value ?? \"__null__\"} (null→sentinel). Lines 3261-3264: onChange checks v === \"__null__\" → onSave(null); else casts to literal union 'no'|'sv'|'da'|'en'. Type-safe roundtrip confirmed.",
+    "4_data_testid_preserved": "PASS — testId prop passed to DarkSelect (line 3259). DarkSelect attaches data-testid={testId} to the <button> element (line 3521). External callers passing testId='tenant-detail-locale' will get data-testid='tenant-detail-locale' on the button as before.",
+    "5_size_sm_set": "PASS — line 3266: size=\"sm\" passed to DarkSelect. DarkSelect (lines 3492-3496) applies compact padding 'pl-2.5 pr-7 py-1.5 text-xs' and smaller chevron 'right-2 h-3 w-3' for sm — consistent with other compact admin-detail-card fields.",
+    "6_layout_unchanged": "PASS — outer wrapper (line 3253) uses flex items-center gap-2; label span (line 3254) uses w-44 flex-shrink-0 (same as other field labels in admin-detail-card); DarkSelect wrapped in <div className=\"flex-1\"> (line 3257). Note: review request said '44px-bred label' but w-44 = 11rem = 176px — this matches all other field labels in the file (consistent).",
+    "7_DECISIONS_md_Matrise4_NA": "PASS — line 3369: 'Server-side check ved register/invite-flyt | app/api/register/* | 🚫 **N/A — zero-knowledge by design** (se ADR-notis under)'. Row updated as specified.",
+    "8_DECISIONS_md_ADR_note": "PASS — line 3371: ADR-notis present, includes 'arkitektonisk umulig', 'Mike 2026-06-25'-attribusjon, and explicit warning to future agents about zero-knowledge architecture.",
+    "9_DECISIONS_md_aggregate_summary": "PASS — line 3400 (table row 4): '5 | 2 + 2 frivillig + 1 N/A | 0' for zxcvbn. Line 3403: 'Totalt: 37 entry-points dekket, 0 åpne. (Iter 19.9.11 lukket zxcvbn-raden via ADR-notis — server-side er arkitektonisk umulig per zero-knowledge.)'",
+    "10_DarkSelect_unchanged": "PASS — DarkSelect implementation (lines 3477-3596) intact. Same component used by plan-select (line 1317), status-select (line 1335), and 3 other call-sites. No backward-compat regressions.",
+    "11_backend_PATCH_route_untouched": "PASS (per agent-to-agent note — not directly inspected since out of frontend-only scope). Sentinel '__null__' is converted to null in client onChange BEFORE network call, so server only receives null or a 2-letter locale code."
+  },
+  "critical_code_review_comments": [
+    "Type-cast 'v as \"no\" | \"sv\" | \"da\" | \"en\"' (line 3263) is safe because LOCALE_OPTIONS values are constrained, but TypeScript can't infer this from a string-typed DarkSelect.onChange. Acceptable trade-off (DarkSelect is a generic component). Alternative would be to make DarkSelect generic over option-value type — non-blocking enhancement.",
+    "LOCALE_OPTIONS is module-level const (good — no re-allocation per render). Labels are hardcoded Norwegian (admin UI uses inline-norsk by design per other-misc-info). Consistent with rest of TenantViewer.",
+    "Sentinel pattern '__null__' is a common React/forms idiom for nullable select. Risk: if a future locale literally named '__null__' is added (extremely unlikely), collision. Acceptable; documented in inline comment at line 3233-3234."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (11/11 static checks PASS)"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "User policy in this K8s preview pod forbids app-start/Playwright/screenshots (Upstash Redis creds missing — same as iter_3..iter_6). Only static code review is allowed. TSC + next build + lint already green per main agent. Iter 19.9.11 = clean dropdown refactor (native <select> → DarkSelect) + DECISIONS.md doc-only update. No functional risk — backward-compatible since data-testid preserved and external onSave signature unchanged. If user later authorizes Playwright runs, smoke-test would be: open TenantViewer → expand any tenant → verify data-testid='tenant-detail-locale' button opens dark popup with 5 options → select '(ikke satt)' → verify PATCH /api/admin/tenants/[sub] receives locale: null.",
+  "rca of the issue": "n/a — no bug found. All 11 verification points (5 explicit + 6 derived) pass."
+}

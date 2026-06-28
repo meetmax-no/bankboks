@@ -1,0 +1,110 @@
+{
+  "_meta": {
+    "client": "Lisbeth E. Krogh",
+    "createdAt": "2026-05-18",
+    "createdBy": "Ko | Do Consult",
+    "notes": "Personlig passord-vault · Lisbeth E. Krogh"
+  },
+
+  "defaultLocale": "no",
+
+  "brand": {
+    "name": "Ko | Do · Vault",
+    "tagline": "Din digitale nøkkelring"
+  },
+
+  "rotate": "session",
+  "bgImageOverlay": 0.10,
+  "backdropBlurChrome": "24px",
+  "backdropBlurSafari": "48px",
+  "cardBgChrome": "rgba(255, 255, 255, 0.10)",
+  "cardBgSafari": "rgba(30, 41, 59, 0.90)",
+  "mobileSolidBackground": false,
+  "mobileSolidColor": "#1A1A1A",
+
+  "categories": [
+    { "key": "personal", "label": "Personlig", "color": "#4ade80", "icon": "🏠" },
+    { "key": "work",     "label": "Jobb",      "color": "#60a5fa", "icon": "💼" },
+    { "key": "bank",     "label": "Bank",      "color": "#f59e0b", "icon": "🏦" },
+    { "key": "social",   "label": "Sosial",    "color": "#a78bfa", "icon": "👥" },
+    { "key": "mail",     "label": "Mail",      "color": "#f87171", "icon": "✉️" },
+    { "key": "tv",       "label": "TV",        "color": "#fb923c", "icon": "📺" },
+    { "key": "webserv",  "label": "WEB Serv.", "color": "#22d3ee", "icon": "☁️" },
+    { "key": "other",    "label": "Annet",     "color": "#94a3b8", "icon": "📁" }
+  ],
+
+  "security": {
+    "autoLockMinutes": 15,
+    "forceMasterAfterDays": 14,
+    "clipboardClearSeconds": 120,
+    "clipboardEnabled": true,
+    "loginHistoryCount": 15
+  },
+
+  "image": {
+    "maxWidth": 1200,
+    "maxHeight": 750,
+    "quality": 0.75,
+    "format": "image/jpeg"
+  },
+
+  "ui": {
+    "defaultSort": "favorite",
+    "showFavoritesFirst": true,
+    "dateLocale": "nb-NO",
+    "passwordsViewMode": "grouped",
+    "cardsViewMode": "list"
+  },
+
+  "features": {
+    "packages": {
+      "showOnLogin": true,
+      "showInApp": true,
+      "maxFileSizeMB": 50,
+      "allowedMimeTypes": null
+    },
+    "ids": {
+      "enabled": true,
+      "showInApp": true
+    }
+  },
+
+  "backgrounds": [
+    {
+      "url": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?q=80&w=2070&auto=format&fit=crop",
+      "name": "Fjell ved soloppgang"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1509529711801-deac231925ac?q=80&w=2070&auto=format&fit=crop",
+      "name": "Nordlys - Norge"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1681300091697-f8d16d5868a1?q=80&w=2070&auto=format&fit=crop",
+      "name": "Badehus - Danmark"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1618889128235-93807ca6b114?q=80&w=2070&auto=format&fit=crop",
+      "name": "Buddha på rekke - What Po, Thailand "
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1562707786-7d2b807961c4?q=80&w=2070&auto=format&fit=crop",
+      "name": "Sushi Toro - Tokyo, Japan"
+    },
+    {
+      "url": "https://plus.unsplash.com/premium_photo-1691414363231-836e2e1bf0ed?q=80&w=2070&auto=format&fit=crop",
+      "name": "Nyhavn, København"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop",
+      "name": "Stjernehimmel"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1701762292610-3323efd62273?q=80&w=2070&auto=format&fit=crop",
+      "name": "Tokyo by Night"
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1593839154339-377e24b3ba32?q=80&w=2070&auto=format&fit=crop",
+      "name": "Tokyo City"
+    }
+  ]
+}

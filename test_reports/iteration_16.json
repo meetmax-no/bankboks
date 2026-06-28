@@ -1,0 +1,81 @@
+{
+  "summary": "STRICTLY STATIC code review of Iter 20.5c (am-admin Admin-notater per ansatt) + 20.5b TOCTOU-hardening. All 70 unit tests grønne (am-admin-mpw 23 + am-admin-mpw-store 26 + am-admin-notes-store 21). yarn tsc --noEmit ✓, yarn lint:all ✓ (5/5 lints inkl. i18n-sync 1197 nøkler × 4 språk). TOCTOU-fix verifisert atomisk via SETNX. Zero-knowledge invariant holder. Cross-org-isolasjon verifisert. DELETE-kaskade fungerer. ÉN MEDIUM correctness-bug funnet: MAX_CIPHER_BASE64=10 000 er for restriktiv for multi-byte UTF-8 (æøå/emoji) — kan avvise 5000-tegns notater som er innenfor klient-grensen. To LOW info-funn rundt orphan-data ved tenant-sletting og verifikasjons-mangel ved korrupt blob.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PUT /api/am-admin/employees/[subdomain]/notes (MAX_CIPHER_BASE64-validering, linje 36 + 94)",
+        "issue": "MEDIUM — cipher-base64-grensen 10 000 er FOR LAV for typiske norske/multi-byte UTF-8-notater på 5000 tegn (klient-grensen). Beregning: 5000 chars ren æøå (2 bytes/char i UTF-8) = 10 000 plaintext-bytes + 16 bytes AES-GCM auth tag = 10 016 cipher-bytes → base64 ≈ 13 356 chars. Det overskrider MAX_CIPHER_BASE64=10 000 og returnerer 413 'note_too_large'. Worst-case 5000 emoji-chars (4 bytes each) → ~26 688 base64 chars. Doc-kommentaren ('~7500 bytes plaintext, godt over klientens 5000-tegns plaintext-grense') antar feilaktig 1 byte/tegn. Konsekvens: en svensk/norsk am-admin som skriver et 5000-tegns notat med mange æøåäö får serverfeil selv om klient-textarea aksepterte det. Fix: enten hev MAX_CIPHER_BASE64 til ~30 000 (5000 chars × 4 bytes/char + 16 + base64-overhead), ELLER endre klient-grensen til å være byte-basert via TextEncoder."
+      },
+      {
+        "endpoint": "GET /api/am-admin/employees/[subdomain]/notes",
+        "issue": "LOW — ingen tenantExists()-sjekk i GET. Hvis en tenant er slettet (status='deleted'), men adminNotes ble lagret før sletting, vil GET fortsatt returnere envelope. PUT har tenantExists-sjekk, så orphan-data kan ikke OPPDATERES, men eksisterende kan leses. Per 20.5d (CSV-backup) er dette trolig OK siden indeksen brukes til opprydding, men EmployeeListSection viser ikke deleted-rader så UI vil heller ikke trigger GET. Worth noting for cleanup-flowen."
+      },
+      {
+        "endpoint": "Tenant lifecycle (28d auto-delete) ↔ am-admin-notes-store",
+        "issue": "LOW — når en tenant slettes (manual delete eller 28-d auto-delete via lifecycle-cron), kjøres ikke deleteNote() automatisk. adminNotes-recorden forblir i Upstash som orphan til neste 'Glemt MPW'-reset. Index-keyen ('org-admin-notes:<prefix>:index') vokser uten cleanup. Anbefaling: legg til deleteNote() i tenant-delete-flowen, ELLER la 20.5d-backup-eksport rapportere orphan-counts."
+      },
+      {
+        "endpoint": "GET /api/am-admin/employees/[subdomain]/notes (corrupt blob)",
+        "issue": "LOW — am-admin-notes-store.getNote() returnerer null for korrupt envelope (isMpwEnvelope-check feiler). Modalen tolker da som 'ingen notat' og viser tom textarea. Hvis bruker lagrer noe, overskriver det den korrupte blobben silently — informasjons-tap uten varsel. Modalen kunne skille via en 'note_corrupt'-flag fra serveren."
+      },
+      {
+        "endpoint": "POST /api/am-admin/mpw/setup TOCTOU-fix",
+        "issue": "INFO — TOCTOU-fix er korrekt: setMpwVerifierIfAbsent bruker `client.set(key, value, { nx: true })` som er atomisk på Redis-server-siden, og returnerer 'OK' eller null. Test 'verifier IKKE overskrevet av andre SETNX-kall (TOCTOU-safe)' i am-admin-mpw-store.test.ts (linje 22, 26 passed) bekrefter at race-vinduet er lukket. Ingen action — bare bekrefter at iter-15 minor-issue er løst."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "AdminNotesModal — race mellom lock og fetch",
+        "issue": "Modal håndterer korrekt: (1) initial useEffect sjekker isUnlocked før fetch — låst → setLoading(false) + viser locked-hint. (2) Etter fetch, getUnlocked() re-evalueres FØR decrypt — hvis låst i mellomtiden, viser error_mpw_locked. (3) handleSave henter getUnlocked() ved click; låst → error_mpw_locked. Alle tre paths gracefully handlet. Ingen issue."
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/am-admin-notes-store.test.ts (21/21 ✓)",
+    "/app/frontend/lib/__tests__/am-admin-mpw-store.test.ts (26/26 ✓ inkl. 7 nye SETNX-tester)",
+    "/app/frontend/lib/__tests__/am-admin-mpw.test.ts (23/23 ✓)"
+  ],
+  "action_items": [
+    "FIX (MEDIUM): hev MAX_CIPHER_BASE64 i app/api/am-admin/employees/[subdomain]/notes/route.ts:36 fra 10_000 til ~30_000 (eller bedre: ~27_000). Beregning: max 5000 plaintext-chars × 4 bytes/char (emoji-worst-case) + 16 (auth tag) = 20 016 cipher-bytes → base64 ≈ 26 688 chars. Sett 30_000 med komfortabel margin. Oppdater også doc-kommentaren som feilaktig sier 'godt over 5000-tegns grensen' — det stemmer kun for ren ASCII. Alternativt: endre klient-grensen i AdminNotesModal til byte-basert via TextEncoder().encode(text).length <= N.",
+    "FIX (LOW): legg til deleteNote()-kall i tenant-delete-flowen (både manual og 28-d auto-delete via lifecycle-cron) for å hindre orphan-data-akkumulering i Upstash. Alternativt dokumenter at 20.5d CSV-backup-eksporten gjør opprydding.",
+    "CONSIDER (LOW): GET /notes kunne returnere `{ envelope: null, corrupt: true }` når blob eksisterer men isMpwEnvelope feiler, slik at modalen kan vise 'klarte ikke laste eksisterende notat' i stedet for tom textarea.",
+    "CONSIDER (LOW): assertSubdomainBelongsToOrg validerer ikke prefix selv mot PREFIX_RX. Selv om prefix kommer fra session (validert ved login), ville defense-in-depth være å validere ved hver bruk."
+  ],
+  "critical_code_review_comments": [
+    "✓ TOCTOU-FIX VERIFISERT: setMpwVerifierIfAbsent (am-admin-mpw-store.ts:80-93) bruker `client.set(key, envelope, { nx: true })` — atomisk Redis SETNX. Returnerer true ved 'OK' (suksess) / false ved null (allerede satt). Ingen mulighet for to samtidige super-admin-kall å begge lykkes og overskrive hverandre. POST /api/am-admin/mpw/setup (setup/route.ts:50-59) sjekker wasSet og returnerer 409 mpw_already_set ved kollisjon. Test 'TOCTOU-safe' (am-admin-mpw-store.test.ts) bekrefter at det andre SETNX-kallet IKKE overskriver verifier.",
+    "✓ ZERO-KNOWLEDGE INVARIANT VERIFISERT: app/api/am-admin/employees/[subdomain]/notes/route.ts ser KUN på envelope-shape (isMpwEnvelope), aldri på cipher-innhold. Krypto skjer 100% klient-side i AdminNotesModal via encryptWithMpwKey/decryptWithMpwKey. Server-koden inneholder ZERO `plaintext|password|pwd`-referanser utenfor doc-kommentarer.",
+    "✓ CROSS-ORG-ISOLASJON VERIFISERT: assertSubdomainBelongsToOrg(subdomain, admin.tenantPrefix) påkalles på alle 3 metoder (GET linje 54, PUT linje 70, DELETE linje 117). Sjekken er `subdomain.toLowerCase().startsWith(prefix.toLowerCase() + '-')` — fanger amlaw-* vs acme-* korrekt. En am-admin fra prefix=acme får 403 forbidden_cross_org ved forsøk på å lese amlaw-*-subdomains.",
+    "✓ am-admin-notes-store.ts VALIDERER BÅDE prefix OG subdomain via separate regex (PREFIX_RX + SUBDOMAIN_RX) i alle 4 eksporter (getNote/setNote/deleteNote/listNoteSubdomains/deleteAllNotes). Cross-subdomain key-injection er umulig — keyen er `org-admin-notes:<prefix>:<subdomain>` med begge komponenter regex-validert og lowercase()'d.",
+    "✓ SANITY-CAP på cipher base64-lengde (MAX_CIPHER_BASE64=10 000) er PRESENT i PUT-routen (linje 94-102) med 413 status. SE backend_issues — verdien er litt for lav for multi-byte UTF-8.",
+    "✓ DELETE /api/am-admin/mpw CASCADE FLOW: rekkefølge er korrekt — først deleteMpwVerifier (gjør cached client-key umulig å bruke), deretter deleteAllNotes (frigjør Upstash-plass). count returneres i respons og logges i audit-event som `deletedNotes=N`. Begge funksjoner er idempotente, så re-kall er trygt.",
+    "✓ deleteAllNotes BRUKER PIPELINE: linje 120-125 i am-admin-notes-store.ts batcher alle DEL-kall + indeks-DEL i ett enkelt pipe.exec(). Indeksen slettes til slutt. Edge case 'ingen notater' returnerer 0 etter eksplisitt indeks-DEL (linje 117).",
+    "✓ AdminNotesModal LÅST-HÅNDTERING: når !isUnlocked, viser locked-hint (data-testid='am-admin-notes-locked-hint') i stedet for textarea. Linje 47-51 i useEffect: hvis !isUnlocked, setter loading=false og early-returner UTEN fetch-call. Ingen lekkasje av envelope-data ved låst tilstand.",
+    "✓ AdminNotesModal RACE-HÅNDTERING: linje 66-70 — etter fetch men FØR decrypt, re-evaluerer getUnlocked(). Hvis bruker låste mellom click og fetch-fullføring, viser error_mpw_locked og henter ikke ut decoded plaintext. handleSave (linje 102-106) gjør samme re-check.",
+    "✓ EmployeeListSection 'Notater'-knapp er TRIPPEL-GATED (linje 406-422): row.kind === 'tenant' && row.statusKey !== 'deleted' && isUnlocked. Knapp vises ikke for invites eller deleted tenants eller når MPW er låst. Korrekt UX og defense-in-depth.",
+    "✓ I18N 100% I SYNC: alle 13 nye nøkler (am_admin_employees.action_notes + 12 am_admin_notes.*) eksisterer i no/sv/da/en (totalt 52 strenger). i18n-sync-lint passerer med 1197 nøkler × 4 språk. Norske/svenske/danske/engelske oversettelser er semantisk konsistente og naturlige.",
+    "✓ ALLE 70 UNIT-TESTER GRØNNE: am-admin-mpw 23/23, am-admin-mpw-store 26/26 (inkl. 7 nye SETNX-tester), am-admin-notes-store 21/21. yarn tsc --noEmit ✓. yarn lint:all ✓ (D-069 lifecycle, D-071 isolation, D-077 tenant-env, coverage-matrix, i18n-sync).",
+    "✓ Routes pinne `runtime = 'nodejs'` + `dynamic = 'force-dynamic'` — Edge runtime kan ikke importere central-upstash ved en feil.",
+    "✓ Notes-modalen kontroller MAX_NOTE_CHARS=5000 på klient (textarea-counter linje 208), backenden vil avvise overstørrelse med 413. To-lags forsvar.",
+    "INFO: getUnlocked() i useEffect-deps (linje 92) er useCallback-stabil i MpwContext (verifisert ikke i denne review), så ingen unødvendige re-runs forventes."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% statisk — 70/70 unit-tester + 5/5 lint-suites + tsc/build grønt. 1 MEDIUM correctness-bug funnet (cipher-base64-cap for lav for UTF-8 multi-byte)",
+    "frontend": "Statisk review only — ingen UI-bugs. Race-håndtering og locked-state håndteres korrekt."
+  },
+  "test_credentials": "N/A — ingen E2E utført (pod mangler Upstash creds per direktiv).",
+  "seed_data_creation": "Ingen.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter 20.5c (admin-notater) + 20.5b TOCTOU-fix er statisk korrekte. Ett MEDIUM-issue: MAX_CIPHER_BASE64=10_000 i app/api/am-admin/employees/[subdomain]/notes/route.ts:36 må heves til ~30_000 for å håndtere 5000-tegns notater med æøå/emoji. Worst-case beregning: 5000 chars × 4 bytes/char (emoji) + 16 auth tag = 20_016 bytes → base64 ≈ 26_688 chars. Forrige iter 14+15 minor-issues (Stripe API-felt-flytting, MpwSection auto-lock, canSubmit-gating, TOCTOU) er enten fikset eller fortsatt utestående hos main agent. Iter 20.5d (CSV-backup) er neste — bør samtidig fikse orphan-cleanup ved tenant-delete (legg til deleteNote-kall).",
+  "rca of the issue": {
+    "bug": "MAX_CIPHER_BASE64=10_000 er FOR LAV for multi-byte UTF-8",
+    "reproduction": "1) Am-admin låser opp MPW. 2) Åpner AdminNotesModal for en ansatt. 3) Skriver inn 5000 tegn ren norsk tekst med mange æøå (eks. en lang historie eller juridisk note med doble vokaler). 4) Klient-textarea aksepterer (MAX_NOTE_CHARS=5000 ✓). 5) Klikker Lagre → encryptWithMpwKey produserer cipher med plaintext-bytes ≈ 10 000 (UTF-8 2 bytes/æøå) + 16 auth tag = 10 016 cipher-bytes. 6) base64-koder → ≈ 13 356 base64-chars. 7) PUT-request sendes med envelope.cipher.length = 13 356. 8) Server linje 94: 13 356 > 10 000 → returnerer 413 'note_too_large' med 'Maks 10000 base64-tegn (~5000 tegn plaintext)'. 9) Bruker ser feilmelding og kan ikke lagre — selv om hen er innenfor det dokumenterte 5000-tegns plaintext-grensen.",
+    "mitigation": "Endre MAX_CIPHER_BASE64 fra 10_000 til 30_000 (worst-case 5000 emoji × 4 bytes/char + auth tag + base64-overhead ≈ 26_688). 30 000 gir komfortabel margin uten å invitere abuse. Alternativ A: bytt klient-grensen til byte-basert via TextEncoder().encode(text).length <= 5000 (mer restriktivt for utenlandsk tekst, men konsistent med serveren). Alternativ B: senk klient-grensen til 2500 chars hvis 5000-base64-overhead-marginen MÅ være lav. Anbefaler hev MAX_CIPHER_BASE64=30_000 — minst inntrusivt og bevarer 5000-chars UX-løftet i alle alfabeter."
+  }
+}
