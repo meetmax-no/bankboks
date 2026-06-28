@@ -10,9 +10,9 @@
  * (D-103c) brukte parent.subdomain → 0 children. Vi matcher konsekvent mot
  * `tenantPrefix`.
  *
- * Hvorfor live-telling? Det lagrede `activeLicenses`-feltet inkrementeres
- * ved invite-accept men dekrementeres ALDRI ved delete-tenant (kjent bug).
- * Vi stoler ikke på det.
+ * Hvorfor live-telling? Det lagrede `activeLicenses`-feltet ble fjernet
+ * (D-111, 2026-06-29) fordi det inkrementerte ved invite-accept men aldri
+ * dekrementerte ved delete-tenant. Live-telling er nå eneste sannhetskilde.
  */
 import { listTenants } from "./tenant-store";
 import { countActivePendingInvites } from "./invite-store";

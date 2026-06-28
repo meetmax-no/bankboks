@@ -22,8 +22,10 @@ import {
 } from "@/lib/platform/invite-store";
 import {
   findB2BTenantByPrefix,
+  listTenants,
   tenantExists,
 } from "@/lib/platform/tenant-store";
+import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import { isValidSubdomainFormat } from "@/lib/platform/subdomain";
 import { sendInviteEmail } from "@/lib/platform/notify-email";
 import { logEvent } from "@/lib/platform/provisioning-log";
@@ -133,8 +135,10 @@ export async function POST(req: NextRequest) {
   // D-092 (2026-06-28) — Hybrid-seat:
   // activeLicenses + activeInvites (pending, ikke utløpt) ≤ maxLicenses.
   // maxLicenses=null eller 0 → skipper sjekken (B2C eller ubegrenset).
+  // D-111 (2026-06-29): activeLicenses tellet LIVE.
   if (typeof parent.maxLicenses === "number" && parent.maxLicenses > 0) {
-    const activeLicenses = parent.activeLicenses ?? 0;
+    const allTenants = await listTenants();
+    const activeLicenses = countLiveActiveLicenses(parentTenant, allTenants);
     const pendingInvites = await countActivePendingInvites(parentTenant);
     const inUse = activeLicenses + pendingInvites;
     if (inUse >= parent.maxLicenses) {

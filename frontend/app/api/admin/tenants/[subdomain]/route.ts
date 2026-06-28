@@ -7,9 +7,10 @@
  * Beskyttet av middleware. Idempotent DELETE.
  */
 import { NextResponse } from "next/server";
-import { getTenant, putTenant } from "@/lib/platform/tenant-store";
+import { getTenant, listTenants, putTenant } from "@/lib/platform/tenant-store";
 import { deleteTenant } from "@/lib/platform/delete-tenant";
 import { markInvitesAsChildDeleted } from "@/lib/platform/invite-store";
+import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import { validateOrgNumber } from "@/lib/platform/org-number-validation";
 import { getStripeClient } from "@/lib/stripe/client";
 import type {
@@ -455,20 +456,20 @@ export async function DELETE(_req: Request, { params }: Params) {
     // D-038: B2B-parent med aktive lisenser kan ikke slettes — admin må først
     // slette barn-tenantene. Beholdes som hard-blokk pre-kaskaden så vi ikke
     // begynner å rive ned Vercel/Upstash for så å havne i halv-tilstand.
+    // D-111 (2026-06-29): live-tellet i stedet for stale schema-felt.
     const tenant = await getTenant(subdomain);
-    if (
-      tenant &&
-      tenant.customerType === "b2b" &&
-      tenant.tenantPrefix &&
-      (tenant.activeLicenses ?? 0) > 0
-    ) {
-      return NextResponse.json(
-        {
-          error: "active_licenses_exist",
-          detail: `Kan ikke slette — ${tenant.activeLicenses} aktive lisenser under prefikset "${tenant.tenantPrefix}".`,
-        },
-        { status: 409 },
-      );
+    if (tenant && tenant.customerType === "b2b" && tenant.tenantPrefix) {
+      const allTenants = await listTenants();
+      const liveActive = countLiveActiveLicenses(tenant.tenantPrefix, allTenants);
+      if (liveActive > 0) {
+        return NextResponse.json(
+          {
+            error: "active_licenses_exist",
+            detail: `Kan ikke slette — ${liveActive} aktive lisenser under prefikset "${tenant.tenantPrefix}".`,
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Kaskade-sletting: Vercel + Upstash + client-config + sentral DB +

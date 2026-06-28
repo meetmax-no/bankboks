@@ -7,9 +7,9 @@
  *   1. Rate-limit (5 per IP per time)
  *   2. Verifiser token (finnes, ikke brukt, ikke utløpt)
  *   3. Valider subdomain fortsatt ledig
- *   4. Valider parent finnes og activeLicenses < maxLicenses
+ *   4. Valider parent finnes og live-aktive-lisenser < maxLicenses (D-111)
  *   5. Opprett TenantRecord (B2B, parentTenant, status=active, createdBy=invite)
- *   6. Inkrement parent.activeLicenses
+ *   6. (D-111) Ingen activeLicenses-increment — seat-telling skjer live overalt
  *   7. Marker InviteRecord som "used"
  *   8. (Iter 8) Vercel-provisjonering — TODO
  *   9. (Iter 9) Upstash-provisjonering — TODO
@@ -38,10 +38,7 @@ import { provisionTenantOnUpstash } from "@/lib/platform/upstash-provision";
 import { notifyProvisioningFailure } from "@/lib/platform/notify";
 import { provisioningLogger } from "@/lib/platform/provisioning-log";
 import { isSubdomainDeployed } from "@/lib/platform/subdomain-reachable";
-import type {
-  CreateTenantInput,
-  TenantRecord,
-} from "@/lib/platform/tenant-types";
+import type { CreateTenantInput } from "@/lib/platform/tenant-types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,7 +140,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Parent finnes + lisens-tak ikke nådd
+    // 4. Parent finnes + lisens-tak ikke nådd (D-111: live-tellet)
     const parent = await findB2BTenantByPrefix(invite.parentTenant);
     if (!parent) {
       return NextResponse.json(
@@ -151,15 +148,22 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
-    if (
-      typeof parent.maxLicenses === "number" &&
-      typeof parent.activeLicenses === "number" &&
-      parent.activeLicenses >= parent.maxLicenses
-    ) {
-      return NextResponse.json(
-        { ok: false, error: "max_licenses_reached" },
-        { status: 409 },
+    if (typeof parent.maxLicenses === "number") {
+      const { listTenants } = await import("@/lib/platform/tenant-store");
+      const { countLiveActiveLicenses } = await import(
+        "@/lib/platform/seat-counter"
       );
+      const allTenants = await listTenants();
+      const liveActive = countLiveActiveLicenses(
+        parent.tenantPrefix ?? "",
+        allTenants,
+      );
+      if (liveActive >= parent.maxLicenses) {
+        return NextResponse.json(
+          { ok: false, error: "max_licenses_reached" },
+          { status: 409 },
+        );
+      }
     }
 
     // 5. Opprett B2B child-tenant
@@ -180,12 +184,7 @@ export async function POST(req: Request) {
     childRecord.parentTenant = invite.parentTenant;
     await putTenant(childRecord);
 
-    // 6. Inkrement parent.activeLicenses
-    const updatedParent: TenantRecord = {
-      ...parent,
-      activeLicenses: (parent.activeLicenses ?? 0) + 1,
-    };
-    await putTenant(updatedParent);
+    // 6. D-111: ingen increment lenger — seat-telling skjer live i alle lese-stier.
 
     // 7. Marker invitasjon som brukt
     await putInvite({

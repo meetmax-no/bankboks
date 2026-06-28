@@ -3817,3 +3817,48 @@ D-105-lint fanger ikke direkte at noen lager parallell `<SubTabNav>`-implementas
 
 ---
 
+
+## D-111 — `activeLicenses` er live-tellet, ikke lagret (NY · 2026-06-29 · Mike-direktiv)
+
+**Kontekst:** B1 i KNOWN_BUGS dokumenterte at `TenantRecord.activeLicenses` inkrementeres i `invite/accept` men aldri dekrementeres ved `delete-tenant`. Verdien drifter fra realiteten og blir over tid feil, noe som er en risiko fordi 6 ulike API-ruter brukte feltet direkte til seat-cap-validering (blokkerer faktiske operasjoner).
+
+**Beslutning:** Fjern alle skriv- og direkte-lesere av `activeLicenses` fra sentral storage. Live-telling via `lib/platform/seat-counter.ts → countLiveActiveLicenses(prefix, allTenants)` er ENESTE sannhetskilde.
+
+### Konsekvenser
+
+1. **Schema:** `TenantRecord.activeLicenses` er nå `number | undefined` (optional) og dokumentert som "response-only — populeres av API, skrives ALDRI til Upstash". Samme mønster som `pendingInvitesCount`.
+2. **Skriv-side:** `invite/accept` har fjernet `parent.activeLicenses++`-blokken. Ingen ruter skriver lenger feltet.
+3. **Lese-side:** 6 ruter patchet til å bruke `countLiveActiveLicenses`:
+   - `/api/am-admin/seat-status` (Konsoll-UI)
+   - `/api/am-admin/invites` POST (seat-cap-validering før invite)
+   - `/api/admin/invites` POST (super-admin invite-flow)
+   - `/api/invite/accept` (seat-cap-validering før aksept)
+   - `/api/admin/tenants/[subdomain]` DELETE (blokk-sjekk før parent-sletting)
+   - `/api/am-admin/backup/data` (backup-payload)
+
+   `/api/admin/tenants` og `/api/am-admin/auth/me` var allerede live-tellet (D-103e).
+4. **Default-state:** `createTenantRecordDefaults` setter ikke lenger `activeLicenses: 0` for B2B. Eksisterende records med stale-verdier overskrives ikke automatisk, men ingen kode leser dem lenger.
+
+### Hvorfor optional og ikke fullstendig slettet fra typen?
+
+API-svar (admin/tenants, am-admin/auth/me, seat-status, backup/data) sender fortsatt `activeLicenses` som beregnet response-felt. UI-komponenter (`TenantViewer`, `KonsoletSettingsPanel`, `InvitesSection`, etc.) konsumerer det fra wire-format. Å fjerne feltet helt fra TypeScript-typen ville krevet en separat `TenantListItem`-type med duplisert felt-liste — en større refactor enn nødvendig.
+
+Mønsteret er identisk med eksisterende `pendingInvitesCount?: number` (D-103) — feltet finnes i typen, dokumentert som "kun computed", aldri skrevet.
+
+### Lint og test-implikasjoner
+
+- `lifecycle-guard.test.ts` og `am-admin-backup.test.ts` har fortsatt test-fikstur med `activeLicenses: <n>` — det er fortsatt gyldig fordi feltet er optional.
+- D-105-lint fortsatt grønn — ingen nye duplisering-mønstre.
+- Ingen migrering av eksisterende Upstash-records nødvendig: feltet ignoreres ved deserialisering (TypeScript optional), og overskrives aldri av storage-write fordi `putTenant(record)` lagrer hele record uten å fjerne uvedkomne keys (Upstash JSON-payload). Drift-verdier blir bare ignorert som dead data.
+
+### Rollback-plan
+
+Hvis live-telling viser seg å være for tregt (ekstra `listTenants()`-kall per validering):
+1. Gjenintroduser `activeLicenses` som required `number | null` i schema.
+2. Skriv backfill-cron som re-synker feltet hver time fra live-data.
+3. La direkte-lesere bruke stale-feltet igjen, men aksepter ≤ 60 min drift.
+
+Per Mike's spec 2026-06-29: "Ren fjerning. Én sannhetskilde, ingen drift, ingen halvferdige løsninger." Dette er den linja vi går på.
+
+---
+

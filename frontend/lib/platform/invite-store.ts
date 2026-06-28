@@ -124,7 +124,7 @@ export async function deleteInvite(record: InviteRecord): Promise<boolean> {
  * `activeLicenses + pendingInvites ≤ maxLicenses`. Eksisterende cleanup-cron
  * markerer utløpte som status="expired" → de telles IKKE. Manuell DELETE
  * fjerner invite-record helt → telles IKKE. Accept setter status="used" →
- * telles IKKE (i stedet inkrementeres activeLicenses på TenantRecord).
+ * telles IKKE (D-111: activeLicenses tellet live fra child-tenants i stedet).
  *
  * Returnerer kun antall — krever ikke decrypt-roundtrip per record.
  */

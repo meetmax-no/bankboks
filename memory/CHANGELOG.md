@@ -3,6 +3,51 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-06-29 — D-111: `activeLicenses` live-tellet + bug-rydd-runde
+
+### Bug-fikser
+
+1. **B1 / D-111 — Stale `activeLicenses`-felt fjernet (P1)**
+   - Tidligere inkrementert i `/api/invite/accept` men aldri dekrementert ved `delete-tenant` → drift over tid.
+   - **Skriv-side fjernet:** `/api/invite/accept` har ikke lenger `parent.activeLicenses++`-blokk.
+   - **Lese-side patchet (6 ruter):** `am-admin/seat-status`, `am-admin/invites`, `admin/invites`, `invite/accept` (cap-validering), `admin/tenants/[subdomain]` DELETE, `am-admin/backup/data` — alle bruker nå `countLiveActiveLicenses(prefix, allTenants)`.
+   - **Schema:** `TenantRecord.activeLicenses` er nå `number | undefined` (optional, response-only — samme mønster som `pendingInvitesCount`). Default-fabrikken setter ikke verdien lenger.
+   - Se DECISIONS.md → D-111 for full begrunnelse og rollback-plan.
+
+2. **B4 — Reload-knapp i B2B-Konsoll**
+   - Flyttet fra helt-til-venstre til høyre side av SeatProgressBar, ved siden av "+ Ansatt"-knappen.
+   - Stil: secondary outline (`border-white/15`, hover `border-white/30`) + `RefreshCw`-ikon + tekst, matcher visuelt CTA-en uten å konkurrere.
+   - **Bug-fiks:** Dobbelt-ikon (`↻`-glyph i locale + lucide-ikon) — fjernet glyph fra alle 4 locale-filer (no/sv/da/en).
+
+3. **B5 — Postnummer → poststed live-lookup (NO + DK)**
+   - Ny `lib/postal/lookup.ts` — delt fetcher med session-cache. NO via Bring API (`api.bring.com/shippingguide`), DK via DataForsyningen (`api.dataforsyningen.dk/postnumre`). Begge gratis, ingen nøkkel, CORS-OK.
+   - Ny `lib/postal/use-postnr-autofill.ts` — delt hook (D-105), 400ms debounce, ref-basert setter for å unngå re-render-trigging.
+   - Brukt på 4 felt-par i `TenantViewer`: company + billing × create + edit. Country-felt styrer aktivering.
+
+### Filer endret
+- `lib/platform/tenant-types.ts` — `activeLicenses` optional, fjernet fra default
+- `lib/platform/seat-counter.ts` — kommentar oppdatert (D-111-referanse)
+- `lib/platform/invite-store.ts` — kommentar oppdatert
+- `app/api/invite/accept/route.ts` — fjernet write, patchet read
+- `app/api/am-admin/seat-status/route.ts` — live-telling
+- `app/api/am-admin/invites/route.ts` — live-telling
+- `app/api/admin/invites/route.ts` — live-telling
+- `app/api/admin/tenants/[subdomain]/route.ts` — live-telling i DELETE-guard
+- `app/api/am-admin/backup/data/route.ts` — live-telling i backup-payload
+- `components/platform/am-admin/EmployeeListSection.tsx` — reload-knapp re-layout
+- `lib/locales/{no,sv,da,en}.json` — `↻`-glyph fjernet fra `am_admin_employees.refresh_btn`
+- `components/platform/TenantViewer.tsx` — postnr-autofill-hook x4
+- `lib/postal/lookup.ts` (ny)
+- `lib/postal/use-postnr-autofill.ts` (ny)
+- `KNOWN_BUGS.md` — B1/B4/B5 flyttet til Lukket
+- `memory/DECISIONS.md` — D-111 lagt til
+
+### Verifisert
+- `yarn tsc --noEmit` ✓
+- `yarn lint:all` ✓ (7 skript, D-105+D-078 grønne, 1414 i18n-nøkler i sync)
+- `yarn build` ✓
+
+---
 ## 2026-06-28 — D-107: TenantViewer 2-nivå tab-struktur + redesign av CreateOrgAdminCard
 
 ### Mike's spec (bekreftet bilde-for-bilde)

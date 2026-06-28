@@ -1186,7 +1186,7 @@
   "am_admin_invites.success_without_email": "✓ Invitasjon opprettet — husk å sende lenken manuelt (e-post mangler eller mail er deaktivert)",
   "am_admin_employees.heading": "Ansatte",
   "am_admin_employees.refresh_busy": "Henter…",
-  "am_admin_employees.refresh_btn": "↻ Oppdater",
+  "am_admin_employees.refresh_btn": "Oppdater",
   "am_admin_employees.refresh_aria": "Oppdater ansatt-listen",
   "am_admin_employees.empty_state": "Ingen ansatte eller pågående invitasjoner. Opprett en invitasjon nedenfor for å legge til første ansatt.",
   "am_admin_employees.col_name": "Navn",

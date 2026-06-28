@@ -1186,7 +1186,7 @@
   "am_admin_invites.success_without_email": "✓ Inbjudan skapad — kom ihåg att skicka länken manuellt (e-post saknas eller mejl är avaktiverat)",
   "am_admin_employees.heading": "Anställda",
   "am_admin_employees.refresh_busy": "Hämtar…",
-  "am_admin_employees.refresh_btn": "↻ Uppdatera",
+  "am_admin_employees.refresh_btn": "Uppdatera",
   "am_admin_employees.refresh_aria": "Uppdatera anställd-listan",
   "am_admin_employees.empty_state": "Inga anställda eller pågående inbjudningar. Skapa en inbjudan nedan för att lägga till första anställda.",
   "am_admin_employees.col_name": "Namn",

@@ -1,12 +1,13 @@
 /**
  * Ko | Do · Vault — D-092 (2026-06-28) — Hybrid-seat status for Konsoll-UI
+ * D-111 (2026-06-29): activeLicenses tellet LIVE (ikke fra stale schema-felt).
  *
  * GET /api/am-admin/seat-status
  *
  * Returnerer kapasitets-status for parent-tenant til innlogget am-admin.
  *
  * Per Mike's spec 2026-06-28 (hybrid-seat):
- *   - activeLicenses = TenantRecord.activeLicenses (aksepterte ansatte)
+ *   - activeLicenses = live-telling av ikke-slettede child-tenants (D-111)
  *   - pendingInvites = invites med status="pending" som ikke er utløpt
  *   - maxLicenses   = TenantRecord.maxLicenses (null eller 0 → ubegrenset)
  *   - availableSeats = max(0, maxLicenses - activeLicenses - pendingInvites)
@@ -16,8 +17,9 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAmAdmin } from "@/lib/platform/am-admin-session-helper";
-import { findB2BTenantByPrefix } from "@/lib/platform/tenant-store";
+import { findB2BTenantByPrefix, listTenants } from "@/lib/platform/tenant-store";
 import { countActivePendingInvites } from "@/lib/platform/invite-store";
+import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +34,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "parent_not_found" }, { status: 404 });
   }
 
-  const activeLicenses = parent.activeLicenses ?? 0;
+  const allTenants = await listTenants();
+  const activeLicenses = countLiveActiveLicenses(admin.tenantPrefix, allTenants);
   const pendingInvites = await countActivePendingInvites(admin.tenantPrefix);
   const maxLicenses = parent.maxLicenses ?? null;
   const hasCap = typeof maxLicenses === "number" && maxLicenses > 0;

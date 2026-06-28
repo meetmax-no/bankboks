@@ -1186,7 +1186,7 @@
   "am_admin_invites.success_without_email": "✓ Invitation oprettet — husk at sende linket manuelt (e-mail mangler eller mail er deaktiveret)",
   "am_admin_employees.heading": "Medarbejdere",
   "am_admin_employees.refresh_busy": "Henter…",
-  "am_admin_employees.refresh_btn": "↻ Opdatér",
+  "am_admin_employees.refresh_btn": "Opdatér",
   "am_admin_employees.refresh_aria": "Opdatér medarbejder-listen",
   "am_admin_employees.empty_state": "Ingen medarbejdere eller igangværende invitationer. Opret en invitation nedenfor for at tilføje den første medarbejder.",
   "am_admin_employees.col_name": "Navn",

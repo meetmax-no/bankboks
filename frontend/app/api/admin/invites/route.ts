@@ -12,7 +12,8 @@ import {
   createInvite,
   listInvitesForParent,
 } from "@/lib/platform/invite-store";
-import { findB2BTenantByPrefix, tenantExists } from "@/lib/platform/tenant-store";
+import { findB2BTenantByPrefix, listTenants, tenantExists } from "@/lib/platform/tenant-store";
+import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import { isValidSubdomainFormat } from "@/lib/platform/subdomain";
 import type { CreateInviteInput } from "@/lib/platform/invite-types";
 import { buildInviteUrl } from "@/lib/platform/invite-url";
@@ -118,19 +119,19 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
-    // 3. Lisens-tak: activeLicenses < maxLicenses
-    if (
-      typeof parent.maxLicenses === "number" &&
-      typeof parent.activeLicenses === "number" &&
-      parent.activeLicenses >= parent.maxLicenses
-    ) {
-      return NextResponse.json(
-        {
-          error: "max_licenses_reached",
-          detail: `${parent.activeLicenses}/${parent.maxLicenses} lisenser i bruk.`,
-        },
-        { status: 409 },
-      );
+    // 3. Lisens-tak: live-aktive < maxLicenses (D-111)
+    if (typeof parent.maxLicenses === "number") {
+      const allTenants = await listTenants();
+      const liveActive = countLiveActiveLicenses(parentTenant, allTenants);
+      if (liveActive >= parent.maxLicenses) {
+        return NextResponse.json(
+          {
+            error: "max_licenses_reached",
+            detail: `${liveActive}/${parent.maxLicenses} lisenser i bruk.`,
+          },
+          { status: 409 },
+        );
+      }
     }
     // 4. Opprett invitasjon
     const invite = await createInvite({

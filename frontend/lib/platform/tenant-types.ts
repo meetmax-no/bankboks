@@ -119,7 +119,16 @@ export type TenantRecord = {
   adminSubdomain: string | null;
   tenantPrefix: string | null;
   maxLicenses: number | null;
-  activeLicenses: number | null;
+  /**
+   * D-111 (Mike 2026-06-29): activeLicenses er IKKE LENGER lagret i sentral
+   * storage — det inkrementerte ved invite/accept men ble aldri dekrementert
+   * ved delete-tenant → drift over tid. Beregnes nå LIVE via
+   * `countLiveActiveLicenses(prefix, allTenants)` i seat-counter.ts.
+   * Feltet beholdes som OPTIONAL response-only (samme mønster som
+   * `pendingInvitesCount` under) — API-rutene populerer det, men det
+   * skal ALDRI skrives tilbake til Upstash.
+   */
+  activeLicenses?: number;
   parentTenant: string | null;
   /**
    * D-103 (Mike 2026-06-28): Aggregert antall aktive pending-invites for
@@ -386,7 +395,7 @@ export function buildTenantRecord(
     adminSubdomain: s(input.adminSubdomain),
     tenantPrefix: s(input.tenantPrefix),
     maxLicenses: n(input.maxLicenses),
-    activeLicenses: input.customerType === "b2b" ? 0 : null,
+    // D-111: activeLicenses fjernet — beregnes live via seat-counter.ts
     parentTenant: null,
 
     plan: input.plan ?? "trial",

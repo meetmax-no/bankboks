@@ -1,6 +1,6 @@
 # Ko|Do · Vault — Known Bugs & Tech Debt
 
-**Sist oppdatert:** 2026-06-28  
+**Sist oppdatert:** 2026-06-29  
 **Format:** [Severity] Bug-title → Beskrivelse → Filer → Status
 
 Severity:
@@ -19,13 +19,6 @@ Severity:
 
 ## 🟠 P1 — Funksjonelle
 
-### B1 — Stale `activeLicenses`-felt i TenantRecord
-**Beskrivelse:** `activeLicenses`-feltet på TenantRecord inkrementeres ved `invite/accept` men dekrementeres ALDRI ved `delete-tenant`. Verdien drifter fra realiteten over tid.  
-**Workaround:** Live-telling via `lib/platform/seat-counter.ts` brukes overalt nå (D-103e/D-105). Stale-feltet leses ikke direkte fra UI-stier, kun fra interne ruter (`am-admin/seat-status` o.l. — sjekk).  
-**Filer:** `lib/platform/tenant-types.ts:activeLicenses`, `app/api/invite/accept/route.ts` (inkrementerer).  
-**Status:** Tech-debt — bør slettes som felt, eller backfill-skript som rydder ved hver `listTenants()`.  
-**Tracking:** D-103e (CHANGELOG)
-
 ### B2 — Orphan-detection edge-case ved gjenoppretting av samme prefix
 **Beskrivelse:** Hvis Mike sletter en B2B-parent og umiddelbart oppretter en ny med samme prefix, kan gamle org-admin-records / invites peke til "wrong parent" (via snapshot-FK `parentTenantCreatedAt`). Orphan-detection (`link_missing` / `child_missing`) skal fange det, men har edge-case ved race-condition.  
 **Workaround:** Bruk Test Tools (`OrphanInvitesCard`) til å rydde manuelt.  
@@ -42,18 +35,6 @@ Severity:
 ---
 
 ## 🟡 P2 — UX/kosmetisk
-
-### B4 — Reload-knapp i B2B-Konsoll mangler
-**Beskrivelse:** Mike ba om reload-knapp på samme linje som SeatProgressBar + "+ Ansatt"-knappen i Ansatte-fanen. Forrige agent prøvde, men la den feil sted først og rakk ikke å fullføre.  
-**Workaround:** Bruker den eksisterende "↻ Oppdater"-tekst-lenken.  
-**Filer:** `components/platform/am-admin/EmployeeListSection.tsx` (linje ~448).  
-**Status:** TODO — pending Mike's go.
-
-### B5 — Postnummer → poststed auto-lookup mangler
-**Beskrivelse:** Mike spurte om postnr-til-poststed-lookup. Ikke implementert.  
-**Forslag:** Bring API (free, no auth, men rate-limited til 50/s) eller statisk JSON (~50KB, alle norske postnumre).  
-**Filer:** N/A — ny `lib/platform/postal-lookup.ts` ville være start.  
-**Status:** Pending Mike's go.
 
 ### B6 — vatNumber-felt finnes i schema men ikke i UI
 **Beskrivelse:** `TenantRecord.vatNumber` lagres backend, men ingen UI viser eller editerer det (skjult i create-form per direktiv 2026-06-04). Vises kun read-only i "Rå felter (35)" på System-fanen.  
@@ -88,6 +69,11 @@ Severity:
 ---
 
 ## Lukket (referanse)
+
+### Fixed 2026-06-29
+- ✅ **D-111** B1: Stale `activeLicenses`-felt → fjernet write i invite/accept, alle 6 lesere bruker nå `countLiveActiveLicenses`. Schema-felt beholdt som OPTIONAL response-only (samme mønster som `pendingInvitesCount`)
+- ✅ **B4** Reload-knapp i B2B-Konsoll → flyttet til høyre side av SeatBar, ved siden av "+ Ansatt" — secondary outline-button med RefreshCw-ikon. Dobbelt-ikon-bug (`↻`-glyph i locale + lucide-ikon) fikset ved å fjerne glyph fra alle 4 locale-filer
+- ✅ **B5** Postnummer→poststed live-lookup (NO via Bring + DK via DataForsyningen) — delt hook `usePostnrAutofill` brukt på 4 felt-par i TenantViewer
 
 ### Fixed 2026-06-28
 - ✅ D-099 cross-tenant data leak ved DNS-propagering (vault-host-guard)

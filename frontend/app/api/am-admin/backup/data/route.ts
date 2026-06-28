@@ -18,6 +18,7 @@ import {
   findB2BTenantByPrefix,
   listTenants,
 } from "@/lib/platform/tenant-store";
+import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import {
   listNoteSubdomains,
   getNote,
@@ -90,14 +91,15 @@ export async function GET(req: NextRequest) {
     }))
     .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
 
-  // Hent license-info fra parent-tenant.
+  // Hent license-info fra parent-tenant. D-111: activeLicenses live-tellet.
   const parent = await findB2BTenantByPrefix(prefix);
+  const liveActiveLicenses = countLiveActiveLicenses(prefix, all);
   const license: LicenseInfo = parent
     ? {
         parentSubdomain: parent.subdomain,
         plan: parent.plan,
         maxLicenses: parent.maxLicenses,
-        activeLicenses: parent.activeLicenses,
+        activeLicenses: liveActiveLicenses,
         trialEndsAt: parent.trialEndsAt,
         nextBillingDate: parent.nextBillingDate,
         status: parent.status,
