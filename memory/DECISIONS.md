@@ -3862,3 +3862,44 @@ Per Mike's spec 2026-06-29: "Ren fjerning. Én sannhetskilde, ingen drift, ingen
 
 ---
 
+
+## D-112 — `vatNumber` fjernet fra schema, utledes live (NY · 2026-06-29 · Mike-direktiv)
+
+**Kontekst:** B6 i KNOWN_BUGS dokumenterte at `TenantRecord.vatNumber` lagres backend men aldri eksponeres i UI (skjult i create-form per Iter 20.9 fordi MVA = "NO" + orgnr + "MVA" for norske selskaper). Etter sjekk viste det seg at samme deterministiske utledning gjelder for ALLE nordiske land:
+
+- **NO:** `NO` + orgnr (9 sifre) + `MVA`
+- **DK:** `DK` + CVR (8 sifre) — CVR ER MVA-nummer
+- **SE:** `SE` + orgnr (10 sifre uten bindestrek) + `01`
+
+**Beslutning:** Fjern `vatNumber`-feltet fra schema. Innfør `deriveVatNumber(country, orgNumber)`-helper for live-utledning der UI eller fakturaer trenger å vise MVA.
+
+### Konsekvenser
+
+1. **Schema:** `TenantRecord.vatNumber` fjernet helt (ikke optional, full sletting). Eksisterende verdier i Upstash ignoreres som dead data.
+2. **CreateTenantInput:** `vatNumber?` fjernet fra payload-typen.
+3. **API PATCH:** `/api/admin/tenants/[subdomain]` aksepterer ikke lenger `vatNumber` i body, og audit-felt-listen er ryddet.
+4. **Audit-tracking:** `tenant-audit.ts` BASE_FIELDS-array har ikke lenger `vatNumber` → ingen logging av "endring" på et felt som ikke kan endres.
+5. **UI:** `CreateFormState`, `EMPTY_FORM`, `BASE_FIELDS_B2B` (audit-liste i System-fanen) og `CompanyDataSectionEdit` sin `companyForm` har alle fjernet `vatNumber`-spor.
+6. **Helper:** `deriveVatNumber()` plassert i `lib/platform/org-number-validation.ts`. Tar `country: string` (case-insensitiv, godtar `NO`/`NOR`/`NORGE`/`NORWAY` + tilsvarende for DK/SE) og `orgNumber: string` (med eller uten sifferstripping). Returnerer null hvis land ikke støttes eller sifferantall er feil for landet.
+7. **Tester:** `lifecycle-guard.test.ts`-fixture oppdatert.
+
+### Hvorfor full fjerning (ikke optional)?
+
+For å unngå at noen ved et uhell skriver til feltet ("denne kan ikke skrives") og for å tydeliggjøre at sannhetskilden er deriveringen. Optional-mønsteret (som `activeLicenses` i D-111) ble vurdert men ikke valgt fordi `vatNumber` ikke har et naturlig response-only use-case — det er ren funksjon av to andre felter.
+
+### Migrering / rollback
+
+- **Migrering:** Ingen. Upstash-records med `vatNumber`-keys deserialiseres uten feil (extra keys ignoreres av TypeScript ved JSON-parse), og verdiene leses ingen steder.
+- **Rollback:** Gjenintroduser feltet som `vatNumber: string | null` i schema, legg tilbake i audit-liste og PATCH-body-type, eksponer i UI. Eksisterende stale-data vil da bli synlig igjen.
+
+### Bonus-feature
+
+`deriveVatNumber()` er klar til UI-bruk men ikke wired inn (ingen Mike-direktiv for visning). Naturlige plasseringer:
+- Read-only display i Selskap-seksjonen under orgNumber-feltet ("MVA-nr: NO123456789MVA (utledet)")
+- Stripe-customer-sync (sett `tax_id` automatisk når orgNumber og land er kjent)
+- Faktura-templates
+
+Mike avgjør hvor/når disse skal kobles inn.
+
+---
+

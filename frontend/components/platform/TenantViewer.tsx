@@ -85,7 +85,7 @@ type CreateFormState = {
   lastName: string;
   companyName: string;
   orgNumber: string;
-  vatNumber: string;
+  // D-112: vatNumber fjernet — utledes live via deriveVatNumber()
   companyStreet: string;
   companyPostalCode: string;
   companyCity: string;
@@ -121,7 +121,6 @@ const EMPTY_FORM: CreateFormState = {
   lastName: "",
   companyName: "",
   orgNumber: "",
-  vatNumber: "",
   companyStreet: "",
   companyPostalCode: "",
   companyCity: "",
@@ -316,7 +315,7 @@ export function TenantViewer({
       };
       set("companyName", createForm.companyName);
       set("orgNumber", createForm.orgNumber);
-      set("vatNumber", createForm.vatNumber);
+      // D-112: vatNumber fjernet — utledes live på server-side ved behov
       set("companyStreet", createForm.companyStreet);
       set("companyPostalCode", createForm.companyPostalCode);
       set("companyCity", createForm.companyCity);
@@ -1283,7 +1282,7 @@ function TenantDetailCard({
     "customerType",
     "companyName",
     "orgNumber",
-    "vatNumber",
+    // D-112: vatNumber fjernet
     "companyStreet",
     "companyPostalCode",
     "companyCity",
@@ -2359,7 +2358,6 @@ function CompanyDataSectionEdit({
   const [companyForm, setCompanyForm] = useState({
     companyName: nullToEmpty(record.companyName),
     orgNumber: nullToEmpty(record.orgNumber),
-    vatNumber: nullToEmpty(record.vatNumber),
     companyStreet: nullToEmpty(record.companyStreet),
     companyPostalCode: nullToEmpty(record.companyPostalCode),
     companyCity: nullToEmpty(record.companyCity),
@@ -2372,7 +2370,6 @@ function CompanyDataSectionEdit({
   const companyDirty =
     companyForm.companyName !== nullToEmpty(record.companyName) ||
     companyForm.orgNumber !== nullToEmpty(record.orgNumber) ||
-    companyForm.vatNumber !== nullToEmpty(record.vatNumber) ||
     companyForm.companyStreet !== nullToEmpty(record.companyStreet) ||
     companyForm.companyPostalCode !== nullToEmpty(record.companyPostalCode) ||
     companyForm.companyCity !== nullToEmpty(record.companyCity) ||
@@ -2390,7 +2387,6 @@ function CompanyDataSectionEdit({
     setCompanyForm({
       companyName: nullToEmpty(record.companyName),
       orgNumber: nullToEmpty(record.orgNumber),
-      vatNumber: nullToEmpty(record.vatNumber),
       companyStreet: nullToEmpty(record.companyStreet),
       companyPostalCode: nullToEmpty(record.companyPostalCode),
       companyCity: nullToEmpty(record.companyCity),
@@ -2406,7 +2402,6 @@ function CompanyDataSectionEdit({
       const body = {
         companyName: emptyToNull(companyForm.companyName),
         orgNumber: emptyToNull(companyForm.orgNumber),
-        vatNumber: emptyToNull(companyForm.vatNumber),
         companyStreet: emptyToNull(companyForm.companyStreet),
         companyPostalCode: emptyToNull(companyForm.companyPostalCode),
         companyCity: emptyToNull(companyForm.companyCity),

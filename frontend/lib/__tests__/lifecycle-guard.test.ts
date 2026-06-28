@@ -37,7 +37,6 @@ function makeTenant(overrides: Partial<TenantRecord> = {}): TenantRecord {
     lastName: null,
     companyName: null,
     orgNumber: null,
-    vatNumber: null,
     companyStreet: null,
     companyPostalCode: null,
     companyCity: null,

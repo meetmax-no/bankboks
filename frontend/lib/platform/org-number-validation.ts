@@ -119,3 +119,47 @@ export function validateOrgNumber(
       return OK;
   }
 }
+
+
+/**
+ * D-112 (Mike 2026-06-29): Utled MVA-/VAT-nummer fra org.nr + land.
+ *
+ * Konvensjoner:
+ *   - NO: "NO" + 9 sifre + "MVA"        (orgnr)
+ *   - DK: "DK" + 8 sifre                (CVR = MVA-nummer)
+ *   - SE: "SE" + 10 sifre + "01"        (orgnr uten bindestrek + filial-suffix)
+ *   - Andre land: null (ingen utledning)
+ *
+ * Returnerer null hvis land ikke støttes eller org.nr har feil sifferantall
+ * for det aktuelle landet. Bruker `digitsOnly()`-stripping konsistent med
+ * `validateOrgNumber()`.
+ *
+ * Brukt til read-only-visning av MVA i UI (tidligere lagret som eget
+ * schema-felt, fjernet i samme commit fordi det er deterministisk).
+ */
+export function deriveVatNumber(
+  country: string,
+  orgNumber: string,
+): string | null {
+  const digits = digitsOnly(orgNumber.trim());
+  if (!digits || !isAllDigits(digits)) return null;
+
+  const c = country.trim().toUpperCase();
+
+  if (c === "NO" || c === "NOR" || c === "NORGE" || c === "NORWAY") {
+    if (digits.length !== 9) return null;
+    return `NO${digits}MVA`;
+  }
+
+  if (c === "DK" || c === "DEN" || c === "DANMARK" || c === "DENMARK") {
+    if (digits.length !== 8) return null;
+    return `DK${digits}`;
+  }
+
+  if (c === "SE" || c === "SWE" || c === "SVERIGE" || c === "SWEDEN") {
+    if (digits.length !== 10) return null;
+    return `SE${digits}01`;
+  }
+
+  return null;
+}

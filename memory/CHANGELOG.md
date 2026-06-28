@@ -3,7 +3,7 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
-## 2026-06-29 — D-111: `activeLicenses` live-tellet + D-104b deduplisering + bug-rydd-runde
+## 2026-06-29 — D-111 + D-104b + D-112 + bug-rydd-runde
 
 ### Bug-fikser
 
@@ -22,12 +22,20 @@ Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`]
    - **Konsolidering:** `billingSameAsCompany`-state, mirror-useEffect, postnr-autofill og org-validering er fjernet fra CreateTenantModal — eies nå av blocks/CompanyDataSectionCreate.
    - Eksisterende testIds preservert via `blockTestIds(mode)`-helper.
 
-3. **B4 — Reload-knapp i B2B-Konsoll**
+3. **B6 / D-112 — `vatNumber`-felt fjernet (P2)**
+   - Tidligere: feltet lagret i schema, skjult i UI siden Iter 20.9.
+   - Etter sjekk: MVA-nr er deterministisk utledet for alle 3 nordiske land (NO: orgnr+MVA, DK: CVR=MVA, SE: orgnr+01). Ingen reell grunn til persistert felt.
+   - **Schema-fjerning:** `TenantRecord.vatNumber`, `CreateTenantInput.vatNumber`, audit-felt-array, PATCH-body-type, og 7 referanser i TenantViewer alle fjernet.
+   - **Helper:** Ny `deriveVatNumber(country, orgNumber): string | null` i `lib/platform/org-number-validation.ts`. Case-insensitiv country-param (godtar NO/NOR/NORGE/NORWAY + tilsv. DK/SE). Returnerer null for ugyldig sifferantall eller ikke-støttet land.
+   - **Wire-in i UI:** Ikke gjort — helper er klar til bruk når Mike beslutter hvor (Selskap-seksjon? Stripe tax_id? Fakturaer?).
+   - Se DECISIONS.md → D-112 for migrering/rollback-plan.
+
+4. **B4 — Reload-knapp i B2B-Konsoll**
    - Flyttet fra helt-til-venstre til høyre side av SeatProgressBar, ved siden av "+ Ansatt"-knappen.
    - Stil: secondary outline (`border-white/15`, hover `border-white/30`) + `RefreshCw`-ikon + tekst, matcher visuelt CTA-en uten å konkurrere.
    - **Bug-fiks:** Dobbelt-ikon (`↻`-glyph i locale + lucide-ikon) — fjernet glyph fra alle 4 locale-filer (no/sv/da/en).
 
-4. **B5 — Postnummer → poststed live-lookup (NO + DK)**
+5. **B5 — Postnummer → poststed live-lookup (NO + DK)**
    - Ny `lib/postal/lookup.ts` — delt fetcher med session-cache. NO via Bring API (`api.bring.com/shippingguide`), DK via DataForsyningen (`api.dataforsyningen.dk/postnumre`). Begge gratis, ingen nøkkel, CORS-OK.
    - Ny `lib/postal/use-postnr-autofill.ts` — delt hook (D-105), 400ms debounce, ref-basert setter for å unngå re-render-trigging.
    - Brukt i blocks (SelskapFieldsBlock + FakturaFieldsBlock) → automatisk aktiv i begge moduser.

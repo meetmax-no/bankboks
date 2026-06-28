@@ -36,7 +36,7 @@ const AUDIT_FIELDS: readonly (keyof TenantRecord)[] = [
   // og auto-synces til Stripe Customer hvis stripeCustomerId er satt.
   "companyName",
   "orgNumber",
-  "vatNumber",
+  // D-112: vatNumber fjernet — utledes live fra orgNumber + companyCountry
   "companyStreet",
   "companyPostalCode",
   "companyCity",

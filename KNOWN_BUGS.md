@@ -30,11 +30,7 @@ Severity:
 
 ## 🟡 P2 — UX/kosmetisk
 
-### B6 — vatNumber-felt finnes i schema men ikke i UI
-**Beskrivelse:** `TenantRecord.vatNumber` lagres backend, men ingen UI viser eller editerer det (skjult i create-form per direktiv 2026-06-04). Vises kun read-only i "Rå felter (35)" på System-fanen.  
-**Workaround:** Norsk konvensjon utleder MVA-nr fra org.nr ("NO" + orgnr + "MVA").  
-**Filer:** `lib/platform/tenant-types.ts:vatNumber`.  
-**Status:** Med design. Hvis internasjonal-bruk → trenger UI.
+*(Ingen åpne P2 per 2026-06-29)*
 
 ---
 
@@ -70,6 +66,7 @@ Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutn
 ### Fixed 2026-06-29
 - ✅ **D-111** B1: Stale `activeLicenses`-felt → fjernet write i invite/accept, alle 6 lesere bruker nå `countLiveActiveLicenses`. Schema-felt beholdt som OPTIONAL response-only (samme mønster som `pendingInvitesCount`)
 - ✅ **D-104b** B3: CreateTenantForm step 2 deduplisert → 3 nye block-komponenter (`SelskapFieldsBlock`, `KontaktFieldsBlock`, `FakturaFieldsBlock`) brukt av både edit- og create-mode. `CompanyDataSection` er nå dispatcher (discriminated union på `mode`). CreateTenantModal step 1 beholder kun subdomain+email, step 2 renderer `<CompanyDataSection mode="create">`
+- ✅ **D-112** B6: vatNumber-felt fjernet fra schema → erstattet av live-utledning via `deriveVatNumber(country, orgNumber)` (NO/DK/SE). Eksisterende verdier i Upstash ignoreres som dead data. Helper i `lib/platform/org-number-validation.ts`
 - ✅ **B4** Reload-knapp i B2B-Konsoll → flyttet til høyre side av SeatBar, ved siden av "+ Ansatt" — secondary outline-button med RefreshCw-ikon. Dobbelt-ikon-bug (`↻`-glyph i locale + lucide-ikon) fikset ved å fjerne glyph fra alle 4 locale-filer
 - ✅ **B5** Postnummer→poststed live-lookup (NO via Bring + DK via DataForsyningen) — delt hook `usePostnrAutofill` brukt på alle felt-par via blocks
 

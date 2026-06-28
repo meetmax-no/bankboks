@@ -108,7 +108,7 @@ export async function PATCH(req: Request, { params }: Params) {
     // D-104 (2026-06-28) — redigerbare B2B firma-/kontakt-/faktura-felter
     companyName?: string | null;
     orgNumber?: string | null;
-    vatNumber?: string | null;
+    // D-112: vatNumber fjernet — utledes live fra orgNumber + companyCountry
     companyStreet?: string | null;
     companyPostalCode?: string | null;
     companyCity?: string | null;
@@ -272,7 +272,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const B2B_STRING_FIELDS = [
       "companyName",
       "orgNumber",
-      "vatNumber",
+      // D-112: vatNumber fjernet
       "companyStreet",
       "companyPostalCode",
       "companyCity",

@@ -96,7 +96,12 @@ export type TenantRecord = {
   // ═══ B2B — FIRMA INFO ═══
   companyName: string | null;
   orgNumber: string | null;
-  vatNumber: string | null;
+  /**
+   * D-112 (Mike 2026-06-29): vatNumber FJERNET fra schema.
+   * For NO/DK/SE er MVA-nr deterministisk utledet fra orgNumber + country
+   * (se `deriveVatNumber()` i org-number-validation.ts). Eksisterende
+   * vatNumber-verdier i Upstash ignoreres som dead data.
+   */
   companyStreet: string | null;
   companyPostalCode: string | null;
   companyCity: string | null;
@@ -283,7 +288,6 @@ export type CreateTenantInput = {
   // B2B-felter (valgfrie — full validering i Iter 20)
   companyName?: string;
   orgNumber?: string;
-  vatNumber?: string;
   companyStreet?: string;
   companyPostalCode?: string;
   companyCity?: string;
@@ -368,7 +372,7 @@ export function buildTenantRecord(
     // B2B firma
     companyName: s(input.companyName),
     orgNumber: s(input.orgNumber),
-    vatNumber: s(input.vatNumber),
+    // D-112: vatNumber fjernet — utledes live fra orgNumber + companyCountry
     companyStreet: s(input.companyStreet),
     companyPostalCode: s(input.companyPostalCode),
     companyCity: s(input.companyCity),
