@@ -50,7 +50,7 @@ import { ClientConfigEditor } from "./ClientConfigEditor";
 import { ConfigToolsButton } from "./ConfigToolsButton";
 import { ProvisioningTracker } from "./ProvisioningTracker";
 import defaultClientConfig from "../../public/clients/default.json";
-import { validateOrgNumber } from "@/lib/platform/org-number-validation";
+import { validateOrgNumber, deriveVatNumber } from "@/lib/platform/org-number-validation";
 import type { OrgValidationResult } from "@/lib/platform/org-number-validation";
 import { usePostnrAutofill } from "@/lib/postal/use-postnr-autofill";
 
@@ -1961,6 +1961,12 @@ function SelskapFieldsBlock({
   const ids = blockTestIds(mode);
   const fullSpan = fullSpanClass(mode);
 
+  // D-112: utledet MVA (read-only-display under orgNumber)
+  const derivedVat =
+    orgValidation.valid && values.orgNumber.trim().length > 0
+      ? deriveVatNumber(values.companyCountry, values.orgNumber)
+      : null;
+
   // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
   usePostnrAutofill({
     country: values.companyCountry,
@@ -2018,6 +2024,27 @@ function SelskapFieldsBlock({
           </div>
         }
       />
+      {/* D-112: Utledet MVA-nr (read-only). Vises kun når orgNumber er
+          gyldig OG landet er støttet (NO/DK/SE). Ren visning — Stripe
+          tax_id-sync skjer separat ved JIT-customer-create. */}
+      {derivedVat && (
+        <Field
+          label={t("admin_tenants.field_derived_vat")}
+          testId={`${ids.field}-derived-vat`}
+          className={fullSpan}
+          render={
+            <div
+              data-testid={`${ids.field}-derived-vat-value`}
+              className="w-full rounded-lg bg-emerald-500/5 border border-emerald-400/20 px-3 py-2 text-sm text-emerald-200/90 font-mono"
+            >
+              {derivedVat}
+              <span className="ml-2 text-[10px] text-white/40 font-sans uppercase tracking-wide">
+                {t("admin_tenants.derived_vat_hint")}
+              </span>
+            </div>
+          }
+        />
+      )}
       <B2BField
         labelKey="admin_tenants.field_company_street"
         testId={`${ids.b2bField}company-street`}

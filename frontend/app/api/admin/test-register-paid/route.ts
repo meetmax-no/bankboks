@@ -90,6 +90,9 @@ export async function POST(req: Request) {
         firstName: record.firstName ?? undefined,
         lastName: record.lastName ?? undefined,
         tenantCreatedAt: record.createdAt,
+        // D-112: tax_id_data auto-utledet hvis NO/DK/SE + gyldig orgnr
+        companyCountry: record.companyCountry,
+        orgNumber: record.orgNumber,
       });
       stripeCustomerId = customer.id;
     } catch (err) {

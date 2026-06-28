@@ -98,6 +98,9 @@ export async function POST(req: Request, { params }: Params) {
         firstName: tenant.firstName ?? undefined,
         lastName: tenant.lastName ?? undefined,
         tenantCreatedAt: tenant.createdAt,
+        // D-112: tax_id_data auto-utledet hvis NO/DK/SE + gyldig orgnr
+        companyCountry: tenant.companyCountry,
+        orgNumber: tenant.orgNumber,
       });
       stripeCustomerId = customer.id;
       const fresh = (await getTenant(subdomain)) ?? tenant;

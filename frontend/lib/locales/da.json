@@ -1008,6 +1008,8 @@
   "admin_tenants.field_last_name": "Efternavn",
   "admin_tenants.field_company_name": "Firmanavn",
   "admin_tenants.field_org_number": "CVR-nummer",
+  "admin_tenants.field_derived_vat": "Momsnummer",
+  "admin_tenants.derived_vat_hint": "afledt",
   "admin_tenants.field_company_street": "Virksomhed — gadenavn",
   "admin_tenants.field_company_postal_code": "Virksomhed — postnummer",
   "admin_tenants.field_company_city": "Virksomhed — by",

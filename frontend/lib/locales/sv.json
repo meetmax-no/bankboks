@@ -1008,6 +1008,8 @@
   "admin_tenants.field_last_name": "Efternamn",
   "admin_tenants.field_company_name": "Företagsnamn",
   "admin_tenants.field_org_number": "Org.nr",
+  "admin_tenants.field_derived_vat": "Momsnummer",
+  "admin_tenants.derived_vat_hint": "härlett",
   "admin_tenants.field_company_street": "Företag — gatuadress",
   "admin_tenants.field_company_postal_code": "Företag — postnummer",
   "admin_tenants.field_company_city": "Företag — ort",

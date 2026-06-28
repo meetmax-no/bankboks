@@ -22,12 +22,15 @@ Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`]
    - **Konsolidering:** `billingSameAsCompany`-state, mirror-useEffect, postnr-autofill og org-validering er fjernet fra CreateTenantModal — eies nå av blocks/CompanyDataSectionCreate.
    - Eksisterende testIds preservert via `blockTestIds(mode)`-helper.
 
-3. **B6 / D-112 — `vatNumber`-felt fjernet (P2)**
+3. **B6 / D-112 — `vatNumber`-felt fjernet + helper wired (P2)**
    - Tidligere: feltet lagret i schema, skjult i UI siden Iter 20.9.
    - Etter sjekk: MVA-nr er deterministisk utledet for alle 3 nordiske land (NO: orgnr+MVA, DK: CVR=MVA, SE: orgnr+01). Ingen reell grunn til persistert felt.
    - **Schema-fjerning:** `TenantRecord.vatNumber`, `CreateTenantInput.vatNumber`, audit-felt-array, PATCH-body-type, og 7 referanser i TenantViewer alle fjernet.
    - **Helper:** Ny `deriveVatNumber(country, orgNumber): string | null` i `lib/platform/org-number-validation.ts`. Case-insensitiv country-param (godtar NO/NOR/NORGE/NORWAY + tilsv. DK/SE). Returnerer null for ugyldig sifferantall eller ikke-støttet land.
-   - **Wire-in i UI:** Ikke gjort — helper er klar til bruk når Mike beslutter hvor (Selskap-seksjon? Stripe tax_id? Fakturaer?).
+   - **Wire-in i UI:** Read-only "MVA (utledet)"-pille vises under orgNumber i `SelskapFieldsBlock` (begge moduser) når orgnr er gyldig + land er NO/DK/SE. Locale-nøkler `admin_tenants.field_derived_vat` + `derived_vat_hint` i alle 4 språk.
+   - **Stripe JIT tax_id:** `createCustomerJIT` aksepterer nå `companyCountry` + `orgNumber` og setter `tax_id_data` automatisk på Customer ved opprettelse (Stripe-typer: `no_vat` for NO, `eu_vat` for DK/SE). Alle 5 caller-routes oppdatert (register/paid, billing/create-checkout, admin/create-payment-link, admin/test-checkout, admin/test-register-paid).
+   - **Stripe PATCH-sync:** IKKE wired — Stripe tax_id krever delete+recreate (ikke `update`). Markert som TODO for senere — Mike avgjør om det er verdt risikoen ved org-nr-endring på eksisterende kunder.
+   - **Faktura-templates:** Ingen custom templates funnet — Stripe rendrer fakturaer selv, og tax_id på Customer = automatisk synlig på fakturaer.
    - Se DECISIONS.md → D-112 for migrering/rollback-plan.
 
 4. **B4 — Reload-knapp i B2B-Konsoll**

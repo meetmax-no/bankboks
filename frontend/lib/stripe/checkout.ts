@@ -26,6 +26,7 @@
 import type Stripe from "stripe";
 import crypto from "node:crypto";
 import { getStripeClient, getPriceIdForPlan } from "./client";
+import { deriveVatNumber } from "@/lib/platform/org-number-validation";
 
 /**
  * Beregner en kort, deterministisk hash (12 hex-tegn) av et Stripe-
@@ -58,6 +59,13 @@ interface CustomerInput {
   firstName?: string;
   lastName?: string;
   /**
+   * D-112 (2026-06-29): Hvis satt, brukes til å beregne MVA-/VAT-nr og
+   * sette `tax_id_data` på Customer ved opprettelse. NO/DK/SE støttes.
+   * Caller henter disse fra TenantRecord (companyCountry, orgNumber).
+   */
+  companyCountry?: string | null;
+  orgNumber?: string | null;
+  /**
    * Tenant.createdAt (ISO string). Inkluderes i idempotency-keyen så hver
    * ny tenant-registrering får unik nøkkel. Uten dette ble keyen
    * `customer-<subdomain>` gjenbrukt på tvers av sletting + re-opprettelse
@@ -88,10 +96,29 @@ export async function createCustomerJIT(
     [input.firstName, input.lastName].filter(Boolean).join(" ").trim() ||
     undefined;
 
+  // D-112: derive tax_id_data fra companyCountry + orgNumber hvis tilgjengelig.
+  // Stripe-typer: `no_vat` for Norge, `eu_vat` for DK/SE (EU-VAT-paraply).
+  const taxIdData: Stripe.CustomerCreateParams.TaxIdDatum[] = [];
+  if (input.companyCountry && input.orgNumber) {
+    const vat = deriveVatNumber(input.companyCountry, input.orgNumber);
+    if (vat) {
+      const c = input.companyCountry.trim().toUpperCase();
+      if (c === "NO" || c === "NOR" || c === "NORGE" || c === "NORWAY") {
+        taxIdData.push({ type: "no_vat", value: vat });
+      } else if (
+        c === "DK" || c === "DEN" || c === "DANMARK" || c === "DENMARK" ||
+        c === "SE" || c === "SWE" || c === "SVERIGE" || c === "SWEDEN"
+      ) {
+        taxIdData.push({ type: "eu_vat", value: vat });
+      }
+    }
+  }
+
   return stripe.customers.create(
     {
       email: input.email,
       ...(name ? { name } : {}),
+      ...(taxIdData.length > 0 ? { tax_id_data: taxIdData } : {}),
       metadata: {
         subdomain: input.subdomain,
       },

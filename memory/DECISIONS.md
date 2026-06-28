@@ -3892,14 +3892,21 @@ For å unngå at noen ved et uhell skriver til feltet ("denne kan ikke skrives")
 - **Migrering:** Ingen. Upstash-records med `vatNumber`-keys deserialiseres uten feil (extra keys ignoreres av TypeScript ved JSON-parse), og verdiene leses ingen steder.
 - **Rollback:** Gjenintroduser feltet som `vatNumber: string | null` i schema, legg tilbake i audit-liste og PATCH-body-type, eksponer i UI. Eksisterende stale-data vil da bli synlig igjen.
 
-### Bonus-feature
+### Bonus-feature wired (samme commit, 2026-06-29 ettermiddag)
 
-`deriveVatNumber()` er klar til UI-bruk men ikke wired inn (ingen Mike-direktiv for visning). Naturlige plasseringer:
-- Read-only display i Selskap-seksjonen under orgNumber-feltet ("MVA-nr: NO123456789MVA (utledet)")
-- Stripe-customer-sync (sett `tax_id` automatisk når orgNumber og land er kjent)
-- Faktura-templates
+`deriveVatNumber()` koblet inn 3 av 4 naturlige plasseringer:
 
-Mike avgjør hvor/når disse skal kobles inn.
+1. **UI read-only display:** `SelskapFieldsBlock` viser "MVA-nummer (utledet)"-pille under orgNumber-feltet når orgnr er gyldig OG land er NO/DK/SE. Begge moduser (edit + create). Locale-nøkler: `admin_tenants.field_derived_vat`, `admin_tenants.derived_vat_hint` × 4 språk.
+
+2. **Stripe JIT customer (create-time):** `createCustomerJIT()` i `lib/stripe/checkout.ts` tar nå `companyCountry?` + `orgNumber?` og setter `tax_id_data: [{type, value}]` automatisk. Stripe-typer:
+   - NO → `no_vat`
+   - DK/SE → `eu_vat`
+   
+   Alle 5 caller-routes oppdatert: register/paid, billing/create-checkout, admin/create-payment-link, admin/tenants/[subdomain]/test-checkout, admin/test-register-paid. Bakoverkompatibelt — kallere uten company-data får null-tax_id (samme som før).
+
+3. **Faktura-templates:** Ingen custom HTML-templates i kodebasen — Stripe rendrer fakturaer selv. Tax_id på Customer ⇒ automatisk synlig på Stripe-genererte faktura-PDFer. Ingen ekstra arbeid.
+
+4. **Stripe PATCH-sync (IKKE wired):** Når Mike endrer orgNumber/companyCountry via admin/tenants PATCH og Customer allerede finnes, blir tax_id IKKE re-sync-et. Grunn: Stripe API tillater ikke `customers.update({tax_id_data})` — krever `customers.deleteTaxId(custId, taxId)` + `customers.createTaxId(custId, {type, value})`. Edge-case-tett (race-conditions, eldre customers med multiple tax_ids). Markert som åpen TODO — kan tas separat hvis det blir aktuelt at Mike endrer orgnr på eksisterende betalende kunder.
 
 ---
 
