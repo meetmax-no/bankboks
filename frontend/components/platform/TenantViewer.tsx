@@ -51,6 +51,7 @@ import { ConfigToolsButton } from "./ConfigToolsButton";
 import { ProvisioningTracker } from "./ProvisioningTracker";
 import defaultClientConfig from "../../public/clients/default.json";
 import { validateOrgNumber } from "@/lib/platform/org-number-validation";
+import { usePostnrAutofill } from "@/lib/postal/use-postnr-autofill";
 
 /**
  * Eneste sannhetskilde for default trial-lengde i form-feltet:
@@ -2086,6 +2087,20 @@ function CompanyDataSection({
     record.companyCountry,
   ]);
 
+  // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
+  usePostnrAutofill({
+    country: companyForm.companyCountry,
+    postnr: companyForm.companyPostalCode,
+    setCity: (city) =>
+      setCompanyForm((prev) => ({ ...prev, companyCity: city })),
+  });
+  usePostnrAutofill({
+    country: billingForm.billingCountry,
+    postnr: billingForm.billingPostalCode,
+    setCity: (city) =>
+      setBillingForm((prev) => ({ ...prev, billingCity: city })),
+  });
+
   const billingDirty =
     billingForm.billingStreet !== nullToEmpty(record.billingStreet) ||
     billingForm.billingPostalCode !== nullToEmpty(record.billingPostalCode) ||
@@ -3614,6 +3629,18 @@ function CreateTenantModal({
     form.companyCity,
     form.companyCountry,
   ]);
+
+  // Postnr→poststed live autofill (NO/DK, debounced). D-105: delt hook.
+  usePostnrAutofill({
+    country: form.companyCountry,
+    postnr: form.companyPostalCode,
+    setCity: (city) => setForm({ ...form, companyCity: city }),
+  });
+  usePostnrAutofill({
+    country: form.billingCountry,
+    postnr: form.billingPostalCode,
+    setCity: (city) => setForm({ ...form, billingCity: city }),
+  });
 
   // Iter 20.7: live org.nr-validering på blur basert på valgt land.
   const orgValidation = useMemo(
