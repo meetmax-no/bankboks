@@ -366,6 +366,36 @@ function main() {
     if (!noKeys.has(k)) deadExempts.push(k);
   }
 
+  // ── D-121: stale exempt-oppføring (kildefilen finnes ikke lenger
+  //    ELLER det dynamiske mønsteret er fjernet fra fila). Vi parser
+  //    "path/to/file.tsx" og evt. `${var}`-mønster fra kommentaren
+  //    (verdien i KEYS_EXEMPT_FROM_UNUSED), og sjekker at alle statiske
+  //    deler av mønsteret faktisk forekommer i fila. Beskytter framtidige
+  //    cleanup-passes mot å miste "fanget" exempt-rader.
+  const staleExempts: string[] = [];
+  const FILE_PATH_RX = /\b([a-zA-Z0-9_/\-]+\.tsx?)\b/;
+  const BACKTICK_PATTERN_RX = /`([^`]+)`/;
+  for (const [key, comment] of Object.entries(KEYS_EXEMPT_FROM_UNUSED)) {
+    const fm = FILE_PATH_RX.exec(comment);
+    if (!fm) continue; // ingen filreferanse → skip (lov for "interne" exempts)
+    const fpath = join(REPO_ROOT, fm[1]);
+    if (!existsSync(fpath)) {
+      staleExempts.push(`${key} — kildefil ${fm[1]} finnes ikke`);
+      continue;
+    }
+    const pm = BACKTICK_PATTERN_RX.exec(comment);
+    if (!pm) continue; // ingen template-pattern → kun fil-eksistenssjekk
+    const pattern = pm[1];
+    const staticParts = pattern.split(/\$\{[^}]+\}/).filter((p) => p.length > 0);
+    const content = readFileSync(fpath, "utf-8");
+    const missing = staticParts.filter((p) => !content.includes(p));
+    if (missing.length > 0) {
+      staleExempts.push(
+        `${key} — mønster ${pattern} mangler ${missing.length} bit i ${fm[1]}: ${missing.map((m) => JSON.stringify(m)).join(", ")}`,
+      );
+    }
+  }
+
   // ── Rapport ─────────────────────────────────────────────────────
   let failed = false;
 
@@ -403,6 +433,17 @@ function main() {
     );
   }
 
+  if (staleExempts.length > 0) {
+    failed = true;
+    console.error(
+      `\n[i18n-sync-lint] FEIL — ${staleExempts.length} oppføringer i KEYS_EXEMPT_FROM_UNUSED har stale kilde-referanse (D-121):\n`,
+    );
+    for (const s of staleExempts) console.error(`  ❌ ${s}`);
+    console.error(
+      "\n  Fiks: enten (a) fjern exempt-oppføringen + alle 4 locale-keys hvis koden er borte, eller (b) oppdater kommentaren med korrekt filsti og pattern hvis den er flyttet.\n",
+    );
+  }
+
   if (unusedKeys.length > 0) {
     failed = true;
     console.error(
@@ -419,7 +460,7 @@ function main() {
   }
 
   console.log(
-    `\n✓ i18n-sync-lint grønt — ${LOCALES.length} språk i sync (${noKeys.size} nøkler), ${calledKeys.size} t/tHook/translate-bruk verifisert, ${Object.keys(KEYS_EXEMPT_FROM_UNUSED).length} dynamiske nøkler eksempt'et\n`,
+    `\n✓ i18n-sync-lint grønt — ${LOCALES.length} språk i sync (${noKeys.size} nøkler), ${calledKeys.size} t/tHook/translate-bruk verifisert, ${Object.keys(KEYS_EXEMPT_FROM_UNUSED).length} dynamiske nøkler eksempt'et (alle med valid kilde-referanse, D-121)\n`,
   );
 }
 

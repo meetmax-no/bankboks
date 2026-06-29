@@ -1,0 +1,67 @@
+{
+  "summary": "D-121 static verification complete. The new stale-exempt-entry check in /app/frontend/lib/__tests__/i18n-sync-lint.test.ts (lines 369-397) is implemented correctly per spec: iterates Object.entries(KEYS_EXEMPT_FROM_UNUSED), parses file path via FILE_PATH_RX (/\\b([a-zA-Z0-9_/\\-]+\\.tsx?)\\b/), checks existsSync(join(REPO_ROOT, fpath)), parses backtick pattern via BACKTICK_PATTERN_RX (/`([^`]+)`/), splits pattern by /\\$\\{[^}]+\\}/ filtering empty, and uses content.includes(part) on the source file. Missing parts are JSON.stringify-joined into the staleExempts message. Failure block (lines 436-445) is correctly placed AFTER deadExempts (lines 425-434) with the required prefix '[i18n-sync-lint] FEIL — N oppføringer i KEYS_EXEMPT_FROM_UNUSED har stale kilde-referanse (D-121)' and the fix-hint mentions both options (a) remove exempt + locale-keys, (b) update path/pattern. Success-line (line 463) ends with '(alle med valid kilde-referanse, D-121)'. yarn lint:all green in 2.64s (1483 keys × 4 langs, 1288 t() calls, 56 dynamic exempts, all valid kilde-referanse). yarn tsc --noEmit PASS in 2.22s. yarn build PASS in 24.42s. Robustness test executed (twice): (1) corrupted file path 'TenantViewer.tsx' → 'NonExistent.tsx' for admin_tenants.wizard_step1 → lint correctly failed with exit 1 and exact message '❌ admin_tenants.wizard_step1 — kildefil components/platform/NonExistent.tsx finnes ikke'. (2) corrupted backtick pattern 'pwd_score.${score}' → 'pwd_score_BOGUS.${score}' → lint correctly failed with exit 1 and exact message '❌ pwd_score.0 — mønster pwd_score_BOGUS.${score} mangler 1 bit i lib/password-strength.ts: \"pwd_score_BOGUS.\"'. Both edits reverted; final yarn lint:i18n-sync green again. No files left in modified state.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_details": {
+    "new_check_implementation": {
+      "file_path_regex": "FILE_PATH_RX = /\\b([a-zA-Z0-9_/\\-]+\\.tsx?)\\b/ on line 376",
+      "backtick_pattern_regex": "BACKTICK_PATTERN_RX = /`([^`]+)`/ on line 377",
+      "loop": "for (const [key, comment] of Object.entries(KEYS_EXEMPT_FROM_UNUSED)) on line 378",
+      "file_existence_check": "existsSync(join(REPO_ROOT, fm[1])) on lines 381-382",
+      "static_parts_split": "pattern.split(/\\$\\{[^}]+\\}/).filter((p) => p.length > 0) on line 389",
+      "content_includes_check": "staticParts.filter((p) => !content.includes(p)) on line 391",
+      "json_stringify_in_message": "missing.map((m) => JSON.stringify(m)).join(\", \") on line 394",
+      "passes": true
+    },
+    "failure_reporting": {
+      "placement": "Lines 436-445, AFTER deadExempts block (425-434) and BEFORE unusedKeys block (447-456)",
+      "prefix": "[i18n-sync-lint] FEIL — ${staleExempts.length} oppføringer i KEYS_EXEMPT_FROM_UNUSED har stale kilde-referanse (D-121)",
+      "fix_hint": "enten (a) fjern exempt-oppføringen + alle 4 locale-keys hvis koden er borte, eller (b) oppdater kommentaren med korrekt filsti og pattern hvis den er flyttet.",
+      "passes": true
+    },
+    "success_log": {
+      "line": 463,
+      "exact_text": "✓ i18n-sync-lint grønt — 4 språk i sync (1483 nøkler), 1288 t/tHook/translate-bruk verifisert, 56 dynamiske nøkler eksempt'et (alle med valid kilde-referanse, D-121)",
+      "passes": true
+    },
+    "robustness_test_1_file_path": {
+      "edit": "components/platform/TenantViewer.tsx → components/platform/NonExistent.tsx for admin_tenants.wizard_step1",
+      "result": "FAIL (exit 1) with message '❌ admin_tenants.wizard_step1 — kildefil components/platform/NonExistent.tsx finnes ikke'",
+      "reverted": true
+    },
+    "robustness_test_2_pattern": {
+      "edit": "pwd_score.${score} → pwd_score_BOGUS.${score} for pwd_score.0",
+      "result": "FAIL (exit 1) with message '❌ pwd_score.0 — mønster pwd_score_BOGUS.${score} mangler 1 bit i lib/password-strength.ts: \"pwd_score_BOGUS.\"'",
+      "reverted": true
+    },
+    "static_checks": {
+      "yarn_lint_all": "PASS (2.64s) — 5 passes green including i18n-sync with new D-121 line",
+      "yarn_tsc_noEmit": "PASS (2.22s, exit 0)",
+      "yarn_build": "PASS (24.42s, exit 0)",
+      "yarn_lint_i18n_sync_final": "PASS (0.28s) after both reverts"
+    },
+    "post_test_state": {
+      "file_unchanged_from_baseline": true,
+      "diff_against_initial": "none — both robustness edits reverted; final file state identical to start"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Implementation matches spec exactly. The regex FILE_PATH_RX is intentionally simple — it matches the first .ts/.tsx path-like token in the comment, which works because all 56 current exempt comments start with the path before the em-dash. If anyone ever writes a comment like 'see also other.tsx — t(`x.${n}`) in foo.tsx', only the first match is checked. Not a problem today, but worth a one-line comment noting this assumption.",
+    "Pattern check correctly validates static parts via content.includes() — this is a substring match, not a token match. So if you had pattern `foo.${n}` and the file had unrelated text containing 'foo.', the check would falsely pass. Acceptable trade-off (false-negative is the conservative direction for a sanity-lint), but worth noting in case stricter checking is desired later.",
+    "Minor: the comment in the helper KEYS_EXEMPT_FROM_UNUSED docblock (line 58-59) says '53 dynamic-eksempt' but Object.keys length is now 56 — number drifted with later additions. Cosmetic, not functional. Could be updated to 'NN' or removed.",
+    "Minor: the fix-hint message uses '(a) ... (b) ...' — matches spec. Both options are clearly stated."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static + robustness verified)"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-121 verified statically (per user prohibition on yarn dev / E2E). New stale-exempt check in /app/frontend/lib/__tests__/i18n-sync-lint.test.ts (lines 369-397, failure block 436-445, success log line 463) works correctly. Two robustness tests executed: (1) breaking the file-path → caught with 'kildefil ... finnes ikke', (2) breaking the backtick pattern → caught with 'mønster ... mangler N bit i FILE'. Both reverted, file restored to baseline. yarn lint:all green (1483 keys × 4 langs, 56 dynamic exempts all valid). yarn tsc --noEmit + yarn build both PASS. Previous reports: iteration_19/20/21/22 (D-117..D-120)."
+}
