@@ -13,6 +13,10 @@
 import { decryptPayload, encryptPayload, type EncryptedBlob } from "./tenant-crypto";
 import { getCentralRedis } from "./central-upstash";
 import {
+  getProvisioningLogMax,
+  truncateProvisioningLog,
+} from "./provisioning-log-limits";
+import {
   buildTenantRecord,
   type CreateTenantInput,
   type CreatedBy,
@@ -169,7 +173,18 @@ export async function putTenant(record: TenantRecord): Promise<void> {
   if (!existing) {
     throw new Error(`Tenant '${sub}' finnes ikke.`);
   }
-  const blob = encryptPayload({ ...record, subdomain: sub });
+  // D-123 (2026-06-29): trunker provisioningLog så den ikke vokser
+  // uendelig. Asymmetrisk grense — B2B-parent får 1000, alle andre 100
+  // (default.json provisioningLog.*). Trunkering skjer på EVERY write så
+  // eksisterende records med 5000 events kuttes ned ved første touch
+  // (gradvis migrering uten ekstra cron).
+  const limit = getProvisioningLogMax(record);
+  const trimmed = truncateProvisioningLog(record.provisioningLog, limit);
+  const recordToStore: TenantRecord =
+    trimmed === record.provisioningLog
+      ? record
+      : { ...record, provisioningLog: trimmed };
+  const blob = encryptPayload({ ...recordToStore, subdomain: sub });
   await client.set(tenantKey(sub), blob);
   await client.sadd(TENANT_INDEX_KEY, sub); // idempotent
 }

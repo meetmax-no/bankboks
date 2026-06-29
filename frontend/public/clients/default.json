@@ -22,6 +22,11 @@
     "deleteWarningDaysBefore": 7
   },
 
+  "provisioningLog": {
+    "adminProvisioningLogMax": 1000,
+    "tenantProvisioningLogMax": 100
+  },
+
   "register": {
     "resumeWindowMinutes": 60
   },

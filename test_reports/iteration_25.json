@@ -1,0 +1,34 @@
+{
+  "summary": "D-123 provisioningLog truncate/rotate (asymmetric 1000/100) verified via static analysis. All 8 tsx unit tests pass, tsc --noEmit clean, yarn lint:all green (i18n-sync 1473×4 locales, D-077, D-078, D-105, coverage-matrix, tenant-env-manifest), yarn build succeeded.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_details": {
+    "config_keys": "VERIFIED — /app/frontend/public/clients/default.json contains provisioningLog: { adminProvisioningLogMax: 1000, tenantProvisioningLogMax: 100 } at top-level (parsed via Python json.load).",
+    "helper_file": "VERIFIED — /app/frontend/lib/platform/provisioning-log-limits.ts exports getProvisioningLogMax + truncateProvisioningLog. Imports defaultClientConfig from '../../public/clients/default.json'. FALLBACK = 100 hardcoded. Helpers clampPositiveInt + readConfig present.",
+    "asymmetric_logic": "VERIFIED — isB2BParent = record.customerType === 'b2b' && record.parentTenant === null. Returns clampPositiveInt(adminProvisioningLogMax) ?? FALLBACK for parent, clampPositiveInt(tenantProvisioningLogMax) ?? FALLBACK otherwise. clampPositiveInt rejects non-number, non-finite, ≤0 → null, triggering fallback 100.",
+    "truncate_semantics": "VERIFIED — events.length <= limit returns SAME array reference (no-op); over-limit returns events.slice(events.length - limit), keeping last N (newest), dropping oldest from start. Confirmed by tests: trimmed[0].detail === 'event-50', trimmed[99].detail === 'event-149'.",
+    "putTenant_wiring": "VERIFIED — /app/frontend/lib/platform/tenant-store.ts lines 16-18 import getProvisioningLogMax + truncateProvisioningLog from './provisioning-log-limits'. Lines 181-186: after existing-check, computes limit, trimmed, recordToStore (reference-equality short-circuit). Line 187: encryptPayload({ ...recordToStore, subdomain: sub }) instead of record. Persistence happens on recordToStore.",
+    "unit_tests": "VERIFIED — `cd /app/frontend && npx tsx lib/__tests__/provisioning-log-limits.test.ts` printed '8 passed, 0 failed' (exit 0). Tests cover B2B parent → 1000, B2C standalone → 100, B2C child → 100, truncate cuts oldest (event-50 first, event-149 last), no-op same-ref under limit, empty array.",
+    "tsc_noEmit": "PASS (Done in 2.23s, exit 0)",
+    "yarn_lint_all": "PASS — i18n-sync 1473 keys × 4 languages (no/sv/da/en), 259 source files scanned, 1278 t/tHook/translate literals; D-077 (122 tenant-pod files, 17 process.env uses); D-078 (39 files, 13 super-admin-scope, 2 exempt); D-105 (318 files, 3 patterns); coverage-matrix (51 routes, 74 path-refs, 44 exempt); tenant-env-manifest clean.",
+    "yarn_build": "PASS (Done in 23.95s) — all platform/am-admin, billing, invite, register routes compiled."
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/provisioning-log-limits.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Implementation is clean and matches the spec exactly. Type narrowing via `unknown` cast in readConfig() is defensible since default.json structure isn't statically guaranteed to have provisioningLog block. clampPositiveInt correctly handles NaN/Infinity/negative via Number.isFinite + ≤0 check, and Math.floor coerces floats (e.g. 1000.5 → 1000) to a safe int. Reference-equality short-circuit (trimmed === record.provisioningLog) avoids unnecessary object spread on the hot put-path — good. One micro-nit: a comment explicitly stating the FALLBACK applies symmetrically (both branches go through clampPositiveInt → ?? FALLBACK) could prevent future confusion but is not required."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-123 complete. provisioningLog truncation is wired into putTenant() in tenant-store.ts (lines 181-187). Asymmetric 1000/100 confirmed by 8 tsx tests + static analysis. tsc, lint:all, build all green. No E2E was performed per user directive (no yarn dev / no playwright in this pod).",
+  "rca of the issue": "N/A — feature addition, not a bug."
+}
