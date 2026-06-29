@@ -1,0 +1,38 @@
+{
+  "summary": "D-118 static verification: invite cleanup on tenant deletion + ProvisioningTracker localization. All static checks (tsc, lint:all, build) pass. Code review confirms the spec is implemented exactly as described.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "ProvisioningTracker — B2B parent skipped branch & failure tip",
+        "issues": [
+          "Out-of-scope-for-D-118 but worth noting: the B2B-parent-skipped dialog (lines 269-315) still hardcodes Norwegian strings ('Org-konsoll klar', 'Dette er en bedrifts-admin (ikke en vault)', 'Org-metadata lagret (sentral Upstash)', 'Ingen egen Vercel-pod', 'Klar — opprett super-admin neste steg', 'Lukk'), and the failed-state tip on lines 463-465 ('Ko | Do-teamet er varslet. Du kan retry-e via D-055-knappene…') is also hardcoded. These were NOT in the D-118 scope (which covered STEPS + STAGE_MESSAGES_NO + 4 header/hint/button keys), so do not block this iteration — flag for a follow-up localization sweep."
+        ]
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional follow-up: localize the B2B-parent-skipped dialog (ProvisioningTracker.tsx:269-315) and the failed-state tip (lines 463-465). ~7 additional keys × 4 languages. Not blocking D-118."
+  ],
+  "critical_code_review_comments": [
+    "D-118 invite cleanup in delete-tenant.ts (lines 199-233) is correctly scoped to `record.parentTenant && record.customerType === 'b2c'` — runs ONLY for B2C child vaults, not B2B parent (which has its own purge at lines 289-305) and not orphan-B2C standalone tenants. This matches the intent.",
+    "deleteInvitesForSubdomain (invite-store.ts:205-216) is O(N) over all invites in central Upstash (iterates listAllInvites). For an instance with thousands of invites this could become slow during a single child-vault deletion. Acceptable for current scale, but consider adding an `invite-by-subdomain:<sub>` index in a future iteration if invite volume grows.",
+    "ProvisioningTracker.tsx uses `t(`provisioning.step_${stageId}`)` and `t(`provisioning.msg_${stage}`)` dynamic keys. The `_I18N_KEYS_REGISTERED` array correctly enumerates all 12 dynamic keys so i18n-sync-lint catches missing translations — verified via lint:i18n-sync (1455 keys × 4 languages, 56 dynamic exempted).",
+    "Legacy `childDeletedAt` field is intentionally retained in invite-types.ts:54 and orphan-invites/all/route.ts (per spec note) for backwards-compat with already-stamped invites in Upstash from the D-101 era. New code path never sets this field. Acceptable.",
+    "am-admin DELETE route (route.ts) requires no code change — confirmed: it calls `deleteTenant(subdomain, 'admin')` which now performs the invite cleanup internally. Audit-trail `logEvent('tenant_deleted', ok|failed, child=… slettet av …)` on parent preserved (lines 54-66).",
+    "super-admin DELETE route (admin/tenants/[subdomain]/route.ts:474-486) — `markInvitesAsChildDeleted` import & call REMOVED. Only a 5-line explanatory comment remains. No dead code."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (static only)", "frontend": "100% static checks"},
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-118 verified via static analysis only (user forbids yarn dev / playwright in this k8s pod; app deploys on Vercel). The verification flow used: (1) grep for removed/added symbols, (2) view all 4 files of reference, (3) confirm 16 locale keys × 4 languages, (4) yarn tsc --noEmit (clean), (5) yarn lint:all (D-069, D-071, D-077, coverage-matrix, i18n-sync 1455 keys × 4 langs, D-078, D-105 — all green), (6) yarn build (clean, 24s, no new warnings). Two known hardcoded-NO blocks in ProvisioningTracker.tsx (B2B-parent dialog + failed-tip) flagged as out-of-scope for D-118 but candidate for next localization sweep.",
+  "rca of the issue": "n/a (feature verification, not bug RCA). Code matches spec exactly."
+}

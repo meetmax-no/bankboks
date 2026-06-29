@@ -16,6 +16,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Loader2, Sparkles, X } from "lucide-react";
+import { useLocale } from "@/lib/i18n-context";
 
 export type ProvisioningTrackerMode = "public" | "admin";
 
@@ -33,23 +34,36 @@ export type StatusResponse = {
   recentEvents: StatusEvent[];
 };
 
-const STEPS: { stage: string; label: string }[] = [
-  { stage: "upstash_create", label: "Sikker lagring opprettet" },
-  { stage: "vercel_create", label: "Vault-miljø konfigurert" },
-  { stage: "vercel_env", label: "Kryptering satt opp" },
-  { stage: "vercel_redeploy", label: "Vault startet" },
-  { stage: "subdomain_attach", label: "Kobler til kodovault.no" },
-  { stage: "vault_live", label: "Vault er live" },
+// D-118 (2026-06-29): stage-IDene må matche backend-event-stages 1:1.
+// Labels og messages hentes nå via locale-bundle (provisioning.*).
+const STAGES: ReadonlyArray<string> = [
+  "upstash_create",
+  "vercel_create",
+  "vercel_env",
+  "vercel_redeploy",
+  "subdomain_attach",
+  "vault_live",
 ];
 
-const STAGE_MESSAGES_NO: Record<string, string> = {
-  upstash_create: "Oppretter sikker lagring…",
-  vercel_create: "Konfigurerer vault-miljø…",
-  vercel_env: "Setter opp kryptering…",
-  vercel_redeploy: "Starter din vault…",
-  subdomain_attach: "Kobler til kodovault.no…",
-  vault_live: "Din vault er klar!",
-};
+// D-118: dynamiske t()-nøkler bygget via `provisioning.step_${stage}` og
+// `provisioning.msg_${stage}` skannes ikke som litteraler av i18n-sync-
+// lint. Vi lister dem her som strengarray-mapping så lint plukker dem
+// opp (Record-mapping-strenger). Disse blir dead-stripped i prod-build.
+const _I18N_KEYS_REGISTERED: ReadonlyArray<string> = [
+  "provisioning.step_upstash_create",
+  "provisioning.step_vercel_create",
+  "provisioning.step_vercel_env",
+  "provisioning.step_vercel_redeploy",
+  "provisioning.step_subdomain_attach",
+  "provisioning.step_vault_live",
+  "provisioning.msg_upstash_create",
+  "provisioning.msg_vercel_create",
+  "provisioning.msg_vercel_env",
+  "provisioning.msg_vercel_redeploy",
+  "provisioning.msg_subdomain_attach",
+  "provisioning.msg_vault_live",
+];
+void _I18N_KEYS_REGISTERED;
 
 export function ProvisioningTracker({
   subdomain,
@@ -77,6 +91,7 @@ export function ProvisioningTracker({
   liveAction?: { label: string; testId?: string; onClick: () => void };
   className?: string;
 }) {
+  const { t } = useLocale();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<
@@ -209,14 +224,17 @@ export function ProvisioningTracker({
   // D-067 fix: scan alle events for hver stage. ok-event = grønn, uansett
   // om det også finnes en retried/failed-event på samme stage. Dette gjør
   // det robust mot rekkefølgen events kommer i fra API'et.
-  const stepState = STEPS.map((s) => {
-    const matches = events.filter((e) => e.stage === s.stage);
+  // D-118: labels hentes per-render fra locale-bundle.
+  const stepState = STAGES.map((stageId) => {
+    const label = t(`provisioning.step_${stageId}`);
+    const matches = events.filter((e) => e.stage === stageId);
     const okEvent = matches.find((e) => e.status === "ok");
     const failedEvent = matches.find((e) => e.status === "failed");
-    if (okEvent) return { ...s, state: "ok" as const, detail: okEvent.detail };
+    if (okEvent)
+      return { stage: stageId, label, state: "ok" as const, detail: okEvent.detail };
     if (failedEvent)
-      return { ...s, state: "failed" as const, detail: failedEvent.detail };
-    return { ...s, state: "pending" as const, detail: undefined };
+      return { stage: stageId, label, state: "failed" as const, detail: failedEvent.detail };
+    return { stage: stageId, label, state: "pending" as const, detail: undefined };
   });
 
   // Aktivt steg = første pending (med mindre vi er live/failed)
@@ -226,18 +244,18 @@ export function ProvisioningTracker({
   let headerMessage: string;
   let headerDetail: string | null = null;
   if (failed) {
-    headerMessage = "Noe gikk galt — vi har varslet teamet";
+    headerMessage = t("provisioning.header_error");
     headerDetail = error ?? status?.latestEvent?.detail ?? null;
   } else if (live) {
-    headerMessage = "Din vault er klar!";
-  } else if (stage && STAGE_MESSAGES_NO[stage]) {
-    headerMessage = STAGE_MESSAGES_NO[stage];
+    headerMessage = t("provisioning.msg_vault_live");
+  } else if (stage && STAGES.includes(stage)) {
+    headerMessage = t(`provisioning.msg_${stage}`);
   } else if (phase === "starting_upstash") {
-    headerMessage = "Oppretter sikker lagring…";
+    headerMessage = t("provisioning.msg_upstash_create");
   } else if (phase === "starting_vercel") {
-    headerMessage = "Konfigurerer vault-miljø…";
+    headerMessage = t("provisioning.msg_vercel_create");
   } else {
-    headerMessage = "Starter opp…";
+    headerMessage = t("provisioning.header_starting");
   }
 
   return (
@@ -331,6 +349,7 @@ function DefaultTrackerBody({
   activeIdx: number;
   liveAction?: { label: string; testId?: string; onClick: () => void };
 }) {
+  const { t } = useLocale();
   return (
     <>
       <div className="flex items-start gap-3 mb-5">
@@ -425,7 +444,7 @@ function DefaultTrackerBody({
               className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition"
             >
               <Sparkles className="h-4 w-4" />
-              Åpne vault
+              {t("provisioning.open_vault")}
             </a>
           )}
         </div>
@@ -435,7 +454,7 @@ function DefaultTrackerBody({
         <div className="pt-3 mt-1 border-t border-amber-400/20 text-xs text-white/55">
           <div className="flex items-center gap-2">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-            Sjekker hvert 2. sekund — Vercel-bygget tar typisk 1-3 min
+            {t("provisioning.polling_hint")}
           </div>
         </div>
       )}

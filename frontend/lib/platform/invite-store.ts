@@ -189,32 +189,29 @@ export async function listAllInvites(): Promise<InviteRecord[]> {
 }
 
 /**
- * D-101 (Mike 2026-06-28) — arkiv-markering ved child-tenant-sletting.
+ * D-118 (2026-06-29) — slett invites assosiert med en slettet child-tenant.
  *
- * Når en B2B-child-tenant slettes via Super-admin Konsoll, vil eventuelle
- * invite-records som peker på den hengende — uten varsel. Mike's policy:
- * BEHOLD invite-recordene for revisjons-historikk, men sett `childDeletedAt`
- * slik at UI kan vise dem som "Arkivert" istedenfor som røde orphans.
+ * Erstatter D-101 (`markInvitesAsChildDeleted`). Audit-spor sikres via
+ * `logEvent("tenant_deleted")` på parent-tenant (`provisioningLog`) +
+ * Stripe customer-bevaring per D-070. Invite-recorden tilfører ingen ny
+ * informasjon — bare UI-støy som "Child-vault slettet"-orphan.
  *
- * Idempotent — kjører flere ganger uten effekt hvis childDeletedAt allerede
- * er satt. Stempler kun invites der status="used" OG `subdomain` matcher
- * det slettede subdomenet.
+ * Sletter ALLE invites (pending/expired/used) der `subdomain` matcher den
+ * slettede tenanten. Idempotent — sletting av en allerede borte record er
+ * en no-op (deleteInvite returnerer false).
  *
- * @returns antall invites som ble stemplet
+ * @returns antall invites som faktisk ble slettet
  */
-export async function markInvitesAsChildDeleted(
+export async function deleteInvitesForSubdomain(
   subdomain: string,
-  deletedAt: string = new Date().toISOString(),
 ): Promise<number> {
   const all = await listAllInvites();
-  let stamped = 0;
+  let deleted = 0;
   for (const inv of all) {
     if (inv.subdomain !== subdomain) continue;
-    if (inv.status !== "used") continue;
-    if (inv.childDeletedAt) continue; // allerede arkivert
-    await putInvite({ ...inv, childDeletedAt: deletedAt });
-    stamped += 1;
+    const ok = await deleteInvite(inv);
+    if (ok) deleted += 1;
   }
-  return stamped;
+  return deleted;
 }
 

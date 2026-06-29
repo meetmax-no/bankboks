@@ -9,7 +9,6 @@
 import { NextResponse } from "next/server";
 import { getTenant, listTenants, putTenant } from "@/lib/platform/tenant-store";
 import { deleteTenant } from "@/lib/platform/delete-tenant";
-import { markInvitesAsChildDeleted } from "@/lib/platform/invite-store";
 import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import { validateOrgNumber } from "@/lib/platform/org-number-validation";
 import { getStripeClient } from "@/lib/stripe/client";
@@ -473,29 +472,16 @@ export async function DELETE(_req: Request, { params }: Params) {
     }
 
     // Kaskade-sletting: Vercel + Upstash + client-config + sentral DB +
-    // B2B-prefiks. Soft-failure per steg; success=true betyr at sentral DB
-    // er faktisk slettet (caller kan tolke det som "tenant er borte").
+    // B2B-prefiks + invites (D-118). Soft-failure per steg; success=true
+    // betyr at sentral DB er faktisk slettet (caller kan tolke det som
+    // "tenant er borte").
     const result = await deleteTenant(subdomain, "admin");
 
-    // D-101 (Mike 2026-06-28): Arkiv-markering — sett childDeletedAt på alle
-    // invite-records som peker på dette subdomenet. Bevarer historikken
-    // (audit-trail) men UI markerer dem som "Arkivert" istedenfor som
-    // hengende orphans. Soft-failure: hvis stempling feiler, fortsetter vi.
-    if (result.success) {
-      try {
-        const stamped = await markInvitesAsChildDeleted(subdomain);
-        if (stamped > 0) {
-          console.info(
-            `[admin/tenants DELETE] arkivert ${stamped} invite(s) for ${subdomain}`,
-          );
-        }
-      } catch (archiveErr) {
-        console.warn(
-          `[admin/tenants DELETE] kunne ikke arkivere invites for ${subdomain}:`,
-          archiveErr,
-        );
-      }
-    }
+    // D-118 (2026-06-29): Tidligere kalte vi `markInvitesAsChildDeleted`
+    // her for å arkivere brukte invites (D-101). Nå sletter `deleteTenant`
+    // selv ALLE invites som peker på subdomenet (audit-spor er sikret via
+    // logEvent på parent + Stripe-customer-bevaring per D-070). Ingen
+    // ekstra-rydding her.
 
     return NextResponse.json(result);
   } catch (err) {

@@ -41,7 +41,7 @@ import { deleteStripeCustomer, tenantHasPaidHistory } from "@/lib/stripe/cleanup
 import { deleteNote, deleteAllNotes } from "./am-admin-notes-store";
 import { deleteAllOrgAdminsForPrefix } from "./org-admin-store";
 import { deleteMpwVerifier } from "./am-admin-mpw-store";
-import { listInvitesForParent, deleteInvite } from "./invite-store";
+import { listInvitesForParent, deleteInvite, deleteInvitesForSubdomain } from "./invite-store";
 
 /**
  * Status for hvert ressurssletting-steg i `deleteTenant()`.
@@ -191,6 +191,11 @@ export async function deleteTenant(
   // Vi sletter idempotent — notatet er allerede uleselig hvis MPW-verifier
   // er borte, men recorden i Upstash forblir som orphan til "Glemt MPW"-
   // reset hvis vi ikke rydder her.
+  //
+  // D-118 (2026-06-29): I tillegg slettes invite-record(er) som peker på
+  // dette subdomenet. Tidligere D-101 stempler dem som "Child-vault
+  // slettet" for audit-spor, men `logEvent` på parent dekker det allerede
+  // — invite-recordene tilfører ingen ny info, bare orphan-støy.
   if (record.parentTenant && record.customerType === "b2c") {
     try {
       // parentTenant for B2B-barn er parent-subdomenet, men am-admin-
@@ -210,6 +215,20 @@ export async function deleteTenant(
       result.steps.adminNotes = "failed";
       result.errors.push(`adminNotes: ${msg}`);
       console.error(`[deleteTenant ${sub}] adminNotes cleanup failed:`, e);
+    }
+
+    // D-118: slett alle invite-records (pending/expired/used) der
+    // subdomain matcher denne barn-tenanten. Audit-spor er allerede sikret
+    // via logEvent på parent (provisioningLog).
+    try {
+      const deleted = await deleteInvitesForSubdomain(sub);
+      result.meta.invitesDeleted = deleted;
+      result.steps.invites = "ok";
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      result.steps.invites = "failed";
+      result.errors.push(`invites: ${msg}`);
+      console.error(`[deleteTenant ${sub}] invites cleanup failed:`, e);
     }
   }
 
