@@ -46,10 +46,8 @@ Severity:
 **Forslag:** Roter logg etter N entries, arkivér eldre i egen Upstash-key.  
 **Status:** Lavt prioritet, vokser sakte. Vurder hvis Mike rapporterer perf-issue.
 
-### T3 — Locale-filer har 1416 nøkler — vanskelig å vedlikeholde
-**Beskrivelse:** `lib/locales/no.json` er ~1700 linjer. Lint sikrer sync mellom språk, men ingen sjekker at nøkler faktisk brukes (delvis — lint:i18n-sync varsler ubrukte).  
-**Forslag:** Periodisk cleanup av ubrukte nøkler (gjort etter D-106).  
-**Status:** Pågående hygiene.
+### T3 — ✅ ADRESSERT (D-121, 2026-06-29)
+**Status:** Lint allerede grønt — 0 ubrukte literal-keys i no.json. Manuelt verifisert: alle 56 KEYS_EXEMPT_FROM_UNUSED-entries har gyldig kilde-referanse (fil finnes + dynamisk mønster fortsatt brukt). Ingen keys å fjerne. **D-121 hardener nå linten** med automatisk verifisering av exempt-oppføringer (kildefil må eksistere + statiske deler av template-mønsteret må forekomme i fila), så framtidige refactors ikke kan etterlate stale exempts uoppdaget.
 
 ### T4 — Test Tools eksponerer PII uten audit-log  
 **Beskrivelse:** `OrgAdminListCard` og `OrphanInvitesCard` lar Mike-admin se ansatt-PII (navn, e-post) på tvers av tenants — som per D-078 ikke skal være mulig. Begrunnet som "nødvendig for orphan-cleanup", men det er ingen audit-log på bruken.  
@@ -70,6 +68,7 @@ Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutn
 ## Lukket (referanse)
 
 ### Fixed 2026-06-29
+- ✅ **D-121** T3 locale-cleanup: 0 ubrukte literal-keys å fjerne (lint kept it clean). Alle 56 dynamiske exempt-entries manuelt verifisert som fortsatt aktive. Lint hardened med automatisk stale-exempt-deteksjon (kildefil må eksistere + alle statiske deler av template-mønsteret må forekomme i fila). To robustness-tester av testing-agent bekrefter at både defekt fil-path og defekt mønster fanges. T3 lukket
 - ✅ **D-120** /invite skjema lokalisert: 28 nye keys × 4 språk (`invite_form.*` prefix — totalt 1483 keys per språk). ERROR_MESSAGES erstattet av ERROR_CODE_KEYS-mapping + t()-closure. På validate-success bytter siden automatisk page-locale til invitasjonens preset (admin kan forhåndsvelge språk per invitasjon). Sv/da/en-ansatte ser nå hele skjemaet på sitt språk fra første frame. `{subdomain}`/`{action}`/`{code}`-interpolasjon fungerer på tvers av språk. Verifisert statisk av testing-agent (9/9 sjekkpunkter, 0 issues)
 - ✅ **D-119** Invite-flow design-konsistens: a) `/welcome-b2b` får aurora-gradient (samme som `/invite` + am-admin-login) på både happy-path og error-state. b) Tre primær-CTA'er i flyten harmonisert til identisk styling: `w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium transition-colors` ("Aktiver konto" på /invite, "OK, gå videre" på trackerens liveAction, "Fortsæt" på welcome-b2b). Default "Åpne vault"-knapp i tracker (uten liveAction) beholder emerald-pill-style så `/platform/register` + `/billing/success` + admin TenantViewer ikke påvirkes. Verifisert statisk av testing-agent (letter-by-letter className-match)
 - ✅ **D-118** Invite-rydding ved ansatt-sletting + ProvisioningTracker-lokalisering: a) `deleteInvitesForSubdomain()` ny helper i `invite-store.ts` — sletter ALLE invites (pending/expired/used) som peker på et slettet child-tenant. Erstatter `markInvitesAsChildDeleted()` (D-101) som er fjernet — audit-spor sikres allerede via `logEvent('tenant_deleted')` på parent + Stripe-customer-bevaring (D-070). Gjelder både super-admin OG firma-admin DELETE-ruter (firma-admin trengte ingen endring, `deleteTenant()` rydder internt). b) `ProvisioningTracker` lokalisert — 16 nye keys × 4 språk (`provisioning.*` prefix). STEPS-labels og STAGE_MESSAGES_NO erstattet med `t()`-kall. Verifisert statisk av testing-agent

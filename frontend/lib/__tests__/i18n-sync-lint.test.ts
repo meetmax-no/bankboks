@@ -55,8 +55,11 @@ type Locale = (typeof LOCALES)[number];
  * må ha en filnavn:linje-referanse som peker til hvor den dynamiske bruken
  * genererer keyen.
  *
- * Iter 19.9.19: full opprydding — fra 106 unused → 53 dynamic-eksempt
- * (resten ble slettet som verifisert død kode).
+ * Iter 19.9.19: full opprydding — fra 106 unused → 56 dynamic-eksempt
+ * (resten ble slettet som verifisert død kode). D-121 (2026-06-29):
+ * lint verifiserer nå at exempt-oppføringen fortsatt har en levende
+ * kilde-referanse (filen finnes + alle statiske deler av template-
+ * mønsteret finnes i fila). Beskytter mot stale entries ved refactor.
  */
 const KEYS_EXEMPT_FROM_UNUSED: Record<string, string> = {
   // ── admin_tenants.wizard_step{1..3} — t(`admin_tenants.wizard_step${n}`) ──
