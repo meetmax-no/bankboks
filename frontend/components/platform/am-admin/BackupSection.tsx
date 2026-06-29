@@ -21,7 +21,7 @@ import { useLocale } from "@/lib/i18n-context";
 import {
   decryptEmployeeNotes,
   mapEmployeesPreservingEnvelope,
-  buildEmployeesCsv,
+  buildBackupCsv,
   buildBackupJson,
   buildBackupFilename,
   type BackupData,
@@ -76,7 +76,7 @@ export function BackupSection() {
         let blob: Blob;
         let filename: string;
         if (format === "csv") {
-          const csv = buildEmployeesCsv(entries);
+          const csv = buildBackupCsv(data.admin, entries, data.invites);
           // BOM for UTF-8 Excel-kompatibilitet (æøå rendres riktig).
           blob = new Blob(["\uFEFF" + csv], {
             type: "text/csv;charset=utf-8",

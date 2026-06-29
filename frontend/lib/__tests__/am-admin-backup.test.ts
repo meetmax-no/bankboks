@@ -211,12 +211,12 @@ async function main(): Promise<void> {
   const lines = csv.split("\r\n");
   assert(
     lines[0] ===
-      "subdomain,first_name,last_name,email,contact_email,locale,status,created_at,admin_note,note_status",
+      "type,subdomain,first_name,last_name,email,contact_email,locale,status,created_at,admin_note,note_status",
     "CSV header korrekt",
   );
   assert(lines.length === 5, "CSV: header + 3 rader + tom siste linje");
   assert(
-    lines[1].startsWith("amlaw-kari,Kari,Nordmann,kari@amlaw.no,,no,active,"),
+    lines[1].startsWith("employee,amlaw-kari,Kari,Nordmann,kari@amlaw.no,,no,active,"),
     "rad 1 starter med kari-data",
   );
   assert(
@@ -254,11 +254,14 @@ async function main(): Promise<void> {
       status: "active",
     },
     employeeCount: 3,
+    inviteCount: 0,
     notedCount: 2,
+    admin: null,
     employees,
+    invites: [],
   };
   const json = buildBackupJson(data, decrypted);
-  assert(json.format === "kodovault-am-admin-backup-v1", "JSON format-stempel");
+  assert(json.format === "kodovault-am-admin-backup-v2", "JSON format-stempel");
   assert(json.prefix === "amlaw", "JSON prefix matcher");
   assert(json.license.plan === "b2b_yearly", "JSON license preserved");
   assert(json.employeeCount === 3, "JSON employeeCount = 3");
@@ -290,7 +293,7 @@ async function main(): Promise<void> {
   // ─── Edge: tom employees-array ───────────────────────────────────
   const emptyCsv = buildEmployeesCsv([] as DecryptedEmployee[]);
   assert(
-    emptyCsv === "subdomain,first_name,last_name,email,contact_email,locale,status,created_at,admin_note,note_status\r\n",
+    emptyCsv === "type,subdomain,first_name,last_name,email,contact_email,locale,status,created_at,admin_note,note_status\r\n",
     "tom employees-array gir kun header",
   );
 

@@ -64,6 +64,7 @@ Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutn
 ## Lukket (referanse)
 
 ### Fixed 2026-06-29
+- ✅ **D-113** Backup-utvidelse: én CSV-fane med "type"-kolonne (admin/employee/invite). Pending invites inkludert. Bug-fiks: parent-tenanten ble feilaktig listet som "ansatt" pga `subdomain.startsWith(prefix-)`-fallback i filteret — nå strikt `parentTenant === prefix`. JSON-format bumped til v2 med separate `admin` + `invites`-felter
 - ✅ **D-111** B1: Stale `activeLicenses`-felt → fjernet write i invite/accept, alle 6 lesere bruker nå `countLiveActiveLicenses`. Schema-felt beholdt som OPTIONAL response-only (samme mønster som `pendingInvitesCount`)
 - ✅ **D-104b** B3: CreateTenantForm step 2 deduplisert → 3 nye block-komponenter (`SelskapFieldsBlock`, `KontaktFieldsBlock`, `FakturaFieldsBlock`) brukt av både edit- og create-mode. `CompanyDataSection` er nå dispatcher (discriminated union på `mode`). CreateTenantModal step 1 beholder kun subdomain+email, step 2 renderer `<CompanyDataSection mode="create">`
 - ✅ **D-112** B6: vatNumber-felt fjernet fra schema → erstattet av live-utledning via `deriveVatNumber(country, orgNumber)` (NO/DK/SE). Eksisterende verdier i Upstash ignoreres som dead data. Helper i `lib/platform/org-number-validation.ts`

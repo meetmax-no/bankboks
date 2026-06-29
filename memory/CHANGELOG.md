@@ -43,6 +43,13 @@ Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`]
    - Ny `lib/postal/use-postnr-autofill.ts` — delt hook (D-105), 400ms debounce, ref-basert setter for å unngå re-render-trigging.
    - Brukt i blocks (SelskapFieldsBlock + FakturaFieldsBlock) → automatisk aktiv i begge moduser.
 
+6. **D-113 — Backup-utvidelse + bug-fiks**
+   - **Bug-fiks:** Backup-route inkluderte feilaktig parent-tenanten i employee-listen pga `subdomain.startsWith(prefix-)`-OR-fallback. Strammet til `parentTenant === prefix`.
+   - **Strukturutvidelse:** CSV har nå "type"-kolonne (`admin`/`employee`/`invite`) som første kolonne. Én fane, tre logiske seksjoner.
+   - **Pending invites:** Inkludert i samme CSV som invite-rader (kun `status="pending"` + ikke utløpt). Subdomain er tomt (invite har ikke tildelt subdomain ennå).
+   - **JSON-format bumped til v2:** Egne felter `admin` (BackupAdmin | null), `invites` (BackupInvite[]), `inviteCount`. Eksisterende v1-konsumenter brytes — men det er bare Mike's egen UI.
+   - **`buildEmployeesCsv` markert @deprecated** — wrapper rundt `buildBackupCsv(null, employees, [])` for bakoverkompat. Test-suite passerer 48/48.
+
 ### Verifisert
 - `yarn tsc --noEmit` ✓
 - `yarn lint:all` ✓ (7 skript, D-105+D-078 grønne, 1414 i18n-nøkler i sync)

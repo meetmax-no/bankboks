@@ -9,6 +9,10 @@
  * Bitwarden) — dette er en org-backup, ikke passord-eksport.
  *
  * Per user-svar 2=B: filnavn `<prefix>-employees-backup-YYYY-MM-DD-HHMM`.
+ *
+ * D-113 (Mike 2026-06-29): Backup-strukturen utvidet med ADMIN- og
+ * INVITE-rader. CSV har nå én fane med "type"-kolonne (admin/employee/invite).
+ * JSON har separate `admin` og `invites`-felter ved siden av `employees`.
  */
 import {
   decryptWithMpwKey,
@@ -27,6 +31,24 @@ export type BackupEmployee = {
   noteEnvelope: MpwEnvelope | null;
 };
 
+export type BackupInvite = {
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  locale: string | null;
+  status: string; // "pending"
+  createdAt: string;
+};
+
+export type BackupAdmin = {
+  subdomain: string;
+  email: string | null;
+  contactEmail: string | null;
+  locale: string | null;
+  status: string;
+  createdAt: string;
+};
+
 export type BackupLicense = {
   parentSubdomain: string | null;
   plan: string | null;
@@ -41,9 +63,12 @@ export type BackupData = {
   generatedAt: string;
   prefix: string;
   license: BackupLicense;
+  admin: BackupAdmin | null;
   employeeCount: number;
+  inviteCount: number;
   notedCount: number;
   employees: BackupEmployee[];
+  invites: BackupInvite[];
 };
 
 export type DecryptedEmployee = Omit<BackupEmployee, "noteEnvelope"> & {
@@ -168,7 +193,9 @@ export function csvEscape(value: string | null | undefined): string {
   return s;
 }
 
+// D-113 (Mike 2026-06-29): "type"-kolonne skiller admin/employee/invite-rader.
 const CSV_COLUMNS = [
+  "type",
   "subdomain",
   "first_name",
   "last_name",
@@ -181,55 +208,116 @@ const CSV_COLUMNS = [
   "note_status",
 ] as const;
 
+function noteStatusOf(e: DecryptedEmployee): string {
+  // D-109 (Mike 2026-06-28): note_status fire verdier:
+  //   "ok"             — note dekryptert (klartekst i note-kolonnen)
+  //   "encrypted"      — note bevart som envelope-JSON (MPW låst/usatt)
+  //   "decrypt_error"  — dekryptering feilet (korrupt envelope eller feil MPW)
+  //   "none"           — ingen note registrert for ansatt
+  if (e.noteDecryptError) return "decrypt_error";
+  if (e.note !== null) return "ok";
+  if (e.noteEnvelopeJson) return "encrypted";
+  return "none";
+}
+
 /**
- * Bygg en CSV-streng fra dekrypterte ansatte. Bruker `\r\n` per RFC 4180.
- * note_status: "ok" / "none" / "decrypt_error".
+ * Bygg en CSV-streng med ALLE 3 rad-typer (admin + employees + invites) i
+ * samme fane. Bruker `\r\n` per RFC 4180. Rad-typen kjennes på "type"-
+ * kolonnen — strict-CSV-parsere kan filtrere på den.
  */
-export function buildEmployeesCsv(employees: DecryptedEmployee[]): string {
+export function buildBackupCsv(
+  admin: BackupAdmin | null,
+  employees: DecryptedEmployee[],
+  invites: BackupInvite[],
+): string {
   const header = CSV_COLUMNS.join(",");
-  const rows = employees.map((e) => {
-    // D-109 (Mike 2026-06-28): note_status nå fire verdier:
-    //   "ok"             — note dekryptert (klartekst i note-kolonnen)
-    //   "encrypted"      — note bevart som envelope-JSON (MPW låst/usatt)
-    //   "decrypt_error"  — dekryptering feilet (korrupt envelope eller feil MPW)
-    //   "none"           — ingen note registrert for ansatt
-    const noteStatus = e.noteDecryptError
-      ? "decrypt_error"
-      : e.note !== null
-        ? "ok"
-        : e.noteEnvelopeJson
-          ? "encrypted"
-          : "none";
-    // Når status = "encrypted", skriv envelope-JSON i note-kolonnen så
+  const rows: string[] = [];
+
+  // ADMIN-rad (én, hvis parent-tenanten finnes)
+  if (admin) {
+    rows.push(
+      [
+        csvEscape("admin"),
+        csvEscape(admin.subdomain),
+        csvEscape(null), // first_name
+        csvEscape(null), // last_name
+        csvEscape(admin.email),
+        csvEscape(admin.contactEmail),
+        csvEscape(admin.locale),
+        csvEscape(admin.status),
+        csvEscape(admin.createdAt),
+        csvEscape(null), // admin_note
+        csvEscape("none"), // note_status
+      ].join(","),
+    );
+  }
+
+  // EMPLOYEE-rader (children)
+  for (const e of employees) {
+    const status = noteStatusOf(e);
+    // Når status === "encrypted", skriv envelope-JSON i note-kolonnen så
     // restore er mulig fra CSV-en alene.
     const noteCell = e.note !== null ? e.note : (e.noteEnvelopeJson ?? null);
-    return [
-      csvEscape(e.subdomain),
-      csvEscape(e.firstName),
-      csvEscape(e.lastName),
-      csvEscape(e.email),
-      csvEscape(e.contactEmail),
-      csvEscape(e.locale),
-      csvEscape(e.status),
-      csvEscape(e.createdAt),
-      csvEscape(noteCell),
-      csvEscape(noteStatus),
-    ].join(",");
-  });
+    rows.push(
+      [
+        csvEscape("employee"),
+        csvEscape(e.subdomain),
+        csvEscape(e.firstName),
+        csvEscape(e.lastName),
+        csvEscape(e.email),
+        csvEscape(e.contactEmail),
+        csvEscape(e.locale),
+        csvEscape(e.status),
+        csvEscape(e.createdAt),
+        csvEscape(noteCell),
+        csvEscape(status),
+      ].join(","),
+    );
+  }
+
+  // INVITE-rader (pending, ikke utløpt)
+  for (const inv of invites) {
+    rows.push(
+      [
+        csvEscape("invite"),
+        csvEscape(null), // subdomain (ikke tildelt ennå)
+        csvEscape(inv.firstName),
+        csvEscape(inv.lastName),
+        csvEscape(inv.email),
+        csvEscape(null), // contact_email (ikke aktuelt for invites)
+        csvEscape(inv.locale),
+        csvEscape(inv.status),
+        csvEscape(inv.createdAt),
+        csvEscape(null), // admin_note (ikke aktuelt for invites)
+        csvEscape("none"), // note_status
+      ].join(","),
+    );
+  }
+
   return [header, ...rows].join("\r\n") + "\r\n";
+}
+
+/**
+ * @deprecated D-113: bruk buildBackupCsv. Beholdt for bakoverkompat.
+ */
+export function buildEmployeesCsv(employees: DecryptedEmployee[]): string {
+  return buildBackupCsv(null, employees, []);
 }
 
 // ─── JSON-bygging ──────────────────────────────────────────────────────
 
 export type BackupJson = {
-  format: "kodovault-am-admin-backup-v1";
+  format: "kodovault-am-admin-backup-v2";
   generatedAt: string;
   prefix: string;
   license: BackupLicense;
+  admin: BackupAdmin | null;
   employeeCount: number;
+  inviteCount: number;
   notedCount: number;
   decryptErrorCount: number;
   employees: DecryptedEmployee[];
+  invites: BackupInvite[];
 };
 
 export function buildBackupJson(
@@ -237,14 +325,17 @@ export function buildBackupJson(
   decrypted: DecryptedEmployee[],
 ): BackupJson {
   return {
-    format: "kodovault-am-admin-backup-v1",
+    format: "kodovault-am-admin-backup-v2",
     generatedAt: data.generatedAt,
     prefix: data.prefix,
     license: data.license,
+    admin: data.admin,
     employeeCount: data.employeeCount,
+    inviteCount: data.inviteCount,
     notedCount: data.notedCount,
     decryptErrorCount: decrypted.filter((e) => e.noteDecryptError).length,
     employees: decrypted,
+    invites: data.invites,
   };
 }
 
