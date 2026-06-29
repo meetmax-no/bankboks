@@ -57,17 +57,15 @@ Severity:
 &nbsp;&nbsp;**(b)** Slett funksjonen helt. Orphan-cleanup må gjøres via annen mekanisme (f.eks. automatisk cron eller server-side rydding uten UI-eksponering).  
 Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutning.**
 
-### T5 — `OrgInvitesSection` overlapper `InlineInviteForm`
-**Beskrivelse:** Etter D-085 ble `InlineInviteForm` lagt til som inline-skjema i Ansatte-fanen. `OrgInvitesSection` lever fortsatt på Invitasjoner-fanen og duplicater opprett-flowen (samme `POST /api/am-admin/invites`, samme felter, lett ulikt UI). Bryter D-105 light — to inngangspunkter til samme funksjon.  
-**Filer:** `components/platform/am-admin/OrgInvitesSection.tsx`, `components/platform/am-admin/InlineInviteForm.tsx`.  
-**Forslag:** Slett `OrgInvitesSection`-opprett-blokken, behold kun listen (om listen fortsatt er nødvendig). Eller refaktorer slik at begge faner bruker `InlineInviteForm`. Mike må vurdere om Invitasjoner-fanen fortsatt trenger eget opprett-skjema, eller om "+ Ansatt" i Ansatte-fanen er nok.  
-**Status:** Ikke planlagt. Liten risiko, men kosmetisk inkonsistens.
+### T5 — ✅ LUKKET (D-122, 2026-06-29)
+**Status:** `OrgInvitesSection.tsx` slettet — viste seg å være dead code (kun referert i kommentarer, ikke importert noe sted). `InlineInviteForm` er nå eneste invite-skjema. billingPhase-blokkering håndteres i `EmployeeListSection`. 10 orphan i18n-keys ryddet (1483 → 1473). D-105-lint nå 316 filer (var 317).
 
 ---
 
 ## Lukket (referanse)
 
 ### Fixed 2026-06-29
+- ✅ **D-122** T5 OrgInvitesSection-konsolidering: viste seg å være dead code. Filen slettet. `InlineInviteForm` er nå eneste invite-skjema. 10 orphan i18n-keys ryddet × 4 språk (1483 → 1473). D-105-lint scanner nå 316 filer. Testing-agent 7/7 PASS
 - ✅ **D-121** T3 locale-cleanup: 0 ubrukte literal-keys å fjerne (lint kept it clean). Alle 56 dynamiske exempt-entries manuelt verifisert som fortsatt aktive. Lint hardened med automatisk stale-exempt-deteksjon (kildefil må eksistere + alle statiske deler av template-mønsteret må forekomme i fila). To robustness-tester av testing-agent bekrefter at både defekt fil-path og defekt mønster fanges. T3 lukket
 - ✅ **D-120** /invite skjema lokalisert: 28 nye keys × 4 språk (`invite_form.*` prefix — totalt 1483 keys per språk). ERROR_MESSAGES erstattet av ERROR_CODE_KEYS-mapping + t()-closure. På validate-success bytter siden automatisk page-locale til invitasjonens preset (admin kan forhåndsvelge språk per invitasjon). Sv/da/en-ansatte ser nå hele skjemaet på sitt språk fra første frame. `{subdomain}`/`{action}`/`{code}`-interpolasjon fungerer på tvers av språk. Verifisert statisk av testing-agent (9/9 sjekkpunkter, 0 issues)
 - ✅ **D-119** Invite-flow design-konsistens: a) `/welcome-b2b` får aurora-gradient (samme som `/invite` + am-admin-login) på både happy-path og error-state. b) Tre primær-CTA'er i flyten harmonisert til identisk styling: `w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium transition-colors` ("Aktiver konto" på /invite, "OK, gå videre" på trackerens liveAction, "Fortsæt" på welcome-b2b). Default "Åpne vault"-knapp i tracker (uten liveAction) beholder emerald-pill-style så `/platform/register` + `/billing/success` + admin TenantViewer ikke påvirkes. Verifisert statisk av testing-agent (letter-by-letter className-match)
