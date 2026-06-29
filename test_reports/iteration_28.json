@@ -1,0 +1,43 @@
+{
+  "summary": "D-128 Config-verktøy: cascade-from-parent + scope-refactor (includeB2C/includeSA) — alle 4 statiske sjekker grønne. yarn tsc 0 feil, yarn lint:all (7 sub-lints) OK, yarn build OK (Done in 24.20s), referanse-tester regresjonsfrie (trial-days 22/22, pricing-structured 27/27, tenant-config-inheritance 10/10). Kodegjennomgang verifiserer at alle review-request-punkter er korrekt implementert i route.ts og ConfigToolsButton.tsx.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/trial-days.test.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/tenant-config-inheritance.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "route.ts L31-35: Mode union utvidet med 'cascade-from-parent' korrekt. parseMode L66-76 godtar nye modus + faller tilbake til skip-existing — defensivt og bakoverkompatibelt.",
+    "route.ts L125-132: runMigration tar scope-objekt {includeB2C, includeSA} med default {true, false} + valgfri parentScope. Tydelig API som ikke kan blandes med legacy boolean.",
+    "route.ts L149-165: Candidate-filter er presist — cascade-modus tar KUN tenants med parentTenant !== null (med valgfri scope-filter), de tre andre modusene returnerer false for B2B children eksplisitt. Dette matcher Mike sitt strenge krav i D-128.",
+    "route.ts L201-214: parentConfigCache er en ren Map<string, ClientConfigJson|null> som forhindrer N+1 ved cascade på mange ansatte under samme SA. Sjekker `has` (ikke null-coalescing) slik at 'lookup gjort, ikke funnet' caches korrekt.",
+    "route.ts L210: Korrekt URL-konstruksjon — `${parentPrefix}-admin` (ikke bare `${parentPrefix}`). Matcher D-103e-spesifikasjonen om at parentTenant lagrer prefiks, ikke full subdomene.",
+    "route.ts L321: 'Skip-eksisterende + Kun B2B parent-tenants' i feilteksten — merk: scope-toggleren heter nå 'Inkluder SA', ikke 'Kun B2B parent-tenants'. Ikke kritisk, men teksten er litt utdatert. Forslag: oppdater til 'Skip eksisterende' med 'Inkluder SA' for konsistens (mindre forvirring for Mike).",
+    "route.ts L363-367 / L384-387: Legacy onlyParents=true mappes til {includeB2C:false, includeSA:true} — riktig backward-compat. Hvis onlyParents fraværende falles det tilbake til parseIncludeB2C/parseIncludeSA. Korrekt prioritering.",
+    "ConfigToolsButton.tsx L82-89: state-variabler includeB2C=true, includeSA=false, parentScope='' — defaultene matcher Mike sitt mønster (B2C er det vanligste mål).",
+    "ConfigToolsButton.tsx L95-104: Validering 'minst én scope må være på' for non-cascade-modus — riktig. Cascade-modus omgår sjekken siden den ikke bruker togglene.",
+    "ConfigToolsButton.tsx L117-131: Cascade confirm-dialog forklarer at SA-mal overskriver ansattes lokale config + viser scope (én SA vs alle). Audit-logging nevnt eksplisitt.",
+    "ConfigToolsButton.tsx L136-144: URL-bygging — cascade sender kun 'parent' (når satt), de tre andre sender includeB2C/includeSA. parent.toLowerCase() konsistent med parseParentScope i backend.",
+    "ConfigToolsButton.tsx L237-330: Conditional rendering — scope-togglene vises kun for non-cascade, parent-scope-input kun for cascade. Bra UX, ingen død UI-state.",
+    "ConfigToolsButton.tsx L344-359: Kjør-knapp får emerald-farge for cascade (skiller seg fra rød overwrite-all og blå default). Visuell ledetråd om at cascade er mer kontrollert enn overwrite-all.",
+    "ConfigToolsButton.tsx L401-405: cascaded count-badge er på plass i resultatpanelet, vises kun når > 0. Matcher mønsteret for migrated/merged/overwritten.",
+    "Liten kode-kvalitet: ACTION_STYLE har duplisert 'bg-emerald-500/10 text-emerald-300' for migrated/merged/cascaded. Ikke et problem, men kunne abstraheres. Lavprioritet.",
+    "Sikkerhets-merknad: cascade-from-parent kan reset'e mange ansattes config samtidig. Bra at confirm-dialogen lister antall + scope, men det er ingen pagineringsbeskyttelse hvis det er 1000+ ansatte. Mike: vurder hard-cap (f.eks. maks 500 cascaded i en kjøring) hvis fremtidig skala blir et problem. Lavprioritet — ikke blokkerende."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (4/4 statiske sjekker + 3/3 referanse-test-suiter regresjonsfrie)"},
+  "seed_data_creation": "Ingen",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-128 (cascade-from-parent + scope refactor) verifisert via statiske sjekker. Brukeren (Mike) har eksplisitt forbudt yarn dev/E2E browser-tester i pod-en. iter_27 dekket D-126 SA-arv; iter_28 utvider med D-128. Neste iterasjon (hvis ny D-129 kommer): kjør yarn tsc, yarn lint:all, yarn build + de 3 referanse-test-suitene som regresjonssjekk. Husk å lese de seneste DECISIONS.md-entries hvis det er nye D-koder. Kommuniser på norsk (bokmål).",
+  "rca of the issue": "N/A — ingen feil funnet."
+}
