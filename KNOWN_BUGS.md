@@ -51,7 +51,7 @@ Severity:
 **Forslag:** Periodisk cleanup av ubrukte nøkler (gjort etter D-106).  
 **Status:** Pågående hygiene.
 
-### T4 — Test Tools eksponerer PII uten audit-log
+### T4 — Test Tools eksponerer PII uten audit-log  
 **Beskrivelse:** `OrgAdminListCard` og `OrphanInvitesCard` lar Mike-admin se ansatt-PII (navn, e-post) på tvers av tenants — som per D-078 ikke skal være mulig. Begrunnet som "nødvendig for orphan-cleanup", men det er ingen audit-log på bruken.  
 **Filer:** `app/api/admin/org-admins/all/route.ts`, `app/api/admin/orphan-invites/all/route.ts`, `components/platform/OrgAdminListCard.tsx`, `components/platform/OrphanInvitesCard.tsx`.  
 **Status: VENTER PÅ BESLUTNING (Mike 2026-06-29)** — to alternativer:  
@@ -59,11 +59,18 @@ Severity:
 &nbsp;&nbsp;**(b)** Slett funksjonen helt. Orphan-cleanup må gjøres via annen mekanisme (f.eks. automatisk cron eller server-side rydding uten UI-eksponering).  
 Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutning.**
 
+### T5 — `OrgInvitesSection` overlapper `InlineInviteForm`
+**Beskrivelse:** Etter D-085 ble `InlineInviteForm` lagt til som inline-skjema i Ansatte-fanen. `OrgInvitesSection` lever fortsatt på Invitasjoner-fanen og duplicater opprett-flowen (samme `POST /api/am-admin/invites`, samme felter, lett ulikt UI). Bryter D-105 light — to inngangspunkter til samme funksjon.  
+**Filer:** `components/platform/am-admin/OrgInvitesSection.tsx`, `components/platform/am-admin/InlineInviteForm.tsx`.  
+**Forslag:** Slett `OrgInvitesSection`-opprett-blokken, behold kun listen (om listen fortsatt er nødvendig). Eller refaktorer slik at begge faner bruker `InlineInviteForm`. Mike må vurdere om Invitasjoner-fanen fortsatt trenger eget opprett-skjema, eller om "+ Ansatt" i Ansatte-fanen er nok.  
+**Status:** Ikke planlagt. Liten risiko, men kosmetisk inkonsistens.
+
 ---
 
 ## Lukket (referanse)
 
 ### Fixed 2026-06-29
+- ✅ **D-116b** Siste native `<select>` i am-admin (`OrgInvitesSection.tsx` locale-velger) erstattet med `DarkSelect`. T5 (OrgInvitesSection vs InlineInviteForm overlapp) flagget i KNOWN_BUGS for senere konsolidering
 - ✅ **D-116** Firma-admin slett-flyt + UI: a) `DarkSelect` ekstrahert fra `TenantViewer.tsx` til egen fil → InlineInviteForm (locale-dropdown) bruker nå mørk popup på alle browsere (tidligere stygg native hvit). b) `confirm()` erstattet med `ConfirmDialog` (type-to-confirm = subdomain) for både ansatt- og invite-sletting. c) Ny `AmAdminDeleteResultModal` med brukervennlige steg-labels ("Vault-miljø fjernet", "Kryptert lagring slettet", "Betaling avsluttet" etc — ikke infra-jargon). Skjuler B2B-parent-only-steg (b2bPrefix/orgAdmins/mpw/invites). Backend `/api/am-admin/tenants/[subdomain]` DELETE returnerer nå hele `DeleteResult`. Invite-result-modal viser subdomene + e-post + tidspunkt
 - ✅ **D-115** Invite-flow: a) henter firmanavn via `/api/am-admin/branding/[prefix]` (strengt — ingen prefix-fallback), b) default aurora-gradient som bakgrunn, c) `<ProvisioningTracker mode="public">` plassert mellom skjema og redirect til `/welcome-b2b/...` slik at vi venter på `vault_live` før vi sender brukeren videre. Fikser 404/wrong_pod ved klikk på "Fortsett" i welcome-skjermen
 - ✅ **D-113** Backup-utvidelse: én CSV-fane med "type"-kolonne (admin/employee/invite). Pending invites inkludert. Bug-fiks: parent-tenanten ble feilaktig listet som "ansatt" pga `subdomain.startsWith(prefix-)`-fallback i filteret — nå strikt `parentTenant === prefix`. JSON-format bumped til v2 med separate `admin` + `invites`-felter

@@ -18,6 +18,7 @@
  */
 import { useCallback, useState } from "react";
 import { useLocale } from "@/lib/i18n-context";
+import { DarkSelect } from "@/components/platform/DarkSelect";
 import type { B2BBillingPhase } from "@/lib/platform/b2b-billing";
 
 type Props = {
@@ -305,23 +306,19 @@ export function OrgInvitesSection({ prefix, billingPhase = null }: Props) {
             >
               {t("am_admin_invites.locale_label")}
             </label>
-            <select
-              id="org-invite-locale"
+            <DarkSelect
+              testId="org-invites-locale"
               value={form.locale}
-              onChange={(e) =>
-                setForm((f) => ({
-                  ...f,
-                  locale: e.target.value as Locale,
-                }))
+              onChange={(v) =>
+                setForm((f) => ({ ...f, locale: v as Locale }))
               }
-              className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/15 text-sm"
-              data-testid="org-invites-locale"
-            >
-              <option value="no">{t("am_admin_invites.locale_option_no")}</option>
-              <option value="sv">{t("am_admin_invites.locale_option_sv")}</option>
-              <option value="da">{t("am_admin_invites.locale_option_da")}</option>
-              <option value="en">{t("am_admin_invites.locale_option_en")}</option>
-            </select>
+              options={[
+                { value: "no", label: t("am_admin_invites.locale_option_no") },
+                { value: "sv", label: t("am_admin_invites.locale_option_sv") },
+                { value: "da", label: t("am_admin_invites.locale_option_da") },
+                { value: "en", label: t("am_admin_invites.locale_option_en") },
+              ]}
+            />
           </div>
 
           {createError && (
