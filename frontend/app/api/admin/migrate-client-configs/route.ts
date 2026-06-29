@@ -318,7 +318,7 @@ async function runMigration(
           summary.rows.push({
             subdomain: t.subdomain,
             action: "skipped",
-            reason: `SA '${parentPrefix}-admin' mangler client-config — kjør 'Skip eksisterende' + 'Kun B2B parent-tenants' først`,
+            reason: `SA '${parentPrefix}-admin' mangler client-config — kjør 'Skip eksisterende' med 'Inkluder SA' først`,
           });
           continue;
         }

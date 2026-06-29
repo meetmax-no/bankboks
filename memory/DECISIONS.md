@@ -4067,3 +4067,72 @@ For UI-banner i ClientConfigEditor som forklarer arv:
 - D-018 (multi-tenant strategi)
 - D-126 (SA-config arv) — denne ADR-en fanger restmateriale fra D-126-inspeksjon
 - Iter 20.4 (B2B fakturering per-seat semiannual + yearly)
+
+## D-128 — Config-verktøy: cascade-from-parent + scope-refactor
+
+**DATO:** 2026-02 (Mike-direktiv: "Verktøy skal kjøre kun mot B2C og evt mot S-Admin men det må kunne velges fra gang til gang")
+
+**KONTEKST:** D-126 leverte SA-config arv for nye ansatte — men eksisterende ansatte arver IKKE retroaktivt fra SA-malen. Hvis Mike eller en SA endrer branding/priser midt i en periode, må eksisterende ansatte enten opprettes på nytt eller manuelt synkroniseres. Mike bekreftet behov for en "Re-cascade SA-config til alle eksisterende ansatte"-funksjon ("ett klikk per tenant-organisasjon").
+
+Samtidig oppdaget vi at de tre eksisterende modusene (`skip-existing`, `merge`, `overwrite-all`) treffer ALT — inkludert B2B-ansatte. Mike er klar: "Verktøyet skal kjøre kun mot B2C og evt mot S-Admin men det må kunne velges fra gang til gang." Dvs. eksisterende modus-flow er for bred — B2B-ansatte må aldri kunne treffes utilsiktet, og B2C vs SA må kunne togles uavhengig.
+
+**VURDERTE:**
+
+For cascade-funksjonen:
+- (A) Egen knapp utenfor Config-verktøy. Forkastet — splitter UI uten gevinst.
+- (B) Egen rute `/api/admin/cascade-sa-configs`. Forkastet — duplikat infrastruktur.
+- (C) Ny modus `cascade-from-parent` i eksisterende `/api/admin/migrate-client-configs`, valgfri scoping til én SA-prefix. **VALGT.**
+
+For scope-modellering:
+- (a) Behold global "Kun SA"-checkbox + introduser ny "Kun B2C"-checkbox. Forkastet — gir 4 mulige tilstander (00, 01, 10, 11) hvor 00 = "ingenting" må valideres bort. Klønete.
+- (b) Tre eksklusive radioer (B2C-only / SA-only / B2C+SA). Akseptabel, men gjør "begge" til en aktiv valg i stedet for default.
+- (c) **To uavhengige checkbokser** med default `includeB2C=true, includeSA=false` + minst-én-validering. **VALGT.** Matcher Mikes språk ("kunne velges fra gang til gang") og er det mest kompakte.
+- (d) Drop-down. Forkastet — overkill for to felter.
+
+For B2B-ansatte i skip/merge/overwrite-all:
+- (1) La de være med, men ekskluder manuelt via UI. Forkastet — for lett å glemme.
+- (2) **Hard-ekskluder B2B-ansatte fra disse 3 modusene ALLTID, kun cascade kan røre dem.** **VALGT.** Klar separasjon av ansvar.
+
+**VALGTE:**
+
+1. **Ny modus `cascade-from-parent`** i `/api/admin/migrate-client-configs`:
+   - Kandidat-filter: `tenants.filter(t => t.parentTenant !== null)`, valgfri `?parent=<prefix>` for scoping.
+   - Per child: les `client-config:<parentTenant>-admin` (D-103e: `parentTenant` lagrer prefiks, ikke full subdomain) via en cache for å unngå N+1. Hvis SA mangler config → skip med "kjør 'Skip eksisterende' med 'Inkluder SA' først"-melding.
+   - Hvis SA har config → `buildTenantConfig(parentConfig, child.subdomain)` overskriver `_meta.client` til child + skriver via `putClientConfig`. Audit-note appendes til `tenant.notes`.
+
+2. **Scope-objekt `{includeB2C, includeSA}`** erstatter den binære `onlyParents`-flagget:
+   - `skip-existing`/`merge`/`overwrite-all`: kandidat-filter er nå `(isB2C(t) && includeB2C && vercelProjectId !== null) || (isB2BParent(t) && includeSA)`. B2B-ansatte er ALDRI med.
+   - Backwards-compat: hvis legacy `?onlyParents=true` settes, mappes det til `{includeB2C:false, includeSA:true}`.
+
+3. **UI i `ConfigToolsButton.tsx`:**
+   - To togglar med defaults `includeB2C=true, includeSA=false`, vises kun for non-cascade-modus.
+   - Cascade-modus viser en tekst-input for valgfri SA-prefix-scoping (testid `config-tools-parent-scope`).
+   - Min-én-scope-validering i `run()` for non-cascade.
+   - "Kjør"-knapp får emerald-farge for cascade (skiller seg fra rød overwrite-all og blå default).
+   - Confirm-dialog for cascade nevner scope (én SA vs alle) + at SA-mal overskriver ansattes lokale config + at audit-logging skjer.
+
+4. **Statisk verifikasjon:**
+   - yarn tsc ✓, yarn lint:all 7/7 ✓, yarn build ✓
+   - 3 referanse-test-suiter regresjonsfrie (trial-days 22/22, pricing-structured 27/27, tenant-config-inheritance 10/10)
+   - testing-agent iter_28: 100% (0 issues)
+
+**HVORFOR:**
+
+- **Sikkerhet:** Mikes språk var entydig — verktøyet skal ikke kunne treffe B2B-ansatte ved et uhell. Hard-ekskludering på backend (ikke kun UI-skjuling) garanterer at en cURL-bypass heller ikke virker.
+- **Cognitive load:** Togglar med default (`B2C på, SA av`) matcher den vanligste bruks-modusen — Mike kjører oftest config-vedlikehold mot B2C-pakken. SA er en bevisst opt-in.
+- **Composability:** Cascade-modus er funksjonelt frittstående og deler kun infrastruktur (audit-note, JSON-respons-format) med de tre andre — ingen subtile interaksjons-effekter.
+- **Parent-config-cache:** Cascade på 50 ansatte under samme SA gjør nå 1 read (SA-config) + 50 writes (children), ikke 50 reads + 50 writes. Forhindrer både kostnad og Upstash rate-limit-trefninger.
+
+**KONSEKVENS:**
+
+- Mike kan justere SA-mal og kjøre cascade for å oppdatere alle eksisterende ansatte i én operasjon (én SA av gangen via prefix-scoping).
+- B2B-ansatte er strukturelt beskyttet mot utilsiktet overskriving via skip/merge/overwrite-all.
+- `parentConfigCache` antar at SA-config ikke endres midt under en kjøring (rimelig — vi har én admin-økt om gangen).
+- Future-work-flagg: hvis tenants-listen blir veldig stor (1000+ ansatte under én SA), kan en pagineringsbeskyttelse legges til (hard-cap maks N per kjøring + neste-side-token). Lavprioritet inntil videre.
+- Fjernet "Kun B2B parent-tenants"-checkbox-label fra UI — erstattet med "Inkluder SA". Tekst-konsistens fanget i testing-agent og rettet.
+
+**RELATERT:**
+- D-126 (SA-config arv ved opprettelse)
+- D-127 (Strukturert pricing — D-128 cascader nå B2B-priser også når SA endrer dem)
+- D-060 (deep merge i migrate-client-configs)
+- D-103e (parentTenant lagrer prefiks, ikke full subdomain)
