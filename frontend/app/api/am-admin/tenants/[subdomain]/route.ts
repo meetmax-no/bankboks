@@ -71,5 +71,8 @@ export async function DELETE(
     detail: result.success
       ? "Ansatt-konto slettet (kaskade fullført)."
       : `Sletting feilet: ${result.errors?.join("; ") ?? "ukjent"}`,
+    // D-116: returner hele DeleteResult-payloaden så UI kan vise
+    // brukervennlig stegliste (uten å eksponere infra-jargon).
+    result,
   }, { status: result.success ? 200 : 500 });
 }

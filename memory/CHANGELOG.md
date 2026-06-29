@@ -3,6 +3,52 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-06-29 — D-116 Firma-admin slett-flyt + DarkSelect-ekstrahering (P1)
+
+### UI-løft
+
+**1. `DarkSelect` ekstrahert til egen komponent (D-105 anti-duplisering)**
+- Tidligere innebygd i `TenantViewer.tsx` (~100 linjer). InlineInviteForm brukte native `<select>` → stygg hvit popup på Chrome/Safari.
+- Ny fil: `components/platform/DarkSelect.tsx`. Adferd og data-testids er uendret. La til `disabled`-prop.
+- Wired inn i `InlineInviteForm.tsx` (locale-velger Norsk/Svenska/Dansk/English) og gjenbrukt i `TenantViewer.tsx`.
+
+**2. Slett-flyt for ansatt + invite (matcher B2C-mønster fra super-admin)**
+
+`window.confirm()` erstattet med `<ConfirmDialog>` (samme komponent som B2C bruker) i `EmployeeListSection.tsx`:
+- Tittel + brukervennlig beskrivelse (viser navn, e-post og subdomene)
+- "Vercel-style type to confirm" — bruker må skrive inn subdomenet før Slett-knappen blir aktiv
+- Destructive variant (rød)
+
+Etter sletting vises ny `<AmAdminDeleteResultModal>` (per Mike-direktiv 2C):
+- **Brukervennlige steg-labels, ikke infra-jargon**:
+  - `vercel` → "Vault-miljø fjernet"
+  - `upstash` → "Kryptert lagring slettet"
+  - `centralDb` → "Konto fjernet fra Ko | Do"
+  - `clientConfig` → "Klient-konfigurasjon ryddet"
+  - `stripe` → "Betaling avsluttet"
+  - `adminNotes` → "Admin-notater slettet"
+- **Skjuler B2B-parent-only-steg** (`b2bPrefix`, `orgAdmins`, `mpw`, `invites`) som ikke gjelder ansatt-sletting.
+- **Skjuler tekniske feilstrenger** — viser kun generisk "Kontakt Ko | Do-support hvis problemet vedvarer". Mike kan slå opp full DeleteResult i super-admin-loggen.
+- Viser subdomene + tidspunkt + steg-status-badges (ok/failed/skipped/preserved).
+
+For invite-sletting (3B) vises samme modal i kompakt form: subdomene + e-post + tidspunkt + status (ingen infra-steg, siden invite-sletting bare fjerner et record fra store).
+
+**3. Backend-endring**
+
+`/api/am-admin/tenants/[subdomain]` DELETE returnerer nå hele `DeleteResult`-payloaden (steps + errors + meta) i tillegg til eksisterende `ok`/`subdomain`/`detail` — så klienten kan rendere stegliste uten ekstra round-trip.
+
+**4. Locale-løft (× 4 språk no/sv/da/en)**
+- Slettet ubrukte gamle nøkler: `confirm_delete_tenant_prefix`/`suffix`, `confirm_delete_invite_prefix`/`suffix`.
+- 24 nye nøkler per språk: dialog-titler/-beskrivelser/-confirms (for både ansatt og invite) + step-labels + result-modal-labels.
+- Total nøkkel-count: 1416 → 1439 per språk.
+
+**Filer endret:**
+- Nye: `components/platform/DarkSelect.tsx`, `components/platform/am-admin/AmAdminDeleteResultModal.tsx`
+- Endret: `components/platform/TenantViewer.tsx` (importerer DarkSelect, fjernet inline-definisjon + ChevronDown-import), `components/platform/am-admin/InlineInviteForm.tsx` (bruker DarkSelect), `components/platform/am-admin/EmployeeListSection.tsx` (ConfirmDialog + result-modal + nye handlers), `app/api/am-admin/tenants/[subdomain]/route.ts` (returnerer `result`), `lib/locales/{no,sv,da,en}.json`.
+
+**Verifisering:** `yarn tsc --noEmit` ✓ · `yarn lint:all` ✓ (1439 nøkler i sync, i18n-sync ✓, D-078 ✓, D-105 ✓, coverage-matrix ✓) · `yarn build` ✓.
+
+---
 ## 2026-06-29 — D-115 Invite-flow fix (P0)
 
 ### Bug-fiks

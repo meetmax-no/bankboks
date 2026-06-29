@@ -12,6 +12,7 @@
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n-context";
+import { DarkSelect } from "@/components/platform/DarkSelect";
 
 type Locale = "no" | "sv" | "da" | "en";
 
@@ -180,19 +181,20 @@ export function InlineInviteForm({ prefix, onClose, onCreated }: Props) {
         className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/15 text-sm"
         data-testid="inline-invite-email"
       />
-      <select
+      <DarkSelect
+        testId="inline-invite-locale"
         value={form.locale}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, locale: e.target.value as Locale }))
+        onChange={(v) =>
+          setForm((f) => ({ ...f, locale: v as Locale }))
         }
-        className="w-full px-3 py-2 rounded-lg bg-black/30 border border-white/15 text-sm"
-        data-testid="inline-invite-locale"
-      >
-        <option value="no">{t("am_admin_invites.locale_option_no")}</option>
-        <option value="sv">{t("am_admin_invites.locale_option_sv")}</option>
-        <option value="da">{t("am_admin_invites.locale_option_da")}</option>
-        <option value="en">{t("am_admin_invites.locale_option_en")}</option>
-      </select>
+        disabled={busy}
+        options={[
+          { value: "no", label: t("am_admin_invites.locale_option_no") },
+          { value: "sv", label: t("am_admin_invites.locale_option_sv") },
+          { value: "da", label: t("am_admin_invites.locale_option_da") },
+          { value: "en", label: t("am_admin_invites.locale_option_en") },
+        ]}
+      />
 
       {error && (
         <p className="text-xs text-rose-300" data-testid="inline-invite-error">

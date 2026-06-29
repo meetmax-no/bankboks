@@ -20,7 +20,13 @@ import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n-context";
 import type { InviteRecord } from "@/lib/platform/invite-types";
 import type { B2BBillingPhase } from "@/lib/platform/b2b-billing";
+import type { DeleteResult } from "@/lib/platform/delete-tenant";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { AdminNotesModal } from "./AdminNotesModal";
+import {
+  AmAdminDeleteResultModal,
+  type AmAdminDeleteResultPayload,
+} from "./AmAdminDeleteResultModal";
 import { InlineInviteForm } from "./InlineInviteForm";
 import { useMpw } from "./MpwContext";
 import { SeatProgressBar } from "./SeatProgressBar";
@@ -129,6 +135,26 @@ export function EmployeeListSection({
   const [sortKey, setSortKey] = useState<SortKey>("createdAt");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [inviteOpen, setInviteOpen] = useState(false);
+
+  // D-116 (2026-06-29): erstatt window.confirm() + toast med ConfirmDialog
+  // + AmAdminDeleteResultModal (matcher B2C-flowen i super-admin).
+  type PendingTenantDelete = {
+    subdomain: string;
+    name: string;
+    email: string;
+  };
+  type PendingInviteDelete = {
+    token: string;
+    subdomain: string;
+    name: string;
+    email: string;
+  };
+  const [pendingTenantDelete, setPendingTenantDelete] =
+    useState<PendingTenantDelete | null>(null);
+  const [pendingInviteDelete, setPendingInviteDelete] =
+    useState<PendingInviteDelete | null>(null);
+  const [deleteResult, setDeleteResult] =
+    useState<AmAdminDeleteResultPayload | null>(null);
 
   const invitesBlocked =
     billingPhase === "grace" || billingPhase === "expired";
@@ -317,27 +343,40 @@ export function EmployeeListSection({
     [refresh, t],
   );
 
-  const handleDeleteTenant = useCallback(
-    async (subdomain: string, label: string) => {
-      if (
-        !confirm(
-          `${t("am_admin_employees.confirm_delete_tenant_prefix")}${subdomain}${t("am_admin_employees.confirm_delete_tenant_suffix")}`,
-        )
-      )
-        return;
+  // D-116: konfirmasjon skjer nå via ConfirmDialog. Denne funksjonen
+  // utfører selve sletting + viser AmAdminDeleteResultModal med
+  // brukervennlig stegliste. Trigges fra ConfirmDialog.onConfirm.
+  const performDeleteTenant = useCallback(
+    async (pending: PendingTenantDelete) => {
+      const { subdomain, name } = pending;
       setBusy(`delete:${subdomain}`);
       try {
         const res = await fetch(
           `/api/am-admin/tenants/${encodeURIComponent(subdomain)}`,
           { method: "DELETE", credentials: "include" },
         );
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.detail || `HTTP ${res.status}`);
+        const body = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          subdomain?: string;
+          detail?: string;
+          result?: DeleteResult;
+        };
+        if (body.result) {
+          setDeleteResult({
+            kind: "tenant",
+            subdomain,
+            result: body.result,
+            deletedAt: new Date().toISOString(),
+          });
+          if (body.result.success) {
+            toast.success(
+              t("am_admin_employees.toast_deleted").replace("{name}", name),
+            );
+          }
+        } else if (!res.ok) {
+          toast.error(body.detail || t("am_admin_employees.alert_delete_failed"));
         }
-        toast.success(
-          t("am_admin_employees.toast_deleted").replace("{name}", label),
-        );
+        setPendingTenantDelete(null);
         await refresh();
       } catch (e) {
         toast.error(
@@ -345,11 +384,21 @@ export function EmployeeListSection({
             ? e.message
             : t("am_admin_employees.alert_delete_failed"),
         );
+        setPendingTenantDelete(null);
       } finally {
         setBusy(null);
       }
     },
     [refresh, t],
+  );
+
+  // D-116: legacy-handler beholdt som adapter — knappen vil heretter åpne
+  // ConfirmDialog (state-setting) i stedet for å kalle dette direkte.
+  const handleDeleteTenant = useCallback(
+    (subdomain: string, name: string, email: string) => {
+      setPendingTenantDelete({ subdomain, name, email });
+    },
+    [],
   );
 
   const handleResendInvite = useCallback(
@@ -385,36 +434,64 @@ export function EmployeeListSection({
     [refresh, t],
   );
 
-  const handleDeleteInvite = useCallback(
-    async (token: string, subdomain: string) => {
-      if (
-        !confirm(
-          `${t("am_admin_employees.confirm_delete_invite_prefix")}${subdomain}${t("am_admin_employees.confirm_delete_invite_suffix")}`,
-        )
-      )
-        return;
+  // D-116: invite-sletting bruker også ConfirmDialog + result-modal.
+  const performDeleteInvite = useCallback(
+    async (pending: PendingInviteDelete) => {
+      const { token, subdomain, email } = pending;
       setBusy(`delete-invite:${token}`);
       try {
         const res = await fetch(
           `/api/am-admin/invites/${encodeURIComponent(token)}`,
           { method: "DELETE", credentials: "include" },
         );
-        if (!res.ok) {
-          toast.error(t("am_admin_employees.alert_delete_failed"));
-          return;
+        const ok = res.ok;
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          detail?: string;
+        };
+        setDeleteResult({
+          kind: "invite",
+          subdomain,
+          email: email && email !== "(ingen e-post)" ? email : null,
+          success: ok,
+          error: ok ? null : body.detail || body.error || null,
+          deletedAt: new Date().toISOString(),
+        });
+        if (ok) {
+          toast.success(
+            t("am_admin_employees.toast_invite_deleted").replace(
+              "{subdomain}",
+              subdomain,
+            ),
+          );
         }
-        toast.success(
-          t("am_admin_employees.toast_invite_deleted").replace(
-            "{subdomain}",
-            subdomain,
-          ),
-        );
+        setPendingInviteDelete(null);
         await refresh();
+      } catch (e) {
+        setDeleteResult({
+          kind: "invite",
+          subdomain,
+          email: email && email !== "(ingen e-post)" ? email : null,
+          success: false,
+          error:
+            e instanceof Error
+              ? e.message
+              : t("am_admin_employees.alert_delete_failed"),
+          deletedAt: new Date().toISOString(),
+        });
+        setPendingInviteDelete(null);
       } finally {
         setBusy(null);
       }
     },
     [refresh, t],
+  );
+
+  const handleDeleteInvite = useCallback(
+    (token: string, subdomain: string, name: string, email: string) => {
+      setPendingInviteDelete({ token, subdomain, name, email });
+    },
+    [],
   );
 
   const SortIcon = ({ active, dir }: { active: boolean; dir: SortDir }) => {
@@ -708,7 +785,11 @@ export function EmployeeListSection({
                           row.statusKey !== "deleted" && (
                             <button
                               onClick={() =>
-                                void handleDeleteTenant(row.subdomain, row.name)
+                                handleDeleteTenant(
+                                  row.subdomain,
+                                  row.name,
+                                  row.email,
+                                )
                               }
                               disabled={!!isBusy}
                               className="text-xs px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-200 disabled:opacity-50"
@@ -730,7 +811,12 @@ export function EmployeeListSection({
                         {row.kind === "invite" && (
                           <button
                             onClick={() =>
-                              void handleDeleteInvite(row.token, row.subdomain)
+                              handleDeleteInvite(
+                                row.token,
+                                row.subdomain,
+                                row.name,
+                                row.email,
+                              )
                             }
                             disabled={!!isBusy}
                             className="text-xs px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-200 disabled:opacity-50"
@@ -754,6 +840,72 @@ export function EmployeeListSection({
           subdomain={notesFor.subdomain}
           employeeName={notesFor.name}
           onClose={() => setNotesFor(null)}
+        />
+      )}
+
+      {/* D-116: tenant-delete confirm dialog */}
+      <ConfirmDialog
+        open={pendingTenantDelete !== null}
+        title={t("am_admin_employees.delete_dialog_title")}
+        description={
+          pendingTenantDelete ? (
+            <span data-testid="employee-delete-dialog-desc">
+              {(pendingTenantDelete.name && pendingTenantDelete.name !== "—"
+                ? t("am_admin_employees.delete_dialog_desc_named")
+                    .replace("{name}", pendingTenantDelete.name)
+                    .replace("{email}", pendingTenantDelete.email)
+                : t("am_admin_employees.delete_dialog_desc_unnamed")
+              ).replace("{subdomain}", pendingTenantDelete.subdomain)}
+            </span>
+          ) : (
+            ""
+          )
+        }
+        confirmLabel={t("am_admin_employees.delete_dialog_confirm")}
+        variant="destructive"
+        busy={busy?.startsWith("delete:") ?? false}
+        requireConfirmText={pendingTenantDelete?.subdomain}
+        onConfirm={() => {
+          if (pendingTenantDelete) void performDeleteTenant(pendingTenantDelete);
+        }}
+        onCancel={() => setPendingTenantDelete(null)}
+      />
+
+      {/* D-116: invite-delete confirm dialog */}
+      <ConfirmDialog
+        open={pendingInviteDelete !== null}
+        title={t("am_admin_invites.delete_dialog_title")}
+        description={
+          pendingInviteDelete ? (
+            <span data-testid="invite-delete-dialog-desc">
+              {(pendingInviteDelete.email &&
+              pendingInviteDelete.email !== "(ingen e-post)"
+                ? t("am_admin_invites.delete_dialog_desc_named").replace(
+                    "{email}",
+                    pendingInviteDelete.email,
+                  )
+                : t("am_admin_invites.delete_dialog_desc_unnamed")
+              ).replace("{subdomain}", pendingInviteDelete.subdomain)}
+            </span>
+          ) : (
+            ""
+          )
+        }
+        confirmLabel={t("am_admin_invites.delete_dialog_confirm")}
+        variant="destructive"
+        busy={busy?.startsWith("delete-invite:") ?? false}
+        requireConfirmText={pendingInviteDelete?.subdomain}
+        onConfirm={() => {
+          if (pendingInviteDelete) void performDeleteInvite(pendingInviteDelete);
+        }}
+        onCancel={() => setPendingInviteDelete(null)}
+      />
+
+      {/* D-116: result-modal — vises etter sletting */}
+      {deleteResult && (
+        <AmAdminDeleteResultModal
+          payload={deleteResult}
+          onClose={() => setDeleteResult(null)}
         />
       )}
     </section>
