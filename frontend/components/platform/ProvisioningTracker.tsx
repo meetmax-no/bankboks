@@ -430,10 +430,10 @@ function DefaultTrackerBody({
               type="button"
               data-testid={liveAction.testId ?? "provisioning-tracker-live-action"}
               onClick={liveAction.onClick}
-              className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition"
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium transition-colors"
             >
-              <Sparkles className="h-4 w-4" />
               {liveAction.label}
+              <Sparkles className="h-4 w-4" aria-hidden="true" />
             </button>
           ) : (
             <a

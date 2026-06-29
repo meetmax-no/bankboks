@@ -435,7 +435,7 @@ function InvitePageInner() {
                   type="submit"
                   data-testid="invite-submit-btn"
                   disabled={submitting || !email.trim()}
-                  className="w-full py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/40 disabled:cursor-not-allowed text-white text-sm font-medium transition flex items-center justify-center gap-2"
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                   {submitting ? "Oppretter konto…" : "Aktiver konto"}

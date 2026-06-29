@@ -1,0 +1,52 @@
+{
+  "summary": "D-119 static review complete. Verified (1) aurora gradient applied to /welcome-b2b on both happy-path and error-state <main> elements with old bg-[#0b0e14] removed, (2) invite-submit-btn restyled to indigo-500/rounded-xl/px-5 py-3 with disabled state styling, (3) ProvisioningTracker liveAction branch uses identical indigo-500/rounded-xl styling with Sparkles icon AFTER label, (4) default emerald-pill <a> link UNCHANGED for backwards compat with /platform/register, /billing/success, admin TenantViewer. All three primary CTAs share identical core classes. yarn tsc --noEmit, yarn lint:all, and yarn build all PASS. i18n still at 1455 keys × 4 locales.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_details": {
+    "welcome_b2b_gradient": {
+      "import_present": "line 32: import { findGradient } from '@/lib/settings/background-gradients'",
+      "constant_present": "line 34-35: const DEFAULT_GRADIENT_CSS = findGradient('aurora')?.css ?? '#0a0e1a'",
+      "happy_path_main": "line 131-134: <main className='min-h-screen text-white py-12 px-4' style={{ background: DEFAULT_GRADIENT_CSS }}>",
+      "error_state_main": "line 73-76: <main className='min-h-screen text-white flex items-center justify-center px-4' style={{ background: DEFAULT_GRADIENT_CSS }}>",
+      "old_class_removed": "grep for 'bg-[#0b0e14]' in app/welcome-b2b/ returned 0 matches",
+      "d119_comment": "line 19-20 header comment explains aurora gradient change",
+      "aurora_gradient_exists": "lib/settings/background-gradients.ts line 24 — id: 'aurora'"
+    },
+    "cta_classnames_letter_by_letter": {
+      "invite_submit_btn (line 438)": "w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors",
+      "provisioning_tracker_live_action (line 433)": "w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium transition-colors",
+      "welcome_b2b_continue_btn (line 188)": "w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white text-sm font-medium transition-colors",
+      "match_assessment": "IDENTICAL core classes (w-full, flex, items-center, justify-center, gap-2, px-5, py-3, rounded-xl, bg-indigo-500, hover:bg-indigo-400, text-white, text-sm, font-medium, transition-colors). Only invite-submit-btn adds disabled:bg-indigo-500/40 disabled:cursor-not-allowed per spec — allowed by review_request.",
+      "icon_position": "All three use icon AFTER label: invite uses Loader2 conditionally before+text, welcome-b2b uses ArrowRight after, ProvisioningTracker live-action uses Sparkles after — consistent with spec."
+    },
+    "default_emerald_pill_unchanged": {
+      "location": "ProvisioningTracker.tsx line 438-449 (else branch when liveAction undefined)",
+      "classes": "inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition",
+      "matches_spec": true,
+      "callers_unaffected": "Verified via code path — /platform/register, /billing/success, admin TenantViewer all use ProvisioningTracker WITHOUT liveAction prop, so they hit the default <a> branch."
+    },
+    "static_checks": {
+      "yarn_tsc_noEmit": "PASS (Done in 2.19s, exit 0)",
+      "yarn_lint_all": "PASS (5 lint passes green: D-077, coverage-matrix, i18n-sync 1455×4, D-078a PII, D-105 dedup)",
+      "yarn_build": "PASS (Done in 24.08s, exit 0). /welcome-b2b/[subdomain] = 2.94 kB, /invite = 4.91 kB, /platform/am-admin/login = 2.94 kB",
+      "i18n_keys": "1455 keys × 4 languages (no/sv/da/en) — unchanged, no new keys added in D-119 as expected"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All D-119 requirements met. Code is consistent and well-commented. No issues found.",
+    "Minor observation (not blocking): invite-submit-btn keeps Loader2 spinner BEFORE the label when submitting, while welcome-b2b uses ArrowRight AFTER the label and ProvisioningTracker live-action uses Sparkles AFTER. Spec allows icon position to differ — this is fine, but if future iterations want full visual symmetry, consider moving the spinner to the end too."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static review)"},
+  "test_credentials": "N/A — no auth flow tested",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-119 verified via static analysis only (per user prohibition on yarn dev / E2E browser tests in the kubernetes pod). yarn tsc / lint:all / build all green. All three primary invite-flow CTAs (invite-submit-btn, invite-continue-btn / provisioning-tracker-live-action, welcome-b2b-continue-btn) share identical base styling. Default emerald-pill link in ProvisioningTracker preserved for other callers. Aurora gradient applied to both /welcome-b2b main elements (happy + error). Previous reports: iteration_19.json (D-117), iteration_20.json (D-118)."
+}

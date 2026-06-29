@@ -1,6 +1,6 @@
 "use client";
 /**
- * Ko | Do · Vault — Iter 20.6 — B2B Velkomstskjerm
+ * Ko | Do · Vault — Iter 20.6 / D-119 (2026-06-29) — B2B Velkomstskjerm
  *
  * `/welcome-b2b/[subdomain]?parent=<prefix>&locale=<no|sv|da|en>`
  *
@@ -15,6 +15,9 @@
  *
  * Pure static (ingen DB-lookup). Leser `parent`/`locale` fra URL.
  * Subdomenet kommer fra route-param.
+ *
+ * D-119 (2026-06-29): Aurora-gradient som bakgrunn (matcher /invite +
+ * am-admin-login for konsistent identitet på public touch-points).
  */
 import { use, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
@@ -26,6 +29,10 @@ import {
   Download,
   ArrowRight,
 } from "lucide-react";
+import { findGradient } from "@/lib/settings/background-gradients";
+
+const DEFAULT_GRADIENT_CSS =
+  findGradient("aurora")?.css ?? "#0a0e1a";
 
 type SupportedLocale = "no" | "sv" | "da" | "en";
 
@@ -64,7 +71,8 @@ export default function WelcomeB2BPage({
   if (!validSubdomain || !validParent) {
     return (
       <main
-        className="min-h-screen bg-[#0b0e14] text-white flex items-center justify-center px-4"
+        className="min-h-screen text-white flex items-center justify-center px-4"
+        style={{ background: DEFAULT_GRADIENT_CSS }}
         data-testid="welcome-b2b-invalid"
       >
         <div className="max-w-md text-center">
@@ -121,7 +129,8 @@ export default function WelcomeB2BPage({
 
   return (
     <main
-      className="min-h-screen bg-[#0b0e14] text-white py-12 px-4"
+      className="min-h-screen text-white py-12 px-4"
+      style={{ background: DEFAULT_GRADIENT_CSS }}
       data-testid="welcome-b2b-page"
     >
       <div className="max-w-xl mx-auto">
