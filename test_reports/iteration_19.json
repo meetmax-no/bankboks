@@ -1,0 +1,32 @@
+{
+  "summary": "Static code review + static checks (tsc/lint:all/build) for D-117 bug-fixes to /invite onboarding flow. All requested fix points verified in /app/frontend/app/invite/page.tsx and /app/frontend/components/platform/ProvisioningTracker.tsx. No backend or E2E testing performed (explicitly forbidden by user — Vercel/Upstash/Stripe creds not in pod). All static checks pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Verified: /app/frontend/app/invite/page.tsx line 213 — setPhase('provisioning') is called BEFORE await fetch('/api/invite/accept', ...) at line 215. Inline D-117 comment (lines 206-212) clearly explains rationale (Upstash+Vercel ~20-40s sync work so tracker would otherwise mount with steps 1-4 already done).",
+    "Verified: error rollback — onSubmit body.ok===false branch calls setPhase('form') at line 234 (with setSubmitError before it). Catch branch (lines 239-241) also sets submitError + setPhase('form'). Submitting state reset in finally.",
+    "Verified: handleProvisioningDone (lines 250-255) ONLY calls setPhase('failed') when success===false. On success===true it is a no-op (no window.location.href, no setPhase). Comment explains the prior auto-redirect made the button flash and disappear.",
+    "Verified: goToWelcome (lines 257-263) is a separate function performing the /welcome-b2b/[subdomain]?parent=...&locale=... redirect with proper encodeURIComponent on all 3 params. Guards against validate.state !== 'ok' and locale === null.",
+    "Verified: <ProvisioningTracker> at lines 457-466 is passed liveAction={ label: 'OK, gå videre', testId: 'invite-continue-btn', onClick: goToWelcome } — matches spec exactly.",
+    "Verified: ProvisioningTracker.tsx — optional liveAction?: { label: string; testId?: string; onClick: () => void } prop is defined on the outer component (line 77) AND on inner DefaultTrackerBody (line 332). Passed down at line 307.",
+    "Verified: live-action render block (DefaultTrackerBody lines 407-432) — when liveAction is provided renders <button data-testid={liveAction.testId ?? 'provisioning-tracker-live-action'} onClick={liveAction.onClick}>{liveAction.label}</button>; otherwise renders default <a data-testid='provisioning-tracker-go-to-vault' href={`https://${subdomain}.kodovault.no`}>Åpne vault</a>. Backwards-compatible.",
+    "Verified: 3 existing callers of <ProvisioningTracker> (app/platform/register/page.tsx:927, app/billing/success/page.tsx:199, components/platform/TenantViewer.tsx:3911) do NOT pass liveAction, so the default <a> 'Åpne vault' continues to render unchanged for /platform/register and admin TenantViewer flows.",
+    "yarn tsc --noEmit: PASS (0 errors).",
+    "yarn lint:all: PASS (D-069 lifecycle-guard, D-071 isolation, D-077 tenant-env, coverage-matrix, i18n-sync 4 locales × 1439 keys, D-078 PII-isolation, D-105 anti-duplication — all green).",
+    "yarn build: PASS — /invite route compiled (4.89 kB, 108 kB FirstLoad). No new build warnings or errors."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (static checks)"},
+  "test_credentials": "n/a — no auth flow tested",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "D-117 bug fixes to /invite flow verified statically only. If E2E becomes feasible (Vercel preview deploy with valid invite token + Upstash creds), worth verifying: (1) tracker mounts immediately on submit-click before /api/invite/accept resolves, (2) on vault_live the 'OK, gå videre' button is visible and stable (no auto-redirect), (3) clicking it navigates to /welcome-b2b/[subdomain]?parent=...&locale=..., (4) backend error response (already_used/expired) re-renders form with submitError visible. Selectors to use: data-testid='invite-submit-btn', 'invite-provisioning', 'invite-continue-btn', 'provisioning-tracker-go-to-vault' (should NOT appear on /invite anymore — only on /platform/register and TenantViewer).",
+  "rca of the issue": "Pre-fix: (a) onSubmit awaited the slow accept POST (Upstash+Vercel ~20-40s) BEFORE switching phase → tracker mounted only after server had already completed steps 1-4, polling immediately showed them done so UI appeared to 'jump' to step 5. (b) onDone(true) triggered window.location.href = /welcome-b2b/... so the tracker's own 'Åpne vault' anchor was visible for ~1 frame before navigation. Fix: (a) optimistic phase swap to 'provisioning' BEFORE awaiting POST, with rollback to 'form' on error; (b) remove auto-redirect, render a custom user-clicked button 'OK, gå videre' inside the tracker via new optional liveAction prop, keeping default behavior for other callers unchanged."
+}

@@ -56,6 +56,7 @@ export function ProvisioningTracker({
   mode,
   onDone,
   onClose,
+  liveAction,
   className = "",
 }: {
   subdomain: string;
@@ -66,6 +67,14 @@ export function ProvisioningTracker({
    * dialogen. Hvis utelatt faller komponenten tilbake til kun `onDone(true)`.
    */
   onClose?: () => void;
+  /**
+   * D-117 (2026-06-29): override default "Åpne vault"-knappen som vises når
+   * vault går live. Når satt rendres `label` med `onClick` i stedet for
+   * den default `<a href=https://{subdomain}.kodovault.no>`-lenken. Brukes
+   * av invite-flowen for å sende brukeren via /welcome-b2b først (i stedet
+   * for direkte til vault'en).
+   */
+  liveAction?: { label: string; testId?: string; onClick: () => void };
   className?: string;
 }) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
@@ -295,6 +304,7 @@ export function ProvisioningTracker({
           subdomain={subdomain}
           stepState={stepState}
           activeIdx={activeIdx}
+          liveAction={liveAction}
         />
       )}
     </div>
@@ -310,6 +320,7 @@ function DefaultTrackerBody({
   subdomain,
   stepState,
   activeIdx,
+  liveAction,
 }: {
   live: boolean;
   failed: boolean;
@@ -318,6 +329,7 @@ function DefaultTrackerBody({
   subdomain: string;
   stepState: Array<{ stage: string; label: string; state: "ok" | "failed" | "pending"; detail?: string }>;
   activeIdx: number;
+  liveAction?: { label: string; testId?: string; onClick: () => void };
 }) {
   return (
     <>
@@ -394,16 +406,28 @@ function DefaultTrackerBody({
 
       {live && (
         <div className="pt-4 border-t border-emerald-400/20">
-          <a
-            data-testid="provisioning-tracker-go-to-vault"
-            href={`https://${subdomain}.kodovault.no`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition"
-          >
-            <Sparkles className="h-4 w-4" />
-            Åpne vault
-          </a>
+          {liveAction ? (
+            <button
+              type="button"
+              data-testid={liveAction.testId ?? "provisioning-tracker-live-action"}
+              onClick={liveAction.onClick}
+              className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition"
+            >
+              <Sparkles className="h-4 w-4" />
+              {liveAction.label}
+            </button>
+          ) : (
+            <a
+              data-testid="provisioning-tracker-go-to-vault"
+              href={`https://${subdomain}.kodovault.no`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 h-11 px-5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-black text-sm font-semibold transition"
+            >
+              <Sparkles className="h-4 w-4" />
+              Åpne vault
+            </a>
+          )}
         </div>
       )}
 

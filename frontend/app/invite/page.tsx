@@ -203,6 +203,14 @@ function InvitePageInner() {
     }
     setSubmitError(null);
     setSubmitting(true);
+    // D-117 (bug-fix 1): bytt til provisioning-fasen FØR vi awaiter POST.
+    // /api/invite/accept kjører Upstash + Vercel synkront før den
+    // returnerer (typisk 20–40 sek). Hvis vi venter til etter responsen,
+    // er steg 1–4 allerede ferdige og trackeren "hopper inn" på steg 5
+    // ("Kobler til kodovault.no") — det ser ut som om noe er feil. Ved å
+    // montere trackeren først får brukeren se progresjonen live fra
+    // steg 1.
+    setPhase("provisioning");
     try {
       const res = await fetch("/api/invite/accept", {
         method: "POST",
@@ -220,27 +228,33 @@ function InvitePageInner() {
         | { ok: true; subdomain: string }
         | { ok: false; error: string };
       if (!body.ok) {
+        // Backend-feil før provisjonering startet (f.eks. already_used,
+        // expired). Rull tilbake til skjemaet og vis feil.
         setSubmitError(errMsg(body.error));
+        setPhase("form");
         return;
       }
-      // D-115: i stedet for å redirecte til /welcome-b2b umiddelbart
-      // (som tidligere ledet til 404 fordi Vercel-podden ikke var live
-      // ennå), bytter vi til "provisioning"-fasen og lar
-      // ProvisioningTracker polle /api/status. Redirect skjer først når
-      // `vault_live` registreres (onDone(true) under).
-      setPhase("provisioning");
+      // Success: trackeren er allerede synlig og polling vil avslutte
+      // jobben. Ingenting å gjøre her.
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : "internal_error");
+      setPhase("form");
     } finally {
       setSubmitting(false);
     }
   }
 
+  // D-117 (bug-fix 2): IKKE auto-redirect lenger. Bruker klikker
+  // "OK, gå videre" på trackeren når vault er live. Auto-redirect tidligere
+  // gjorde at trackerens egen knapp bare blinket frem og forsvant.
   function handleProvisioningDone(success: boolean) {
     if (!success) {
       setPhase("failed");
-      return;
     }
+    // success === true → bare la trackeren stå med liveAction-knappen.
+  }
+
+  function goToWelcome() {
     if (validate.state !== "ok" || locale === null) return;
     const parent = validate.invite.parentTenant;
     const sub = validate.invite.subdomain;
@@ -430,20 +444,25 @@ function InvitePageInner() {
             )}
 
           {/* MELLOM-SKJERM: provisjonering — venter på vault_live før vi
-              går videre til /welcome-b2b. ProvisioningTracker har sin egen
-              "Åpne vault"-knapp, men den får aldri vist seg her fordi
-              `handleProvisioningDone` redirecter umiddelbart når
-              `onDone(true)` fyrer. */}
+              går videre til /welcome-b2b. D-117: brukeren klikker
+              "OK, gå videre" når vault er live (i stedet for auto-redirect
+              som tidligere lot trackerens egen knapp blinke frem og
+              forsvinne). */}
           {validate.state === "ok" && phase === "provisioning" && (
             <div data-testid="invite-provisioning">
               <p className="text-sm text-white/75 mb-4 leading-relaxed">
                 Vi setter opp din vault. Dette tar typisk 1–3 minutter — du
-                blir sendt videre automatisk så snart alt er klart.
+                kan trykke "OK, gå videre" så snart alt er klart.
               </p>
               <ProvisioningTracker
                 subdomain={validate.invite.subdomain}
                 mode="public"
                 onDone={handleProvisioningDone}
+                liveAction={{
+                  label: "OK, gå videre",
+                  testId: "invite-continue-btn",
+                  onClick: goToWelcome,
+                }}
               />
             </div>
           )}
