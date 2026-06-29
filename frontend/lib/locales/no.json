@@ -2,7 +2,7 @@
   "_meta": {
     "comment": "Norsk (bokmål) — referansespråk og fallback for Ko | Do · Vault. FOR AGENTER: Les /app/memory/i18n-CONVENTIONS.md før du legger til nye strenger. Regler: (1) Flat dot-notation, snake_case (pack.encrypt_button). (2) Nye strenger introduseres HER FØRST. (3) Sync sv.json + da.json byte-likt etter hver endring (kopi-script i konvensjons-guiden). (4) Bruk useLocale().t() i React, tHook() utenfor React, translate(key, locale) i pure funksjoner. (5) HTML/JSX splittes til separate nøkler per ADR D-036. (6) Datoer via lib/format-date.ts — aldri hardkode nb-NO.",
     "locale": "no",
-    "version": "v4.2.1",
+    "version": "v4.5.0",
     "key_count_at_last_sync": 1067,
     "see_also": "/app/memory/i18n-CONVENTIONS.md"
   },

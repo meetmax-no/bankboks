@@ -2,7 +2,7 @@
   "_meta": {
     "comment": "Svensk — Ko | Do · Vault. Värden är initialt kopia av no.json (Mike ersätter värde-för-värde). FOR AGENTER: Ändra ALDRIG nycklar här utan att först ändra no.json. Sync byte-likt med no.json efter varje ändring. Se /app/memory/i18n-CONVENTIONS.md.",
     "locale": "sv",
-    "version": "v4.2.1",
+    "version": "v4.5.0",
     "key_count_at_last_sync": 1067,
     "see_also": "/app/memory/i18n-CONVENTIONS.md"
   },

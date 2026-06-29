@@ -2,7 +2,7 @@
   "_meta": {
     "comment": "English — Ko | Do · Vault. Flat dot-notation key structure per ADR D-036.",
     "locale": "en",
-    "version": "v4.2.1",
+    "version": "v4.5.0",
     "key_count_at_last_sync": 1067,
     "see_also": "/app/memory/i18n-CONVENTIONS.md"
   },
