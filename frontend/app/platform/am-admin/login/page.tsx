@@ -9,8 +9,15 @@
  * suspendert-konto-melding. Ved suksess: redirect til `/platform/am-admin`.
  */
 import { Suspense, useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useLocale } from "@/lib/i18n-context";
+import {
+  loadKonsollBgPreference,
+  KONSOLL_BG_DEFAULT,
+  type KonsollBgPreference,
+} from "@/lib/platform/konsoll-bg-preference";
+import { findGradient } from "@/lib/settings/background-gradients";
 
 function getPrefixFromHost(): string | null {
   if (typeof window === "undefined") return null;
@@ -27,6 +34,8 @@ function LoginForm() {
   const fallbackPrefix = params.get("orgAdminPrefix");
 
   const [prefix, setPrefix] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState<string | null>(null);
+  const [bgPref, setBgPref] = useState<KonsollBgPreference>(KONSOLL_BG_DEFAULT);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -34,7 +43,30 @@ function LoginForm() {
 
   useEffect(() => {
     setPrefix(getPrefixFromHost() ?? fallbackPrefix);
+    // D-114: hydrer bg-pref fra localStorage (samme nøkkel som innlogget
+    // dashbord). Brukere som har vært innlogget før får samme bilde tilbake.
+    setBgPref(loadKonsollBgPreference());
   }, [fallbackPrefix]);
+
+  // D-114: hent firmanavn via public branding-endpoint så bruker ser
+  // HVILKEN org de logger inn på (ikke bare prefix-koden).
+  useEffect(() => {
+    if (!prefix) return;
+    let cancelled = false;
+    void fetch(`/api/am-admin/branding/${encodeURIComponent(prefix)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { companyName?: string | null } | null) => {
+        if (!cancelled && data?.companyName) {
+          setCompanyName(data.companyName);
+        }
+      })
+      .catch(() => {
+        /* graciøst — fall tilbake til prefix-visning */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [prefix]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -91,15 +123,52 @@ function LoginForm() {
     [email, password, fallbackPrefix, t],
   );
 
+  // D-114: beregn bg fra preference (samme mønster som dashbord linje 159-174)
+  const bg = (() => {
+    const url = bgPref.fixedUrl;
+    if (!url) {
+      const aurora = findGradient("aurora");
+      return { kind: "gradient" as const, css: aurora?.css ?? "#0b0e14" };
+    }
+    if (url.startsWith("gradient:")) {
+      const gid = url.slice("gradient:".length);
+      const g = findGradient(gid);
+      return { kind: "gradient" as const, css: g?.css ?? "#0b0e14" };
+    }
+    return { kind: "photo" as const, url };
+  })();
+  const overlay = bgPref.overlay ?? 0.05;
+
   return (
     <main
-      className="min-h-screen bg-[#0b0e14] text-white/90 flex items-center justify-center p-6"
+      className="relative min-h-screen text-white/90 flex items-center justify-center p-6 overflow-hidden"
+      style={bg.kind === "gradient" ? { background: bg.css } : { background: "#0b0e14" }}
       data-testid="am-admin-login-page"
     >
-      <div className="w-full max-w-md">
+      {bg.kind === "photo" && (
+        <div className="fixed inset-0 z-0" aria-hidden="true">
+          <Image
+            key={`konsoll-login-bg-${bg.url}`}
+            src={bg.url}
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: `rgba(0,0,0,${overlay})` }}
+          />
+        </div>
+      )}
+      <div className="relative z-10 w-full max-w-md">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight mb-2">
-            {t("am_admin.dashboard_title")}
+          <h1
+            className="text-3xl font-semibold tracking-tight mb-2"
+            data-testid="am-admin-login-company"
+          >
+            {companyName ?? t("am_admin.dashboard_title")}
           </h1>
           <p className="text-sm text-white/55">
             {prefix ? (

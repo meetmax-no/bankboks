@@ -186,6 +186,10 @@ export async function middleware(req: NextRequest) {
     if (PUBLIC_ORG_ADMIN_PATHS.has(effectivePathname)) {
       return okResponse();
     }
+    // D-114 (2026-06-29): Public branding-endpoint — match på prefix.
+    if (effectivePathname.startsWith("/api/am-admin/branding/")) {
+      return okResponse();
+    }
 
     // Krever gyldig session
     const cookie = req.cookies.get(ORG_ADMIN_SESSION_COOKIE)?.value;

@@ -50,6 +50,14 @@ Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`]
    - **JSON-format bumped til v2:** Egne felter `admin` (BackupAdmin | null), `invites` (BackupInvite[]), `inviteCount`. Eksisterende v1-konsumenter brytes — men det er bare Mike's egen UI.
    - **`buildEmployeesCsv` markert @deprecated** — wrapper rundt `buildBackupCsv(null, employees, [])` for bakoverkompat. Test-suite passerer 48/48.
 
+7. **D-114 — Logout-bilde: public branding-endpoint + bg-pref-cache**
+   - **Problem:** Når Mike logget ut av Konsoll viste login-siden bare svart bakgrunn (`bg-[#0b0e14]`) — ingen branding, ingen logo.
+   - **Ny endpoint:** `GET /api/am-admin/branding/[prefix]` returnerer kun `{prefix, companyName}` — ikke-auth, ikke-sensitivt. Tilgjengelig fra login-siden uten gyldig session.
+   - **Login-side oppdatert:** Hydrer firmanavn fra endpoint OG bg-pref fra `localStorage` (samme nøkkel `kodo-konsoll-bg.v1` som innlogget dashbord). Brukere som har vært innlogget før får samme bilde tilbake.
+   - **Fallback:** Hvis localStorage er tomt eller bg-pref ikke finnes → default Aurora-gradient (samme som dashbord).
+   - **Sikkerhet:** Endpoint er åpen men avslører kun firmanavn (allerede synlig på fakturaer, visittkort osv). Prefix er allerede i URL. Coverage-matrix-lint EXEMPT med begrunnelse.
+   - **Middleware:** `/api/am-admin/branding/*` lagt til som public-bypass i `middleware.ts:186-188`.
+
 ### Verifisert
 - `yarn tsc --noEmit` ✓
 - `yarn lint:all` ✓ (7 skript, D-105+D-078 grønne, 1414 i18n-nøkler i sync)

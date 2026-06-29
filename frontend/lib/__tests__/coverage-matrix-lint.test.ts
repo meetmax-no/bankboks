@@ -79,6 +79,10 @@ const EXEMPT_ROUTES: Record<string, string> = {
   "app/api/am-admin/seat-status/route.ts":
     "D-092: am-admin henter seats-status (activeLicenses + pendingInvites / maxLicenses) — read-only, ingen kryssflyt",
 
+  // D-114 (2026-06-29) — Public branding for login-side
+  "app/api/am-admin/branding/[prefix]/route.ts":
+    "D-114: Public read-only firmanavn for am-admin login-side (Mike 2026-06-29). Returnerer kun prefix + companyName — ingen sensitiv data, ingen tenant-flyt.",
+
   // D-094 (2026-06-28) — Orphan invites liste/sletting (Test Tools)
   "app/api/admin/orphan-invites/all/route.ts":
     "D-094: Super-admin lister alle invites på tvers av prefiks med orphan-flagg (admin-only utility, ingen tenant-data-flyt)",
