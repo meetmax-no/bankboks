@@ -4019,3 +4019,51 @@ For UI-banner i ClientConfigEditor som forklarer arv:
 - D-018 (multi-tenant strategi)
 - D-060 (deep merge + migrasjons-verktøy)
 - D-088 (B2B parent bruker host-prefix-routing, ingen Vercel-pod)
+
+## D-127 — Strukturert `pricing` med B2C + B2B underobjekter
+
+**DATO:** 2026-02 (Mike-direktiv etter inspeksjon av `client-config:mm-admin` JSON)
+
+**KONTEKST:** Etter D-126 (SA-config arv) inspiserte Mike `client-config:mm-admin` og oppdaget at `pricing`-objektet kun har B2C-felter (`monthly: 115`, `yearly: 1104`, `currency: "kr"`, `trialDays: 0`). For en B2B SuperAdmin er disse misvisende — B2B-priser er per-seat (semiannual 522 kr, yearly 1 044 kr per `Iter 20.4 · 2026-06-26`) og var kun hardkodet i Stripe-env-vars (`STRIPE_PRICE_B2B_SEMIANNUAL` / `STRIPE_PRICE_B2B_YEARLY`) og i i18n-labels — aldri i selve config-objektet.
+
+**VURDERTE:**
+- (a) **Flat — to nye topp-nivå-nøkler i `pricing` (`b2bSemiannualPerSeat`, `b2bYearlyPerSeat`).** Bakoverkompatibelt og minimalt invasivt, men blander B2C/B2B i samme flate objekt. Konseptuelt rotete når antall felter vokser.
+- (b) **Strukturert — `pricing` får underobjekter pr kundetype (`b2c`, `b2b`).** Rene grenser, semantisk tydelig, *men* potensielt breaking change for readers som leser `pricing.monthly` direkte. **VALGT** av Mike — verdt det.
+- (c) Hybrid med ny `getDisplayPricing()`-helper — forkastet, krever for mye orkestrering for å løse et schema-problem.
+- (d) Bare i18n + env-vars — forkastet, SA-en skal kunne overstyre per klient.
+
+**VALGTE:** **(b) — strukturert format med fullt bakoverkompatibel reader.**
+
+**Nytt format i `default.json`:**
+```json
+"pricing": {
+  "currency": "kr",
+  "b2c": { "monthly": 115, "yearly": 1104, "trialDays": 0 },
+  "b2b": { "semiannualPerSeat": 522, "yearlyPerSeat": 1044, "trialDays": 0 }
+}
+```
+
+**Bakoverkompatibilitet (kritisk):** `pickPricing()` i `lib/platform/client-config-store.ts` foretrekker nested `pricing.b2c.*` men faller tilbake til flat `pricing.{monthly,yearly,trialDays}` hvis nested mangler. Eksisterende tenant-configs i Upstash leses uten migrering. Dette gjorde at:
+- Alle 12+12 eksisterende `trial-days.test.ts`-tester fortsetter å passere (24 assertions, 0 failed) → 0 regresjon for B2C-flyten.
+- Nye `pricing-structured.test.ts` verifiserer nytt format + B2B + legacy + per-felt-fallback (27 assertions, 0 failed).
+
+**API-utvidelse:**
+- `getPricing(subdomain)` returnerer fortsatt B2C-shape (`{monthly, yearly, currency, trialDays}`) — kompatibel med `CheckoutChoice.tsx`, `/api/billing/checkout-info`, `register/paid`, alle Stripe-flyter.
+- Ny `getB2BPricing(subdomain)` returnerer `{semiannualPerSeat, yearlyPerSeat, trialDays}` — klar til bruk når B2B-fakturering blir UI-eksponert (per nå manuell via Stripe Dashboard).
+- `currency` er felles for begge (én valuta pr klient).
+
+**Migrasjon av eksisterende configs:**
+- Ingen tvungen migrasjon. `merge`-modus i `ConfigToolsButton` (D-060) vil legge til nye `b2c`/`b2b`-felter fra default neste gang den kjøres — eksisterende flate `monthly/yearly/trialDays`-felter beholdes parallelt (tenant-wins).
+- Reader-logikken håndterer "begge formater samtidig"-tilfellet ved at nested foretrekkes over flat, så dobbel-skrevne configs gir riktig svar.
+- Mike kan velge å rydde manuelt i ClientConfigEditor for tenants som blir oversiktlige nok.
+
+**KONSEKVENS:**
+- `default.json.pricing` har nå konsistent struktur for begge kundetyper.
+- SA-config som vises i `<ClientConfigEditor>` viser nå både B2C (for hvis SA noensinne skulle få B2C-priser) og B2B per-seat-priser — det stemmer overens med hvilke faktiske SKU-er Stripe har.
+- Fremtidig UI for B2B-prisvisning kan kalle `getB2BPricing()` direkte uten ekstra refactoring.
+- Hvis fremtidig agent foreslår å fjerne legacy-flat-fallback fra `pickPricing()` → må avvises før alle Upstash-configs er migrert (krever et sweep + verifikasjon).
+
+**RELATERT:**
+- D-018 (multi-tenant strategi)
+- D-126 (SA-config arv) — denne ADR-en fanger restmateriale fra D-126-inspeksjon
+- Iter 20.4 (B2B fakturering per-seat semiannual + yearly)

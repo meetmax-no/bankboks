@@ -49,13 +49,35 @@ export async function deleteClientConfig(
 
 /**
  * Pricing-struktur i client-config (default.json + per-tenant override).
- * Brukes av Stripe checkout-flyten (`trialDays`) og frontend (visning).
+ *
+ * D-127 (2026-02 · Mike): strukturert format med separate B2C og B2B
+ * underobjekter. Bakoverkompatibel reader (`pickPricing`) støtter også
+ * det gamle flate formatet (`pricing.monthly` / `pricing.yearly`) — eldre
+ * tenant-configs i Upstash leses uten migrering.
+ *
+ * Stripe-flyten for B2C bruker `PricingConfig` (B2C-felter) via
+ * `getPricing()` og `getTrialDays()`. B2B-priser leses via
+ * `getB2BPricing()` (per-seat, semiannual + yearly, manuell faktura).
  */
-export interface PricingConfig {
+export interface B2CPricingConfig {
   monthly: number;
   yearly: number;
-  currency: string;
   trialDays: number;
+}
+
+export interface B2BPricingConfig {
+  semiannualPerSeat: number;
+  yearlyPerSeat: number;
+  trialDays: number;
+}
+
+/**
+ * Returneres av `getPricing(subdomain)`. Inneholder B2C-felter direkte
+ * (bakoverkompatibelt med tidligere callers — CheckoutChoice,
+ * checkout-info, register/paid). For B2B-priser, bruk `getB2BPricing()`.
+ */
+export interface PricingConfig extends B2CPricingConfig {
+  currency: string;
 }
 
 /**
@@ -64,23 +86,61 @@ export interface PricingConfig {
  * Verdier importeres fra `default.json` ved build-time så vi har én
  * sannhetskilde i hele kodebasen.
  */
+function pickB2C(
+  pricing: Record<string, unknown> | undefined,
+): Partial<B2CPricingConfig> | null {
+  if (!pricing) return null;
+  // Foretrekk nested `pricing.b2c.*`, fallback til flat `pricing.{monthly,yearly,trialDays}`.
+  const nested = pricing.b2c;
+  const obj =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : pricing;
+  const out: Partial<B2CPricingConfig> = {};
+  if (typeof obj.monthly === "number" && Number.isFinite(obj.monthly) && obj.monthly >= 0) {
+    out.monthly = obj.monthly;
+  }
+  if (typeof obj.yearly === "number" && Number.isFinite(obj.yearly) && obj.yearly >= 0) {
+    out.yearly = obj.yearly;
+  }
+  if (typeof obj.trialDays === "number" && Number.isFinite(obj.trialDays)) {
+    const v = Math.floor(obj.trialDays);
+    if (v >= 0 && v <= 365) out.trialDays = v;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 const HARDCODED_PRICING_FALLBACK: PricingConfig = {
-  monthly: defaultClientConfig.pricing?.monthly ?? 115,
-  yearly: defaultClientConfig.pricing?.yearly ?? 1104,
-  currency: defaultClientConfig.pricing?.currency ?? "kr",
-  trialDays: defaultClientConfig.pricing?.trialDays ?? 0,
+  monthly: pickB2C(defaultClientConfig.pricing as Record<string, unknown> | undefined)?.monthly ?? 115,
+  yearly: pickB2C(defaultClientConfig.pricing as Record<string, unknown> | undefined)?.yearly ?? 1104,
+  currency:
+    (defaultClientConfig.pricing as Record<string, unknown> | undefined)?.currency &&
+    typeof (defaultClientConfig.pricing as Record<string, unknown>).currency === "string"
+      ? ((defaultClientConfig.pricing as Record<string, unknown>).currency as string)
+      : "kr",
+  trialDays: pickB2C(defaultClientConfig.pricing as Record<string, unknown> | undefined)?.trialDays ?? 0,
+};
+
+const HARDCODED_B2B_FALLBACK: B2BPricingConfig = {
+  semiannualPerSeat: 522,
+  yearlyPerSeat: 1044,
+  trialDays: 0,
 };
 
 /**
- * Henter samlet pricing-objekt for en tenant.
+ * Henter samlet B2C pricing-objekt for en tenant.
  *
  * Lookup-prioritet:
- *   1. Tenantens client-config i Upstash (`pricing`-objekt)
- *   2. default.json (`pricing`-objekt)
+ *   1. Tenantens client-config i Upstash (`pricing.b2c.*` eller flat legacy)
+ *   2. default.json (`pricing.b2c.*`)
  *   3. Hardkodet fallback (skal aldri trigge i normal drift)
  *
  * Hver enkelt verdi valideres uavhengig — hvis bare `trialDays` mangler i
  * tenant-config, brukes default.json sin `trialDays` (per-felt fallback).
+ *
+ * Returverdien er flat (`monthly/yearly/currency/trialDays`) for å beholde
+ * bakoverkompatibilitet med eksisterende callers. B2B-priser leses via
+ * `getB2BPricing()`.
  */
 export async function getPricing(subdomain: string): Promise<PricingConfig> {
   const tenantPricing = pickPricing(await getClientConfig(subdomain));
@@ -125,8 +185,49 @@ export async function getTrialDays(subdomain: string): Promise<number> {
 }
 
 /**
- * Plukker `pricing`-objekt fra en client-config og validerer hvert felt.
+ * D-127 (2026-02): Henter B2B per-seat-pricing for en tenant.
+ *
+ * Lookup-prioritet:
+ *   1. Tenantens client-config (`pricing.b2b.*`)
+ *   2. default.json (`pricing.b2b.*`)
+ *   3. Hardkodet fallback (semiannual=522, yearly=1044, trial=0)
+ *
+ * Returverdien inkluderer `currency` separat — kall `getPricing()` for
+ * å hente valuta hvis du trenger den.
+ */
+export async function getB2BPricing(
+  subdomain: string,
+): Promise<B2BPricingConfig> {
+  const tenantB2B = pickB2BPricing(await getClientConfig(subdomain));
+  let defaultB2B: Partial<B2BPricingConfig> = {};
+  try {
+    defaultB2B = pickB2BPricing(await readDefaultTemplate()) ?? {};
+  } catch {
+    /* default.json ikke lesbar — bruk hardkodet fallback */
+  }
+  return {
+    semiannualPerSeat:
+      tenantB2B?.semiannualPerSeat ??
+      defaultB2B.semiannualPerSeat ??
+      HARDCODED_B2B_FALLBACK.semiannualPerSeat,
+    yearlyPerSeat:
+      tenantB2B?.yearlyPerSeat ??
+      defaultB2B.yearlyPerSeat ??
+      HARDCODED_B2B_FALLBACK.yearlyPerSeat,
+    trialDays:
+      tenantB2B?.trialDays ??
+      defaultB2B.trialDays ??
+      HARDCODED_B2B_FALLBACK.trialDays,
+  };
+}
+
+/**
+ * Plukker B2C-pricing fra en client-config og validerer hvert felt.
  * Returnerer kun de feltene som er gyldige — caller gjør per-felt fallback.
+ *
+ * Aksepterer både nytt nested format (`pricing.b2c.*`) og legacy flat
+ * format (`pricing.monthly`/`pricing.yearly`/`pricing.trialDays`) for
+ * bakoverkompatibilitet med tenant-configs lagret før D-127.
  */
 function pickPricing(
   config: ClientConfigJson | null,
@@ -135,16 +236,44 @@ function pickPricing(
   const raw = config.pricing;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const obj = raw as Record<string, unknown>;
-  const out: Partial<PricingConfig> = {};
+  const b2c = pickB2C(obj);
+  const out: Partial<PricingConfig> = { ...(b2c ?? {}) };
 
-  if (typeof obj.monthly === "number" && Number.isFinite(obj.monthly) && obj.monthly >= 0) {
-    out.monthly = obj.monthly;
-  }
-  if (typeof obj.yearly === "number" && Number.isFinite(obj.yearly) && obj.yearly >= 0) {
-    out.yearly = obj.yearly;
-  }
   if (typeof obj.currency === "string" && obj.currency.length > 0 && obj.currency.length <= 8) {
     out.currency = obj.currency;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+/**
+ * D-127 (2026-02): plukker B2B-pricing fra en client-config og validerer
+ * hvert felt. Leser kun fra nested `pricing.b2b.*` (ingen legacy-flat-form
+ * — B2B-priser var aldri lagret flatt).
+ */
+function pickB2BPricing(
+  config: ClientConfigJson | null,
+): Partial<B2BPricingConfig> | null {
+  if (!config) return null;
+  const pricing = config.pricing;
+  if (!pricing || typeof pricing !== "object" || Array.isArray(pricing)) return null;
+  const b2b = (pricing as Record<string, unknown>).b2b;
+  if (!b2b || typeof b2b !== "object" || Array.isArray(b2b)) return null;
+  const obj = b2b as Record<string, unknown>;
+  const out: Partial<B2BPricingConfig> = {};
+
+  if (
+    typeof obj.semiannualPerSeat === "number" &&
+    Number.isFinite(obj.semiannualPerSeat) &&
+    obj.semiannualPerSeat >= 0
+  ) {
+    out.semiannualPerSeat = obj.semiannualPerSeat;
+  }
+  if (
+    typeof obj.yearlyPerSeat === "number" &&
+    Number.isFinite(obj.yearlyPerSeat) &&
+    obj.yearlyPerSeat >= 0
+  ) {
+    out.yearlyPerSeat = obj.yearlyPerSeat;
   }
   if (typeof obj.trialDays === "number" && Number.isFinite(obj.trialDays)) {
     const v = Math.floor(obj.trialDays);

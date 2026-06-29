@@ -9,10 +9,17 @@
   "defaultLocale": "no",
 
   "pricing": {
-    "monthly": 115,
-    "yearly": 1104,
     "currency": "kr",
-    "trialDays": 0
+    "b2c": {
+      "monthly": 115,
+      "yearly": 1104,
+      "trialDays": 0
+    },
+    "b2b": {
+      "semiannualPerSeat": 522,
+      "yearlyPerSeat": 1044,
+      "trialDays": 0
+    }
   },
 
   "lifecycle": {

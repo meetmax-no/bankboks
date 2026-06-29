@@ -55,12 +55,19 @@ import type { OrgValidationResult } from "@/lib/platform/org-number-validation";
 import { usePostnrAutofill } from "@/lib/postal/use-postnr-autofill";
 
 /**
- * Eneste sannhetskilde for default trial-lengde i form-feltet:
- * `public/clients/default.json` → `pricing.trialDays`. Admin kan
- * overstyre per tenant via input-feltet i form-en.
+ * Eneste sannhetskilde for default B2C trial-lengde i form-feltet:
+ * `public/clients/default.json` → `pricing.b2c.trialDays` (D-127), med
+ * bakoverkomp til legacy flat `pricing.trialDays`. Admin kan overstyre
+ * per tenant via input-feltet i form-en.
  */
 const DEFAULT_TRIAL_DAYS_FROM_CONFIG: number = (() => {
-  const raw = defaultClientConfig.pricing?.trialDays;
+  const pricing = defaultClientConfig.pricing as
+    | Record<string, unknown>
+    | undefined;
+  const nested = pricing?.b2c as Record<string, unknown> | undefined;
+  const raw =
+    (typeof nested?.trialDays === "number" ? nested.trialDays : undefined) ??
+    (typeof pricing?.trialDays === "number" ? pricing.trialDays : undefined);
   if (typeof raw !== "number" || !Number.isFinite(raw)) return 0;
   const v = Math.floor(raw);
   return v >= 0 && v <= 365 ? v : 0;

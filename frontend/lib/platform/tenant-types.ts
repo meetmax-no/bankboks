@@ -310,15 +310,22 @@ export type CreateTenantInput = {
 import defaultClientConfig from "../../public/clients/default.json";
 
 /**
- * Eneste sannhetskilde for default trial-lengde:
- * `public/clients/default.json` → `pricing.trialDays`.
+ * Eneste sannhetskilde for default B2C trial-lengde:
+ * `public/clients/default.json` → `pricing.b2c.trialDays` (D-127),
+ * med bakoverkomp til legacy flat `pricing.trialDays`.
  *
  * Importert direkte (sync) så denne sync-funksjonen kan bruke den uten å
  * gå via Upstash. Hvis Mike endrer default.json → ny build → ny default.
  * Validering: 0-365 (0 = ingen trial, fakturer umiddelbart).
  */
 function getDefaultTrialDays(): number {
-  const raw = defaultClientConfig.pricing?.trialDays;
+  const pricing = defaultClientConfig.pricing as
+    | Record<string, unknown>
+    | undefined;
+  const nested = pricing?.b2c as Record<string, unknown> | undefined;
+  const raw =
+    (typeof nested?.trialDays === "number" ? nested.trialDays : undefined) ??
+    (typeof pricing?.trialDays === "number" ? pricing.trialDays : undefined);
   if (typeof raw !== "number" || !Number.isFinite(raw)) return 0;
   const v = Math.floor(raw);
   if (v < 0 || v > 365) return 0;
