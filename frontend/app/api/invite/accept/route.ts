@@ -234,6 +234,9 @@ export async function POST(req: Request) {
           subdomain: invite.subdomain,
           kvRestApiUrl: upstash.restUrl,
           kvRestApiToken: upstash.restToken,
+          // D-126 (2026-02): ansatt arver client-config fra SA
+          // (`<prefix>-admin`). Hvis SA mangler config logges advarsel.
+          parentSubdomain: invite.parentTenant,
           onEvent,
         });
         const t2 = await getTenant(invite.subdomain);

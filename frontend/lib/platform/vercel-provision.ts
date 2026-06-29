@@ -23,7 +23,10 @@
  * Node runtime.
  */
 import { fetchWithRetry } from "./provision-retry";
-import { buildTenantConfigForUpstash } from "./tenant-config-builder";
+import {
+  buildTenantConfigForUpstash,
+  buildTenantConfigFromParent,
+} from "./tenant-config-builder";
 import { putClientConfig } from "./client-config-store";
 import { TENANT_ENV_VARS } from "./tenant-env-manifest";
 
@@ -409,6 +412,16 @@ export interface ProvisionVercelInput {
    */
   customerType?: "b2c" | "b2b";
   /**
+   * D-126 (2026-02 · Mike): SA-config arv. Hvis satt, prøv å hente
+   * `client-config:<parentSubdomain>` fra Upstash som mal for child sin
+   * config. Hvis parent-config ikke finnes, fallback til `default.json`
+   * og logg en advarsel via `onEvent`.
+   *
+   * Brukes av invite/accept (B2B child) og admin retry-flyt for child-
+   * tenants. B2C self-service har ingen parent og setter dette null.
+   */
+  parentSubdomain?: string | null;
+  /**
    * D-065: callback for sanntids-logging av events. Skal IKKE kaste —
    * logging-feil må ikke avbryte provisjonering.
    */
@@ -480,7 +493,30 @@ export async function provisionTenantOnVercel(
   // 2. Skriv tenant-config til sentral Upstash (D-060): tenantens app
   //    fetcher dette fra admin.kodovault.no/api/client-config ved runtime.
   //    Bankboks-repoet blir ikke rørt — alt sentralt i Upstash.
-  const tenantConfig = await buildTenantConfigForUpstash(subdomain);
+  //
+  //    D-126 (2026-02 · Mike): hvis `parentSubdomain` er satt og parent-
+  //    config eksisterer i Upstash, brukes den som mal i stedet for global
+  //    `default.json`. Dette gjør at en B2B SuperAdmin kan tilpasse config
+  //    én gang for hele org-en og få det automatisk arvet til alle ansatte.
+  let tenantConfig;
+  if (input.parentSubdomain) {
+    tenantConfig = await buildTenantConfigFromParent(
+      input.parentSubdomain,
+      subdomain,
+    );
+    if (!tenantConfig) {
+      // Parent har ingen client-config i Upstash — fallback til default.json
+      // + logg advarsel så admin kan kjøre migreringen i Config-verktøy.
+      await emit({
+        stage: "vercel_env",
+        status: "ok",
+        detail: `[D-126] parent '${input.parentSubdomain}' mangler client-config — fallback til default.json. Kjør Config-verktøy → 'Skip eksisterende' for å initialisere parent.`,
+      });
+      tenantConfig = await buildTenantConfigForUpstash(subdomain);
+    }
+  } else {
+    tenantConfig = await buildTenantConfigForUpstash(subdomain);
+  }
   await putClientConfig(subdomain, tenantConfig);
 
   // 3. Set env vars — alle creds er ekte, ingen plassholdere (D-064).

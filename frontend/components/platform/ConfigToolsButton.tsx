@@ -70,6 +70,7 @@ const ACTION_STYLE: Record<string, string> = {
 export function ConfigToolsButton() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("merge");
+  const [onlyParents, setOnlyParents] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MigrationSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,8 +93,10 @@ export function ConfigToolsButton() {
     setError(null);
     if (dryRun) setResult(null);
     try {
+      const params = new URLSearchParams({ mode });
+      if (onlyParents) params.set("onlyParents", "true");
       const res = await fetch(
-        `/api/admin/migrate-client-configs?mode=${encodeURIComponent(mode)}`,
+        `/api/admin/migrate-client-configs?${params.toString()}`,
         {
           method: dryRun ? "GET" : "POST",
           credentials: "same-origin",
@@ -183,6 +186,35 @@ export function ConfigToolsButton() {
             </label>
           ))}
         </fieldset>
+
+        {/* SA-filter (D-126) */}
+        <label
+          className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition border ${
+            onlyParents
+              ? "bg-purple-500/10 border-purple-500/40"
+              : "bg-black/30 border-transparent hover:bg-black/40"
+          }`}
+        >
+          <input
+            type="checkbox"
+            data-testid="config-tools-only-parents-toggle"
+            checked={onlyParents}
+            onChange={(e) => {
+              setOnlyParents(e.target.checked);
+              setResult(null);
+            }}
+            className="cursor-pointer"
+          />
+          <span className="flex-1">
+            <span className="text-xs font-mono text-white/90">
+              Kun B2B parent-tenants (SA)
+            </span>
+            <span className="block text-[10px] text-white/55 mt-0.5">
+              Filtrer til <code>&lt;prefix&gt;-admin</code>-tenants. Brukes for å
+              initialisere SA-mal som ansatte arver.
+            </span>
+          </span>
+        </label>
 
         {/* Action-knapper */}
         <div className="flex items-center gap-2">

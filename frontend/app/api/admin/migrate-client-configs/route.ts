@@ -63,6 +63,11 @@ function parseMode(req: Request): Mode {
   return "skip-existing";
 }
 
+function parseOnlyParents(req: Request): boolean {
+  const { searchParams } = new URL(req.url);
+  return searchParams.get("onlyParents") === "true";
+}
+
 async function appendAuditNote(
   subdomain: string,
   text: string,
@@ -81,9 +86,22 @@ async function appendAuditNote(
 async function runMigration(
   dryRun: boolean,
   mode: Mode,
+  onlyParents: boolean = false,
 ): Promise<MigrationSummary> {
   const tenants = await listTenants();
-  const candidates = tenants.filter((t) => t.vercelProjectId !== null);
+  // D-126 (2026-02 · Mike): B2B parents (SA) har `vercelProjectId =
+  // "skipped:b2b-parent"` (D-088) eller `null` for legacy-tenants opprettet
+  // før D-088. De skal LIKEVEL ha en `client-config:<prefix>-admin` i
+  // Upstash siden den brukes som mal av alle ansatte under SA.
+  // Filteret inkluderer derfor alle B2B parents uavhengig av Vercel-status.
+  const isB2BParent = (t: (typeof tenants)[number]) =>
+    t.customerType === "b2b" && t.parentTenant === null;
+  const baseCandidates = tenants.filter(
+    (t) => t.vercelProjectId !== null || isB2BParent(t),
+  );
+  const candidates = onlyParents
+    ? baseCandidates.filter(isB2BParent)
+    : baseCandidates;
   const summary: MigrationSummary = {
     dryRun,
     mode,
@@ -221,7 +239,11 @@ async function runMigration(
 
 export async function GET(req: Request) {
   try {
-    const summary = await runMigration(true, parseMode(req));
+    const summary = await runMigration(
+      true,
+      parseMode(req),
+      parseOnlyParents(req),
+    );
     return NextResponse.json(summary);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown_error";
@@ -232,7 +254,11 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const summary = await runMigration(false, parseMode(req));
+    const summary = await runMigration(
+      false,
+      parseMode(req),
+      parseOnlyParents(req),
+    );
     return NextResponse.json(summary);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown_error";

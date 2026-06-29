@@ -67,6 +67,31 @@ export async function buildTenantConfigForUpstash(
   return buildTenantConfig(template, subdomain.toLowerCase().trim());
 }
 
+/**
+ * D-126 (2026-02 · Mike): SA-config arv for B2B-ansatte.
+ *
+ * Når en B2B child-tenant (ansatt) opprettes via invite, brukes parentens
+ * `client-config:<prefix>-admin` som mal i stedet for global `default.json`.
+ * Dette gjør at en SuperAdmin kan tilpasse logoer/farger/kategorier én gang
+ * for hele organisasjonen sin og få det propagert til alle nye ansatte.
+ *
+ * Returnerer `null` hvis parent-config ikke finnes (ringt-er må fallback
+ * til `buildTenantConfigForUpstash()` og logge en advarsel).
+ *
+ * Brukes av `provisionTenantOnVercel` når `parentSubdomain` er satt.
+ */
+export async function buildTenantConfigFromParent(
+  parentSubdomain: string,
+  childSubdomain: string,
+): Promise<ClientConfigJson | null> {
+  // Dynamic import for å unngå sirkulær avhengighet (client-config-store
+  // importerer fra denne fila).
+  const { getClientConfig } = await import("./client-config-store");
+  const parentConfig = await getClientConfig(parentSubdomain);
+  if (!parentConfig) return null;
+  return buildTenantConfig(parentConfig, childSubdomain.toLowerCase().trim());
+}
+
 // ─── Deep merge (D-060) ─────────────────────────────────────────────────
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

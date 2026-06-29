@@ -1,6 +1,6 @@
 # Ko|Do · Vault — Known Bugs & Tech Debt
 
-**Sist oppdatert:** 2026-06-29  
+**Sist oppdatert:** 2026-02 (D-126 SA-config arv implementert)  
 **Format:** [Severity] Bug-title → Beskrivelse → Filer → Status
 
 Severity:
@@ -13,7 +13,7 @@ Severity:
 
 ## 🔴 P0 — Kritiske
 
-*(Ingen åpne P0 per 2026-06-28)*
+*(Ingen åpne P0 per 2026-02)*
 
 ---
 
@@ -23,7 +23,7 @@ Severity:
 **Beskrivelse:** Hvis Mike sletter en B2B-parent og umiddelbart oppretter en ny med samme prefix, kan gamle org-admin-records / invites peke til "wrong parent" (via snapshot-FK `parentTenantCreatedAt`). Orphan-detection (`link_missing` / `child_missing`) skal fange det, men har edge-case ved race-condition.  
 **Workaround:** Bruk Test Tools (`OrphanInvitesCard`) til å rydde manuelt.  
 **Filer:** `lib/platform/orphan-detection.ts`, `lib/platform/invite-store.ts:markInvitesAsChildDeleted()`.  
-**Status:** Lavt hendelses-volum, akseptabelt for nå.  
+**Status:** 🅱️ **BACKLOG** (Mike 2026-02 — kommer tilbake når T4-beslutning er tatt). Lavt hendelses-volum, akseptabelt for nå.  
 **Tracking:** D-094, D-095, D-101
 
 ---
@@ -52,10 +52,10 @@ Severity:
 ### T4 — Test Tools eksponerer PII uten audit-log  
 **Beskrivelse:** `OrgAdminListCard` og `OrphanInvitesCard` lar Mike-admin se ansatt-PII (navn, e-post) på tvers av tenants — som per D-078 ikke skal være mulig. Begrunnet som "nødvendig for orphan-cleanup", men det er ingen audit-log på bruken.  
 **Filer:** `app/api/admin/org-admins/all/route.ts`, `app/api/admin/orphan-invites/all/route.ts`, `components/platform/OrgAdminListCard.tsx`, `components/platform/OrphanInvitesCard.tsx`.  
-**Status: VENTER PÅ BESLUTNING (Mike 2026-06-29)** — to alternativer:  
+**Status: 🅱️ BACKLOG (Mike 2026-02)** — Mike kommer tilbake når han er klar. To alternativer venter:  
 &nbsp;&nbsp;**(a)** Behold funksjonen + legg på audit-log (hver Mike-admin-tilgang loggføres med tidspunkt, prefix, formål). GDPR-konformt med revisjons-spor.  
 &nbsp;&nbsp;**(b)** Slett funksjonen helt. Orphan-cleanup må gjøres via annen mekanisme (f.eks. automatisk cron eller server-side rydding uten UI-eksponering).  
-Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutning.**
+Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutning.** Ikke purrer videre.
 
 ### T5 — ✅ LUKKET (D-122, 2026-06-29)
 **Status:** `OrgInvitesSection.tsx` slettet — viste seg å være dead code (kun referert i kommentarer, ikke importert noe sted). `InlineInviteForm` er nå eneste invite-skjema. billingPhase-blokkering håndteres i `EmployeeListSection`. 10 orphan i18n-keys ryddet (1483 → 1473). D-105-lint nå 316 filer (var 317).
@@ -63,6 +63,9 @@ Mike skal velge før noe gjøres. **Ikke implementer noen av delene før beslutn
 ---
 
 ## Lukket (referanse)
+
+### Fixed 2026-02
+- ✅ **D-126** SA-config provisjonering + arv: a) B2B-parent (`<prefix>-admin`) får automatisk `client-config:<prefix>-admin` initialisert fra `default.json` ved provision-vercel-short-circuit (D-088). Idempotent — overskriver ikke eksisterende. b) B2B child-tenants (ansatte) arver SA-mal i stedet for global default — ny helper `buildTenantConfigFromParent()` leser `client-config:<parent>` og overrider `_meta.client` til child. Hvis SA-config mangler logges advarsel og fallback til default.json. c) `provisionTenantOnVercel` har ny `parentSubdomain`-prop som settes fra `/api/invite/accept` (B2B child) og admin retry-flyt. d) Test Tools `ConfigToolsButton` har ny "Kun B2B parent-tenants (SA)"-checkbox som filtrerer migrasjonen til kun SA-tenants. Migrasjons-endepunkt utvidet med `?onlyParents=true`. e) 10 nye unit-tester i `tenant-config-inheritance.test.ts` (alle PASS). 3b ekstra-task hoppet over per Mikes valg (ingen UI-banner i ClientConfigEditor).
 
 ### Fixed 2026-06-29
 - ✅ **D-124** Per-trim historical markers: hver trunkering legger til en ny `log_trimmed`-event med `detail: "cut=N total=M"` på toppen av loggen (nyeste først). Markere er beskyttet mot fremtidige trunkeringer (gjelder kun ekte events) og kappet til MAX_TRIM_MARKERS=10. TenantViewer text-log viser ✂️-ikon for trim-events. 9 nye unit-tester (17/17 PASS totalt). Mike ser nå alltid historikken til kuttingene

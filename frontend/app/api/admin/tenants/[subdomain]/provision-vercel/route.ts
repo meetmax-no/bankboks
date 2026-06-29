@@ -18,6 +18,11 @@ import { provisionTenantOnVercel } from "@/lib/platform/vercel-provision";
 import { getDatabaseRestCredentials } from "@/lib/platform/upstash-provision";
 import { notifyProvisioningFailure } from "@/lib/platform/notify";
 import { provisioningLogger, logEvent } from "@/lib/platform/provisioning-log";
+import {
+  getClientConfig,
+  putClientConfig,
+} from "@/lib/platform/client-config-store";
+import { buildTenantConfigForUpstash } from "@/lib/platform/tenant-config-builder";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,6 +69,36 @@ export async function POST(_req: Request, { params }: Params) {
         "skipped",
         "D-088: B2B am-admin routes via host-prefix på root-pod — ingen egen Vercel-deploy",
       );
+
+      // ─── D-126 (2026-02 · Mike) — SA-config initialisering ──────────
+      // B2B parents (SA) får IKKE eget Vercel-prosjekt, men de skal LIKEVEL
+      // ha en `client-config:<prefix>-admin` i Upstash — denne brukes som
+      // mal for alle ansatte under SA-en (arv ved invite/accept).
+      // Idempotent: skriver kun hvis ikke allerede satt.
+      try {
+        const existing = await getClientConfig(subdomain);
+        if (!existing) {
+          const cfg = await buildTenantConfigForUpstash(subdomain);
+          await putClientConfig(subdomain, cfg);
+          await logEvent(
+            subdomain,
+            "vercel_env",
+            "ok",
+            "D-126: client-config (SA-mal) initialisert fra default.json",
+          );
+        }
+      } catch (cfgErr) {
+        // Ikke fatal — admin kan kjøre Config-verktøy → 'Skip eksisterende'
+        // for å reparere senere. Logg så Mike ser det.
+        const msg = cfgErr instanceof Error ? cfgErr.message : String(cfgErr);
+        await logEvent(
+          subdomain,
+          "vercel_env",
+          "failed",
+          `D-126: client-config init feilet: ${msg}`,
+        );
+      }
+
       const updated = {
         ...tenant,
         // Sentinel som signaliserer "bevisst ikke provisionert" — skiller
@@ -119,6 +154,9 @@ export async function POST(_req: Request, { params }: Params) {
         kvRestApiToken: upstashDetails.rest_token,
         // Iter 20.9 (D-082): B2B parent-tenants får sentrale envs propagert.
         customerType: tenant.customerType === "b2b" ? "b2b" : "b2c",
+        // D-126 (2026-02): B2B child-tenants arver config fra parent
+        // (`<prefix>-admin`). B2C / parent har parentTenant=null → ignore.
+        parentSubdomain: tenant.parentTenant,
         onEvent,
       });
       // Refresh: onEvent har skrevet til provisioningLog.

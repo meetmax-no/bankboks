@@ -3955,3 +3955,67 @@ For branding:
 
 ---
 
+
+## D-126 — SuperAdmin client-config arv (`<prefix>-admin.json`)
+
+**DATO:** 2026-02 (Mike-direktiv)
+
+**KONTEKST:** Når Mike oppretter en B2B SuperAdmin (SA) — f.eks. `lisbeth-admin` — får tenanten en plass i sentral Upstash (`client-config:lisbeth-admin`), men før D-126 ble denne entry-en aldri faktisk skrevet pga D-088-short-circuit (SA har ingen egen Vercel-pod, så `provisionTenantOnVercel` — som er den som skriver `client-config:<subdomain>` — ble aldri kalt). Resultatet: når Lisbeth gikk inn i ClientConfigEditor og endret branding/kategorier for organisasjonen sin, var det første gang config-en ble skrevet til Upstash. Verre: når en ansatt under Lisbeth ble opprettet via invite/accept, hentet `buildTenantConfigForUpstash()` global `default.json` fra repo-filsystemet — så ansatt fikk standard Ko|Do-branding i stedet for Lisbeths tilpasninger.
+
+Mikes brief: SA skal være sannhetskilde for sin organisasjons branding/config. Når en ansatt opprettes, skal de arve SA-malen, ikke global default.
+
+**VURDERTE:**
+
+(A) **Egen Upstash-key `<prefix>-admin.json` separat fra `client-config:<prefix>-admin`** — gir konseptuell renhet ("SA-mal" vs "SA-bruker-vault") men dupliserer state. Forkastet. SA-en HAR allerede en sentral client-config-entry; den brukes både for SA-en sin egen am-admin-UI OG som mal for ansatte. Én lagring, ett ansvar.
+
+(B) **Generer SA-config on-demand første gang ansatt arver** — billigste implementering men gir race-conditions (to ansatte opprettet samtidig kan skrive parallelle malers), og betyr at SA-en aldri har et "tomt utgangspunkt" hvis hun ønsker å se default-en. Forkastet.
+
+(C) **Initialiser `client-config:<prefix>-admin` ved SA-provisjonering + la ansatte arve fra den** — eksplisitt, idempotent, deterministisk. **VALGT.**
+
+For ansatt-arv-fallback:
+- (1) **Streng — feile hvis SA mangler config** — for hard. Legacy SA-er (opprettet før D-126) ville bryte invite-flowen.
+- (2) **Lenient — fallback til default.json + logg advarsel** — **VALGT.** Admin kan kjøre Config-verktøy → "Skip eksisterende" + "Kun B2B parent-tenants (SA)" for å initialisere legacy SA-er retroaktivt.
+
+For migrering av eksisterende SA-er:
+- (a) **Egen migrasjons-rute** — duplisering. Forkastet.
+- (b) **Utvid eksisterende `/api/admin/migrate-client-configs` med SA-filter** — **VALGT.**
+
+For UI-banner i ClientConfigEditor som forklarer arv:
+- (3a) **Vis banner** — Mike avviste.
+- (3b) **Ingen banner** — **VALGT.** Konseptet er enkelt nok at Mike forklarer det per kunde hvis det blir nødvendig.
+
+**IMPLEMENTASJON:**
+
+1. **`lib/platform/tenant-config-builder.ts`** — ny `buildTenantConfigFromParent(parentSubdomain, childSubdomain)`. Leser `client-config:<parentSubdomain>` via dynamic import (unngår sirkulær avhengighet med client-config-store). Returnerer `null` hvis parent mangler config — caller fallback'er.
+
+2. **`lib/platform/vercel-provision.ts`** — `provisionTenantOnVercel()` får ny `parentSubdomain?: string | null`-prop. Hvis satt og parent har config → bruk arv. Hvis ikke → fallback til `buildTenantConfigForUpstash()` + emit warning-event ("[D-126] parent mangler client-config — fallback til default.json").
+
+3. **`app/api/admin/tenants/[subdomain]/provision-vercel/route.ts`** — short-circuit-grenen for B2B-parent (D-088) skriver nå idempotent `client-config:<subdomain>` fra `default.json` før den returnerer. `logEvent("vercel_env", "ok", "D-126: client-config (SA-mal) initialisert fra default.json")` på suksess; "failed" på exception (ikke-fatal).
+
+4. **`app/api/invite/accept/route.ts`** — passerer `parentSubdomain: invite.parentTenant` til `provisionTenantOnVercel`.
+
+5. **`app/api/admin/migrate-client-configs/route.ts`** — utvidet med `onlyParents`-query-flagg + utvidet candidate-filter til alltid å inkludere B2B-parents (uavhengig av `vercelProjectId`).
+
+6. **`components/platform/ConfigToolsButton.tsx`** — ny checkbox "Kun B2B parent-tenants (SA)" som setter `?onlyParents=true` på request.
+
+7. **Test:** `lib/__tests__/tenant-config-inheritance.test.ts` (10 assertions, alle PASS).
+
+**HVORFOR:**
+
+- D-018 (multi-tenant strategy) sier eksplisitt at hver kunde skal kunne ha tilpasset config. SA → ansatt-arv er den naturlige utvidelsen når én B2B-kunde har flere ansatte.
+- Idempotens (`existing` sjekk før skrive) garanterer at retry/migrering ikke ødelegger SA-ens endringer.
+- Lenient fallback respekterer eksisterende driftsdata — vi tvinger ikke Mike til å kjøre migrasjon før han kan opprette nye ansatte under legacy SA-er.
+- Re-bruk av eksisterende migrasjons-verktøy (D-060) holder admin-UI enkelt. Ingen ny "Migrate SA"-modal.
+
+**KONSEKVENS:**
+
+- Nye SA-er får automatisk en client-config-entry fra default.json ved første `provision-vercel`-kall.
+- Nye ansatte arver alltid SA-malen hvis den finnes; ellers fallback til default.json + logg.
+- Legacy SA-er kan migreres på hvilket som helst tidspunkt via Config-verktøy → "Skip eksisterende" + "Kun B2B parent-tenants (SA)".
+- Hvis Mike i fremtiden ønsker å re-spille en SA sin tilpasning over alle eksisterende ansatte, må han enten kjøre eksisterende "merge"-modus (deep merge, tenant-wins per D-060) eller bygge en ny "cascade-from-parent"-modus (ikke planlagt).
+- `<ClientConfigEditor>` i am-admin-UI er uendret — SA endrer fortsatt sin egen `client-config:<prefix>-admin` direkte. Endringene treffer kun nye ansatte (ikke eksisterende) — Mike informert.
+
+**RELATERT:**
+- D-018 (multi-tenant strategi)
+- D-060 (deep merge + migrasjons-verktøy)
+- D-088 (B2B parent bruker host-prefix-routing, ingen Vercel-pod)
