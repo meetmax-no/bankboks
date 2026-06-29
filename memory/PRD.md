@@ -33,6 +33,14 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-126 SuperAdmin client-config provisjonering + arv (P1)
+- **SA-init:** B2B parent-tenants (`<prefix>-admin`) får nå automatisk `client-config:<prefix>-admin` initialisert fra `default.json` ved første `provision-vercel`-kall (D-088-short-circuit-grenen). Idempotent — overskriver ikke eksisterende.
+- **Ansatt-arv:** Ny helper `buildTenantConfigFromParent()`. `provisionTenantOnVercel` har ny `parentSubdomain`-prop. Når en ansatt opprettes via invite/accept, arves SA-malen i stedet for global `default.json`. Fallback til default + logg-advarsel hvis SA mangler config.
+- **Migrasjon:** `/api/admin/migrate-client-configs` har ny `?onlyParents=true`-filter for å initialisere kun legacy SA-er. `ConfigToolsButton` har ny checkbox "Kun B2B parent-tenants (SA)".
+- **Test:** `tenant-config-inheritance.test.ts` (10/10 PASS).
+- Mike-valg: 1a+2a+3b (alt på én gang, inkluder migrasjon, ingen UI-banner).
+- Statisk QA: TSC ✓ · lint:all ✓ (7/7) · build ✓ · testing-agent iter_27 100%.
+
 ### ✅ 2026-06-29 — D-115 Invite-flow fix (P0)
 - **Branding på public invite-side**: henter `companyName` via `/api/am-admin/branding/[prefix]` (D-114-endepunktet). STRENGT — ingen prefix-fallback; mangler firmanavn vises `branding_missing`-feil og skjemaet skjules.
 - **Default aurora-gradient** på hele invite-siden + Suspense-fallback (samme som am-admin-login fra D-114).

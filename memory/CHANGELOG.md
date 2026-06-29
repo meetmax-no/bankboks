@@ -3,6 +3,45 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-126 SuperAdmin client-config provisjonering + arv (P1)
+
+### Hva som ble bygget
+
+**1. SA-config initialisering ved provisjonering**
+- B2B parent-tenants (`<prefix>-admin`) har lenge fått sin `vercelProjectId` satt til `"skipped:b2b-parent"` (D-088) fordi de ruter via host-prefix på root-pod — ingen egen Vercel-deploy.
+- Bivirkning: `provisionTenantOnVercel()` ble aldri kalt for SA → `client-config:<prefix>-admin` ble aldri skrevet før Mike/Lisbeth lagret noe i ClientConfigEditor.
+- **Fiks:** D-088-short-circuit-grenen i `app/api/admin/tenants/[subdomain]/provision-vercel/route.ts` skriver nå idempotent `client-config:<subdomain>` fra `default.json` (kun hvis ikke allerede satt). Hver suksess logges som `vercel_env ok` med detail "D-126: client-config (SA-mal) initialisert fra default.json"; failure logges som `vercel_env failed` (ikke-fatal).
+
+**2. Ansatt-arv fra SA-mal**
+- Ny helper `buildTenantConfigFromParent(parentSubdomain, childSubdomain)` i `lib/platform/tenant-config-builder.ts`. Bruker dynamic import for å unngå sirkulær avhengighet med `client-config-store`.
+- `ProvisionVercelInput` har ny `parentSubdomain?: string | null`-prop. Hvis satt og parent har config → bruk SA-mal. Hvis ikke → fallback til `default.json` + logg advarsel via `onEvent`.
+- `app/api/invite/accept/route.ts` passerer `parentSubdomain: invite.parentTenant` til `provisionTenantOnVercel`. Resultat: nye ansatte arver SA-malen.
+- Admin retry-flyt (`/api/admin/tenants/[subdomain]/provision-vercel`) gjør det samme via `tenant.parentTenant`.
+
+**3. Migrasjons-verktøy utvidet med SA-filter**
+- `app/api/admin/migrate-client-configs/route.ts`: candidates-filter inkluderer nå B2B-parents uavhengig av `vercelProjectId` (også legacy SA-er med `null`). Ny `?onlyParents=true`-query for å filtrere bort B2C/child-tenants.
+- `components/platform/ConfigToolsButton.tsx`: ny checkbox "Kun B2B parent-tenants (SA)" med `data-testid="config-tools-only-parents-toggle"`. Setter URL-paramet automatisk.
+
+**4. Test-dekning**
+- `lib/__tests__/tenant-config-inheritance.test.ts` — 10 assertions, alle PASS. Verifiserer:
+  - `_meta.client` overstyres til ny subdomain
+  - `_meta.createdAt` settes til nå
+  - `_meta.createdBy` bevares fra template
+  - Branding, kategorier og custom felter arves fra parent-config
+  - `buildTenantConfigFromParent` er eksportert som funksjon
+
+**5. Mikes valg**
+- 1a: Bygget alt samtidig (SA-init + arv + migrasjon)
+- 2a: Inkludert migrasjons-verktøy
+- 3b: Ingen UI-banner i ClientConfigEditor (hoppes over per direktiv)
+
+### Statisk verifikasjon
+- `yarn tsc --noEmit` → 0 errors
+- `yarn lint:all` → 7/7 sub-lints grønt
+- `yarn build` → OK (25.16s)
+- Testing-agent iter_27 → 100% (4/4)
+
+---
 ## 2026-06-29 — D-116 Firma-admin slett-flyt + DarkSelect-ekstrahering (P1)
 
 ### UI-løft
