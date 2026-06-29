@@ -1,13 +1,17 @@
 "use client";
 /**
- * Ko | Do · Vault — Iter 20.9 (D-085) — InlineInviteForm
+ * Ko | Do · Vault — Iter 20.9 (D-085) / D-122 (2026-06-29) — InlineInviteForm
  *
- * Kompakt invite-skjema som åpner inline i Ansatte-fanen når brukeren
- * klikker "+ Ansatt". Gjenbruker samme POST /api/am-admin/invites-flyt
- * som OrgInvitesSection, men er pakket som åpne/lukk-form i Ansatte-
- * fanen så super-admin slipper å bytte tab for å invitere noen.
+ * Eneste invite-skjemaet i firma-admin Konsoll. Vises inline i Ansatte-
+ * fanen når brukeren klikker "+ Ansatt". POST /api/am-admin/invites
+ * brukes som backend.
  *
  * Dispatcher `am-admin:invite-created` så EmployeeListSection refresher.
+ *
+ * D-122 (2026-06-29): `OrgInvitesSection` slettet — denne komponenten er
+ * nå eneste opprett-flowen. billingPhase-blokkering håndteres i
+ * EmployeeListSection (linje ~159 — `invitesBlocked` styrer knappens
+ * disabled-state og forklarings-tekst).
  */
 import { useCallback, useState } from "react";
 import { toast } from "sonner";

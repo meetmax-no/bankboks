@@ -1,0 +1,35 @@
+{
+  "summary": "T5/D-122 verification PASSED. OrgInvitesSection.tsx fully deleted, no broken imports, header comments correctly reference D-122 in both InlineInviteForm.tsx and EmployeeListSection.tsx, all 10 orphan i18n keys removed across no/sv/da/en, both preserved keys (new_btn_disabled, blocked_tooltip) intact in all 4 locales, and yarn tsc --noEmit + yarn lint:all + yarn build all pass. i18n-sync reports exactly 1473 keys x 4 languages (was 1483). D-105 duplication-lint reports 316 files scanned (was 317).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "static_check_results": {
+    "file_deleted": "PASS — /app/frontend/components/platform/am-admin/OrgInvitesSection.tsx no longer exists (find returned empty)",
+    "no_broken_imports": "PASS — grep for 'OrgInvitesSection' returns only 1 line: the D-122 documentation comment in InlineInviteForm.tsx header explaining the consolidation (intentional, not an import)",
+    "InlineInviteForm_header_comment": "PASS — header references 'Iter 20.9 (D-085) / D-122 (2026-06-29)' and explicitly states 'OrgInvitesSection slettet — denne komponenten er nå eneste opprett-flowen. billingPhase-blokkering håndteres i EmployeeListSection'. Old wording 'Gjenbruker samme POST ... som OrgInvitesSection' is GONE.",
+    "EmployeeListSection_comment": "PASS — line ~10 area now reads '+ Ansatt-knapp top-right åpner inline invite-form (InlineInviteForm — D-122 eneste invite-skjema)'. Old 'OrgInvitesSection-mønsteret' wording is GONE.",
+    "orphan_keys_removed": "PASS — all 10 keys (heading, description, new_btn, blocked_message, suffix_label, url_preview_label, email_label, locale_label, success_with_email, success_without_email) return 0 hits across no/sv/da/en.json",
+    "preserved_keys_present": "PASS — am_admin_invites.new_btn_disabled and am_admin_invites.blocked_tooltip exist in all 4 locales at line 1164/1165",
+    "yarn_tsc_noEmit": "PASS (exit 0, 6.54s, no errors)",
+    "yarn_lint_all": "PASS — D-069 OK (72 files), D-071 isolation OK, D-077 tenant-env OK, coverage-matrix OK, i18n-sync OK (1473 keys x 4 langs), D-078 PII OK, D-105 duplication OK (316 files scanned, was 317)",
+    "yarn_build": "PASS (exit 0, 24.74s, all routes compiled including /platform/am-admin at 25.5 kB)"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Note on key counts: raw python json.load reports 1475 keys per locale, but i18n-sync-lint (which deduplicates and is the source of truth per D-121) correctly reports 1473 keys x 4 languages — matches expected target exactly. The 2-key delta is benign and consistent with how the lint normalises duplicate-flat-dotted keys (no action needed).",
+    "InlineInviteForm.tsx header now contains a clean D-122 audit trail explaining why the file is the sole invite form and where billing-blocking is handled — good for future maintainers.",
+    "EmployeeListSection.tsx comment at line ~10 is consistent with the new architecture (references InlineInviteForm not the deleted OrgInvitesSection)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (all 7 static-check criteria pass)"},
+  "test_credentials": "N/A — no auth flow tested (static-only verification per user constraint)",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "T5/D-122 (OrgInvitesSection consolidation) is COMPLETE and verified. The codebase is in a clean state: 316 files scanned by D-105, 1473 i18n keys x 4 langs, tsc+lint+build all green. No further action needed for this task. If continuing the D-1xx series, baseline is iteration_24.",
+  "rca_of_the_issue": "N/A — no bug; consolidation/dead-code-removal task verified successful."
+}

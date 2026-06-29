@@ -6,8 +6,8 @@
  *   1. Admin/super-admin (parent-record `<prefix>-admin`) FILTRERES BORT —
  *      en admin er ikke en ansatt.
  *   2. Header bruker companyName (ikke prefix) i description.
- *   3. "+ Ansatt"-knapp top-right åpner inline invite-form (gjenbruker
- *      OrgInvitesSection-mønsteret men inline i samme seksjon).
+ *   3. "+ Ansatt"-knapp top-right åpner inline invite-form
+ *      (`InlineInviteForm` — D-122 eneste invite-skjema).
  *   4. Filter-input (søk på navn/e-post/subdomain).
  *   5. Sorterbare kolonner — klikk på header bytter asc/desc.
  *   6. Seats-infoboks top-right viser "X av Y ledige" lisenser.
