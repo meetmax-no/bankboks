@@ -3218,8 +3218,16 @@ function formatLogAsText(
 ): string {
   return log
     .map((e) => {
+      // D-124 (2026-06-29): trim-markere får skar-ikon så de visuelt
+      // skiller seg fra ok/failed-events i text-visningen.
       const icon =
-        e.status === "ok" ? "✅" : e.status === "failed" ? "❌" : "↻";
+        e.stage === "log_trimmed"
+          ? "✂️"
+          : e.status === "ok"
+            ? "✅"
+            : e.status === "failed"
+              ? "❌"
+              : "↻";
       const ts = e.timestamp.replace(".000Z", "Z");
       const detail = e.detail ? ` — ${e.detail}` : "";
       return `[${ts}] ${e.stage} ${icon}${detail}`;

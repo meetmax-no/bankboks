@@ -84,13 +84,24 @@ async function runTests() {
     "B2C-child får 100 (tenant-grense, samme som standalone)",
   );
 
-  // Test 4: trunkering kutter eldste
+  // Test 4: trunkering kutter eldste + lager trim-marker
   const events = Array.from({ length: 150 }, (_, i) => evt("vault_live", i));
   const trimmed = truncateProvisioningLog(events, 100);
-  assert(trimmed.length === 100, "trunkert til 100 events");
-  assert(trimmed[0].detail === "event-50", "eldste 50 ble kuttet (event-0…49)");
+  assert(trimmed.length === 101, "trunkert: 1 marker + 100 ekte events");
   assert(
-    trimmed[trimmed.length - 1].detail === "event-149",
+    trimmed[0]?.stage === "log_trimmed",
+    "[0] er trim-marker (på toppen)",
+  );
+  assert(
+    trimmed[0]?.detail === "cut=50 total=50",
+    "marker detail: cut=50 total=50",
+  );
+  assert(
+    trimmed[1]?.detail === "event-50",
+    "ekte events: eldste 50 ble kuttet (event-0…49)",
+  );
+  assert(
+    trimmed[trimmed.length - 1]?.detail === "event-149",
     "nyligste bevart (event-149)",
   );
 
@@ -105,6 +116,55 @@ async function runTests() {
   // Test 6: edge — tom array
   const empty = truncateProvisioningLog([], 100);
   assert(empty.length === 0, "tom array → tom array");
+
+  // Test 7: andre trim oppretter ny marker over den gamle, total akkumulerer
+  const second = truncateProvisioningLog(
+    [
+      ...trimmed,
+      ...Array.from({ length: 50 }, (_, i) => evt("vault_live", 150 + i)),
+    ],
+    100,
+  );
+  assert(second.length === 102, "andre trim: 2 markere + 100 ekte events");
+  assert(
+    second[0]?.stage === "log_trimmed" && second[1]?.stage === "log_trimmed",
+    "to markere stables på toppen, nyeste først",
+  );
+  assert(
+    second[0]?.detail === "cut=50 total=100",
+    "ny marker akkumulerer total=100 (50+50)",
+  );
+  assert(
+    second[1]?.detail === "cut=50 total=50",
+    "gammel marker bevart med original total=50",
+  );
+
+  // Test 8: cap på 10 trim-markere — 11. trim dropper eldste
+  let stacked: ProvisioningEvent[] = [];
+  for (let trimIdx = 0; trimIdx < 11; trimIdx += 1) {
+    // Hver iterasjon: 150 ekte events → 100 (50 kuttes)
+    const fresh = Array.from({ length: 50 }, (_, i) =>
+      evt("vault_live", trimIdx * 100 + i),
+    );
+    stacked = truncateProvisioningLog([...stacked, ...fresh, ...fresh], 100);
+  }
+  const stackedMarkers = stacked.filter((e) => e.stage === "log_trimmed");
+  assert(
+    stackedMarkers.length === 10,
+    `cap = 10 trim-markere (faktisk: ${stackedMarkers.length})`,
+  );
+  assert(
+    stacked[0]?.stage === "log_trimmed",
+    "nyeste marker fortsatt på indeks 0",
+  );
+
+  // Test 9: trim-markere overlever fremtidige trims (beskyttet)
+  // — har stacked test allerede bekreftet ved at 10 markere lever fortsatt
+  const realInStacked = stacked.filter((e) => e.stage !== "log_trimmed");
+  assert(
+    realInStacked.length === 100,
+    `ekte events fortsatt = limit (100), uavhengig av markers (faktisk: ${realInStacked.length})`,
+  );
 
   console.log(`\nResultat: ${passed} passed, ${failed} failed`);
   if (failed > 0) {

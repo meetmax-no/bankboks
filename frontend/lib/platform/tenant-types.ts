@@ -66,7 +66,8 @@ export type ProvisioningStage =
   | "am_admin_mpw_setup"
   | "am_admin_mpw_reset"
   | "invite_mail_sent"
-  | "stripe_customer_sync";
+  | "stripe_customer_sync"
+  | "log_trimmed";
 
 export type ProvisioningEventStatus = "ok" | "failed" | "retried" | "skipped";
 

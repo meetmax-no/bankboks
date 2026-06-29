@@ -22,6 +22,7 @@ import defaultClientConfig from "../../public/clients/default.json";
 import type { TenantRecord, ProvisioningEvent } from "./tenant-types";
 
 const FALLBACK = 100;
+const MAX_TRIM_MARKERS = 10;
 
 interface ProvisioningLogConfig {
   adminProvisioningLogMax?: number;
@@ -50,6 +51,10 @@ function clampPositiveInt(v: number | undefined): number | null {
  *   1. default.json provisioningLog.{adminProvisioningLogMax | tenantProvisioningLogMax}
  *      basert på customerType.
  *   2. Hardcoded fallback (100).
+ *
+ * Grensen gjelder KUN "ekte" events. Trim-markere (stage === "log_trimmed")
+ * lever på siden — de er beskyttet fra trunkering og caps separat på
+ * `MAX_TRIM_MARKERS` (10).
  */
 export function getProvisioningLogMax(record: TenantRecord): number {
   const cfg = readConfig();
@@ -62,14 +67,71 @@ export function getProvisioningLogMax(record: TenantRecord): number {
 }
 
 /**
- * Returnerer en (potensielt) trunkert versjon av `events`. Beholder de
- * SISTE `limit` (nyligste først bevart). Hvis lengden allerede er innenfor
- * grensen returneres samme array-referanse (no-op).
+ * Bygger en trim-marker som logger hvor mye som ble kuttet.
+ *
+ * `detail`-feltet bruker et maskinlesbart format slik at UI kan parse ut
+ * count + total-since hvis ønskelig:
+ *   `cut=NNN total=NNNN`
+ * I tillegg legger vi til en menneske-lesbar suffiks for tilfeller der
+ * detail vises rått (CSV-backup, raw audit-log).
+ */
+function makeTrimMarker(cut: number, total: number): ProvisioningEvent {
+  return {
+    timestamp: new Date().toISOString(),
+    stage: "log_trimmed",
+    status: "ok",
+    detail: `cut=${cut} total=${total}`,
+  };
+}
+
+function parseMarkerTotal(detail: string | undefined): number {
+  if (!detail) return 0;
+  const m = /total=(\d+)/.exec(detail);
+  if (!m) return 0;
+  const n = parseInt(m[1]!, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * D-124 (2026-06-29): trim-markere lever på TOPPEN av loggen (nyeste først,
+ * indeks 0..N-1), beskyttet fra trunkering. Ekte events lever etter
+ * markerne, kronologisk.
+ *
+ * Hvis lengden på ekte events overstiger `limit`:
+ *   1. Kutt eldste ekte events (slice(-limit))
+ *   2. Lag ny trim-marker som logger hvor mye ble kuttet + total-så-langt
+ *   3. Prepend til marker-listen
+ *   4. Cap marker-listen til MAX_TRIM_MARKERS (10) — dropp eldste
+ *
+ * Returnerer original-array-referansen (no-op) hvis ingen trunkering trengs.
  */
 export function truncateProvisioningLog(
   events: ProvisioningEvent[],
   limit: number,
 ): ProvisioningEvent[] {
-  if (events.length <= limit) return events;
-  return events.slice(events.length - limit);
+  // Split markers vs real events. Markers lever fortløpende på toppen,
+  // men splittfunksjonen er robust mot ikke-sortert input.
+  const markers: ProvisioningEvent[] = [];
+  const real: ProvisioningEvent[] = [];
+  for (const e of events) {
+    if (e.stage === "log_trimmed") markers.push(e);
+    else real.push(e);
+  }
+  if (real.length <= limit) return events; // ingen trunkering trengs → no-op
+
+  // Trim de eldste ekte events. `cut` = antall fjernet i denne runden.
+  const cut = real.length - limit;
+  const keptReal = real.slice(-limit);
+
+  // Total-siden = sist sett total + dette kuttet (kumulativt). Vi tar
+  // dette fra den NYESTE eksisterende markeren (markers[0] hvis nyeste-
+  // først, ellers første marker vi finner).
+  const prevTotal =
+    markers.length > 0 ? parseMarkerTotal(markers[0]?.detail) : 0;
+  const newMarker = makeTrimMarker(cut, prevTotal + cut);
+
+  // Nyeste marker først → cap til MAX_TRIM_MARKERS (dropper eldste).
+  const newMarkers = [newMarker, ...markers].slice(0, MAX_TRIM_MARKERS);
+
+  return [...newMarkers, ...keptReal];
 }

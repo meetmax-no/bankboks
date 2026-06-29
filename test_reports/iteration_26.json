@@ -1,0 +1,33 @@
+{
+  "summary": "D-124 static-only verification complete. All 17 unit tests pass (was 8, now 9 new tests added covering trim-marker stacking, accumulation, cap-at-10, and protection-from-truncation). Static checks (tsc --noEmit, lint:all, build) all green. Per-trim historical marker semantics correctly implemented: markers stacked at top (newest-first index 0..N-1), protected from truncation, capped at MAX_TRIM_MARKERS=10, detail format `cut=NNN total=NNNN` machine-parseable. TenantViewer renders ✂️ icon for log_trimmed events. No yarn dev / playwright per user directive.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_results": {
+    "type_extension": "PASS — tenant-types.ts line 70: ProvisioningStage union ends with `| 'stripe_customer_sync' | 'log_trimmed';`",
+    "truncate_semantics": "PASS — provisioning-log-limits.ts splits markers vs real, no-op short-circuit when real.length<=limit (returns original ref → preserves putTenant reference-equality short-circuit), prepends new marker with `cut=N total=M` accumulated via parseMarkerTotal of markers[0]?.detail, caps via slice(0,10). MAX_TRIM_MARKERS=10 declared.",
+    "unit_tests": "PASS — 17/17 passed (cd /app/frontend && npx tsx lib/__tests__/provisioning-log-limits.test.ts). Covers: first trim cut=50 total=50, second trim cut=50 total=100 with old marker preserved at total=50, 11 trims → 10 markers (cap), real events stay at limit, markers survive future trims.",
+    "wiring_unchanged": "PASS — tenant-store.ts:182 still calls truncateProvisioningLog(record.provisioningLog, limit). Reference-equality short-circuit at line 184 (trimmed === record.provisioningLog) still works because function returns original `events` ref on no-op.",
+    "tenantviewer_icon": "PASS — TenantViewer.tsx:3216-3236 formatLogAsText(): icon ternary now leads with `e.stage === 'log_trimmed' ? '✂️' : e.status === 'ok' ? '✅' : e.status === 'failed' ? '❌' : '↻'`. Existing rendering preserved.",
+    "tsc_noemit": "PASS — Done in 2.43s, 0 errors",
+    "lint_all": "PASS — i18n-sync 1473×4 (no/sv/da/en), D-077 (122 tenant-pod files, 17 env-vars), D-078 (39 files, 13 super-admin scope), D-105 (318 files, 3 patterns), coverage-matrix (51 routes, 44 exempt) — all green",
+    "build": "PASS — yarn build Done in 24.58s, all routes compiled (/platform/admin 38.7 kB, /platform/am-admin 25.5 kB, etc.)"
+  },
+  "test_report_links": ["/app/frontend/lib/__tests__/provisioning-log-limits.test.ts"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "parseMarkerTotal reads from markers[0]?.detail which is correct ONLY if marker-list is already newest-first. Since truncateProvisioningLog always PREPENDS to the markers array (`[newMarker, ...markers]`) and the initial split iterates `events` preserving order (markers already at top from previous trims), markers[0] is always the freshest pre-existing marker — invariant holds. Robust against unsorted input only if markers are stored sorted; current call-site (putTenant) always feeds back the previous truncated output, so invariant holds in practice.",
+    "Cap via `.slice(0, MAX_TRIM_MARKERS)` after prepending correctly drops the OLDEST marker (last element) when 11th is added. Verified by Test 8 (11 iterations → exactly 10 markers).",
+    "Reference-equality short-circuit in putTenant (line 184) depends on truncateProvisioningLog returning the original `events` parameter when no-op. Current implementation does this correctly (line 120: `return events`).",
+    "Detail format `cut=NNN total=NNNN` is regex-parseable via /total=(\\d+)/ in parseMarkerTotal — robust against extra whitespace or human-readable suffixes if ever added later."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static checks)"},
+  "seed_data_creation": "None — static-only verification",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "D-124 fully verified static-only (tsc, lint:all, build, 17 tsx unit tests). User has explicitly forbidden yarn dev / playwright in this k8s pod. If a future iteration adds UI rendering for the ✂️ marker in non-text-log views (e.g., timeline component), a Playwright test would be appropriate then. The truncation logic is now feature-complete with per-trim historical markers."
+}
