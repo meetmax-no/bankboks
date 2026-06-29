@@ -1,28 +1,32 @@
 "use client";
 
 /**
- * Ko | Do · Vault — v4.3 (D-115, 2026-06-29) — /invite
+ * Ko | Do · Vault — v4.4 (D-120, 2026-06-29) — /invite
  *
  * Public landingsside for ansatt-invitasjoner. Leser `?token=<uuid>`,
  * validerer mot /api/invite/validate, viser skjema og kaller
  * /api/invite/accept.
  *
- * D-115 (2026-06-29) — endringer:
- *   1. Branding: henter `companyName` via `/api/am-admin/branding/[prefix]`
- *      og viser den i headeren. STRENGT påkrevd — hvis endepunktet ikke
- *      returnerer et navn, viser vi en feilmelding (ingen prefix-fallback).
- *   2. Default-gradient (aurora) som bakgrunn — slik at siden ikke ser
- *      ut som en kontekstløs svart side.
- *   3. ProvisioningTracker (mode="public") settes inn MELLOM submit og
- *      welcome-b2b. Tidligere redirectet vi til `/welcome-b2b/...` umiddel-
- *      bart, men Vercel/Upstash-pod kunne fortsatt være under bygging —
- *      "Fortsett →"-knappen der ledet da til 404/wrong_pod. Nå venter vi
- *      til `vault_live` (eller `provisioning_failed`) før vi går videre.
+ * D-120 (2026-06-29): hele skjemaet og feil-meldingene lokalisert. På
+ * validate-success skifter siden til invitasjons-recordens forhåndsvalgte
+ * locale (settes av am-admin når invitasjonen opprettes). Hvis recorden
+ * ikke har en preset, faller vi tilbake til auto-detektert locale (browser
+ * `navigator.language` eller "no" via i18n-context-kjeden).
  *
- * Subdomenet er låst (kan ikke endres av ansatt — det er forhåndsdefinert
- * av admin). E-post er forhåndsutfylt hvis admin satte den ved
- * invitasjons-opprettelse. Master-passord settes ved første innlogging
- * på <subdomain>.kodovault.no (zero-knowledge, D-001).
+ * D-119 (2026-06-29): aurora-gradient + harmonisert indigo CTA — matcher
+ * /welcome-b2b + am-admin-login.
+ *
+ * D-117 (2026-06-29): ProvisioningTracker mountes FØR /invite/accept
+ * awaites så stegene 1–6 vises live; ingen auto-redirect; bruker klikker
+ * "OK, gå videre" når vault er klar.
+ *
+ * D-115 (2026-06-29): branding hentes via /api/am-admin/branding/[prefix]
+ * (strengt — ingen prefix-fallback). ProvisioningTracker mellom skjema og
+ * /welcome-b2b for å unngå 404 ved klikk på "Fortsett"-knappen.
+ *
+ * Subdomenet er låst (kan ikke endres av ansatt). E-post + for-/etternavn
+ * er forhåndsutfylt hvis admin satte dem. Master-passord settes ved første
+ * innlogging på <subdomain>.kodovault.no (zero-knowledge, D-001).
  */
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -30,6 +34,8 @@ import { Loader2, AlertCircle } from "lucide-react";
 import { LocaleRadioGroup } from "@/components/platform/LocaleRadioGroup";
 import { ProvisioningTracker } from "@/components/platform/ProvisioningTracker";
 import { findGradient } from "@/lib/settings/background-gradients";
+import { useLocale } from "@/lib/i18n-context";
+import type { Locale } from "@/lib/i18n";
 
 interface InvitePayload {
   token: string;
@@ -53,30 +59,22 @@ type BrandingState =
   | { state: "ok"; companyName: string }
   | { state: "error"; error: string };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  missing_token: "Invitasjonslenken mangler en token.",
-  not_found: "Invitasjonslenken er ugyldig.",
-  expired:
-    "Invitasjonslenken er utløpt. Kontakt din administrator for en ny invitasjon.",
-  already_used: "Denne invitasjonslenken er allerede brukt.",
-  rate_limited: "For mange forsøk. Vent et minutt og prøv igjen.",
-  parent_not_found: "Bedriftens konto er ikke lenger aktiv. Kontakt administrator.",
-  subdomain_taken:
-    "Dette subdomenet er ikke lenger tilgjengelig. Kontakt din administrator for en ny invitasjon.",
-  max_licenses_reached:
-    "Alle lisenser er i bruk. Kontakt din administrator.",
-  invalid_email: "Ugyldig e-postadresse.",
-  internal_error: "Noe gikk galt. Prøv igjen senere.",
-  branding_missing:
-    "Vi fant ikke firmaprofilen for denne invitasjonen. Kontakt din administrator.",
-  provisioning_failed:
-    "Klargjøring av din vault feilet. Ko | Do-teamet er varslet — vent noen minutter og prøv igjen, eller kontakt din administrator.",
+// D-120: error-koder mappes til i18n-nøkler. Ukjente koder faller tilbake
+// til `invite_form.err_generic` med koden inlinet via {code}.
+const ERROR_CODE_KEYS: Record<string, string> = {
+  missing_token: "invite_form.err_missing_token",
+  not_found: "invite_form.err_not_found",
+  expired: "invite_form.err_expired",
+  already_used: "invite_form.err_already_used",
+  rate_limited: "invite_form.err_rate_limited",
+  parent_not_found: "invite_form.err_parent_not_found",
+  subdomain_taken: "invite_form.err_subdomain_taken",
+  max_licenses_reached: "invite_form.err_max_licenses_reached",
+  invalid_email: "invite_form.err_invalid_email",
+  internal_error: "invite_form.err_internal_error",
+  branding_missing: "invite_form.err_branding_missing",
+  provisioning_failed: "invite_form.err_provisioning_failed",
 };
-
-function errMsg(code: string | undefined): string {
-  if (!code) return ERROR_MESSAGES.internal_error;
-  return ERROR_MESSAGES[code] ?? `Feil: ${code}`;
-}
 
 // D-115: default-gradient brukes på hele siden så den aldri er en bar svart
 // flate. Samme aurora-gradient som am-admin-login (D-114).
@@ -105,12 +103,24 @@ function Fallback() {
 function InvitePageInner() {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
+  const { t, locale: pageLocale, setLocale: setPageLocale } = useLocale();
+
+  // D-120: lokal `errMsg` bruker page-locale via t(). Definert som
+  // closure her så vi får friske oversettelser hver render.
+  function errMsg(code: string | undefined): string {
+    if (!code) return t("invite_form.err_internal_error");
+    const key = ERROR_CODE_KEYS[code];
+    if (key) return t(key);
+    return t("invite_form.err_generic").replace("{code}", code);
+  }
 
   const [validate, setValidate] = useState<ValidateState>({ state: "loading" });
   const [branding, setBranding] = useState<BrandingState>({ state: "idle" });
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  // Skjema-feltet for ansattens valgte locale (lagres i invite/accept).
+  // Initielt null så bruker MÅ ta et aktivt valg via radio-gruppen.
   const [locale, setLocale] = useState<"no" | "sv" | "da" | "en" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -145,6 +155,13 @@ function InvitePageInner() {
         setFirstName(body.invite.firstName ?? "");
         setLastName(body.invite.lastName ?? "");
         setLocale(null);
+        // D-120: hvis am-admin satte en preset-locale på invitasjonen,
+        // bytt page-locale automatisk så hele skjemaet vises på dét
+        // språket fra første render. Hvis preset er null, beholder vi
+        // gjeldende locale (auto-detektert fra browser av LocaleProvider).
+        if (body.invite.locale && body.invite.locale !== pageLocale) {
+          setPageLocale(body.invite.locale as Locale);
+        }
       } catch (e) {
         if (cancelled) return;
         setValidate({
@@ -156,6 +173,10 @@ function InvitePageInner() {
     return () => {
       cancelled = true;
     };
+    // D-120: `pageLocale` + `setPageLocale` brukes til en engangs-bytte
+    // når validate-recorden lander; vi vil IKKE re-validere når disse
+    // endres senere (det skjer ved hver locale-bytte i hele appen).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   // D-115: hent branding (firmanavn) så snart vi vet parentTenant.
@@ -198,7 +219,7 @@ function InvitePageInner() {
     e.preventDefault();
     if (submitting || validate.state !== "ok") return;
     if (locale === null) {
-      setSubmitError("Velg språk for kommunikasjon før du fortsetter.");
+      setSubmitError(t("invite_form.err_select_locale"));
       return;
     }
     setSubmitError(null);
@@ -286,13 +307,13 @@ function InvitePageInner() {
               {companyName ?? (
                 <span className="inline-flex items-center gap-2 text-white/55">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Henter firmaprofil…
+                  {t("invite_form.loading_branding")}
                 </span>
               )}
             </h1>
             {companyName && (
               <p className="text-sm text-white/55 mt-1">
-                Aktiver din konto
+                {t("invite_form.subtitle")}
               </p>
             )}
           </header>
@@ -304,7 +325,7 @@ function InvitePageInner() {
               data-testid="invite-loading"
             >
               <Loader2 className="h-4 w-4 animate-spin" />
-              Verifiserer invitasjonslenke…
+              {t("invite_form.loading_token")}
             </div>
           )}
 
@@ -342,7 +363,7 @@ function InvitePageInner() {
               >
                 <div>
                   <label className="block text-[10px] uppercase tracking-wide text-white/55 font-mono mb-1.5">
-                    Subdomene (låst)
+                    {t("invite_form.label_subdomain")}
                   </label>
                   <div
                     data-testid="invite-subdomain-locked"
@@ -357,7 +378,7 @@ function InvitePageInner() {
                     htmlFor="invite-email"
                     className="block text-[10px] uppercase tracking-wide text-white/55 font-mono mb-1.5"
                   >
-                    E-post
+                    {t("invite_form.label_email")}
                   </label>
                   <input
                     id="invite-email"
@@ -367,7 +388,7 @@ function InvitePageInner() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg bg-black/40 border border-white/15 text-sm text-white placeholder-white/30 focus:border-blue-500 focus:outline-none transition"
-                    placeholder="navn@firma.no"
+                    placeholder={t("invite_form.placeholder_email")}
                   />
                 </div>
 
@@ -377,7 +398,7 @@ function InvitePageInner() {
                       htmlFor="invite-firstname"
                       className="block text-[10px] uppercase tracking-wide text-white/55 font-mono mb-1.5"
                     >
-                      Fornavn
+                      {t("invite_form.label_firstname")}
                     </label>
                     <input
                       id="invite-firstname"
@@ -393,7 +414,7 @@ function InvitePageInner() {
                       htmlFor="invite-lastname"
                       className="block text-[10px] uppercase tracking-wide text-white/55 font-mono mb-1.5"
                     >
-                      Etternavn
+                      {t("invite_form.label_lastname")}
                     </label>
                     <input
                       id="invite-lastname"
@@ -407,18 +428,25 @@ function InvitePageInner() {
                 </div>
 
                 <LocaleRadioGroup
-                  label="Velg språk på mail og kommunikasjon fra oss"
+                  label={t("invite_form.label_locale")}
                   value={locale}
                   onChange={setLocale}
                   disabled={submitting}
                 />
 
                 <p className="text-xs text-white/45 leading-relaxed">
-                  Master-passord settes ved første innlogging på{" "}
-                  <span className="font-mono text-white/65">
-                    {validate.invite.subdomain}.kodovault.no
-                  </span>
-                  .
+                  {t("invite_form.helper_master_password")
+                    .split("{subdomain}")
+                    .map((part, idx, arr) => (
+                      <span key={idx}>
+                        {part}
+                        {idx < arr.length - 1 && (
+                          <span className="font-mono text-white/65">
+                            {validate.invite.subdomain}.kodovault.no
+                          </span>
+                        )}
+                      </span>
+                    ))}
                 </p>
 
                 {submitError && (
@@ -438,7 +466,7 @@ function InvitePageInner() {
                   className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:bg-indigo-500/40 disabled:cursor-not-allowed text-white text-sm font-medium transition-colors"
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {submitting ? "Oppretter konto…" : "Aktiver konto"}
+                  {submitting ? t("invite_form.submitting") : t("invite_form.submit")}
                 </button>
               </form>
             )}
@@ -451,15 +479,17 @@ function InvitePageInner() {
           {validate.state === "ok" && phase === "provisioning" && (
             <div data-testid="invite-provisioning">
               <p className="text-sm text-white/75 mb-4 leading-relaxed">
-                Vi setter opp din vault. Dette tar typisk 1–3 minutter — du
-                kan trykke "OK, gå videre" så snart alt er klart.
+                {t("invite_form.provisioning_hint").replace(
+                  "{action}",
+                  `"${t("invite_form.live_action")}"`,
+                )}
               </p>
               <ProvisioningTracker
                 subdomain={validate.invite.subdomain}
                 mode="public"
                 onDone={handleProvisioningDone}
                 liveAction={{
-                  label: "OK, gå videre",
+                  label: t("invite_form.live_action"),
                   testId: "invite-continue-btn",
                   onClick: goToWelcome,
                 }}

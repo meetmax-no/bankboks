@@ -1,0 +1,80 @@
+{
+  "summary": "D-120 static review complete. Verified full localization of /app/frontend/app/invite/page.tsx: all hardcoded Norwegian UI strings replaced with t('invite_form.*') calls, ERROR_MESSAGES record replaced by ERROR_CODE_KEYS module-level mapping + local errMsg() closure inside InvitePageInner, useLocale() hook destructured with const { t, locale: pageLocale, setLocale: setPageLocale } = useLocale(), validate-success effect calls setPageLocale(body.invite.locale as Locale) under the if-guard `if (body.invite.locale && body.invite.locale !== pageLocale)` after setLocale(null), eslint-disable-next-line react-hooks/exhaustive-deps comment present before `}, [token]);`. Master-password helper uses .split('{subdomain}').map(...) for styled span interpolation. Provisioning hint uses .replace('{action}', `\"${t('invite_form.live_action')}\"`). All 28 invite_form.* keys present in all 4 locale files (no/sv/da/en). i18n-sync-lint reports exactly 1483 keys × 4 languages (was 1455 in D-119, +28). yarn tsc --noEmit, yarn lint:all (5 passes green), and yarn build all PASS.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "verification_details": {
+    "hardcoded_norwegian_check": {
+      "method": "Scanned /app/frontend/app/invite/page.tsx for all 26 banned Norwegian phrases listed in the review_request",
+      "result": "All 26 phrases absent from rendered/JSX strings. Only 4 occurrences total — 3 inside `//` comments (lines 21, 27, 269) and 1 inside a JSX `{/* ... */}` multi-line comment (line 476, continuation line where the script's startswith check failed but visual inspection confirms it's a JSX comment block from line 474-478). Zero hardcoded UI strings remain.",
+      "passes": true
+    },
+    "uselocale_hook": {
+      "import_line_37": "import { useLocale } from '@/lib/i18n-context';",
+      "import_line_38": "import type { Locale } from '@/lib/i18n';",
+      "destructure_line_106": "const { t, locale: pageLocale, setLocale: setPageLocale } = useLocale();",
+      "passes": true
+    },
+    "error_code_keys_mapping": {
+      "location": "Lines 64-77 (module-level)",
+      "shape": "Record<string, string> mapping 12 codes to invite_form.* keys",
+      "errMsg_closure_lines": "110-115 (inside InvitePageInner)",
+      "fallback_unknown_code": "t('invite_form.err_generic').replace('{code}', code) — verified",
+      "fallback_missing_code": "t('invite_form.err_internal_error') — verified",
+      "passes": true
+    },
+    "validate_success_locale_switch": {
+      "location": "Lines 157-164",
+      "setLocale_null_before": "Line 157: setLocale(null);",
+      "if_guard": "Line 162: if (body.invite.locale && body.invite.locale !== pageLocale)",
+      "setPageLocale_call": "Line 163: setPageLocale(body.invite.locale as Locale);",
+      "eslint_disable_comment": "Line 179: // eslint-disable-next-line react-hooks/exhaustive-deps (immediately before `}, [token]);` on line 180)",
+      "passes": true
+    },
+    "interpolations": {
+      "helper_master_password": "Lines 437-450: uses .split('{subdomain}').map((part, idx, arr) => ...) wrapping the subdomain in a styled <span className='font-mono text-white/65'>. Each of no/sv/da/en helper_master_password contains exactly one {subdomain} placeholder.",
+      "provisioning_hint": "Lines 482-485: uses .replace('{action}', `\"${t('invite_form.live_action')}\"`). Each locale provisioning_hint contains exactly one {action} placeholder.",
+      "err_generic": "Each locale err_generic contains exactly one {code} placeholder (NO: 'Feil: {code}', SV: 'Fel: {code}', DA: 'Fejl: {code}', EN: 'Error: {code}').",
+      "passes": true
+    },
+    "locale_files_28_keys": {
+      "method": "Python check: flattened keys with prefix 'invite_form.' against the required 28-key list",
+      "no": "28/28 present",
+      "sv": "28/28 present",
+      "da": "28/28 present",
+      "en": "28/28 present — verified no Norwegian text leaked (subtitle: 'Activate your account', submit: 'Activate account', live_action: 'OK, continue', etc.)",
+      "placeholder_email_locale_specific": "NO: navn@firma.no | SV: namn@foretag.se | DA: navn@firma.dk | EN: name@company.com — matches review_request note about intentional locale-specific examples",
+      "passes": true
+    },
+    "static_checks": {
+      "yarn_tsc_noEmit": "PASS (Done in 2.36s, exit 0)",
+      "yarn_lint_all": "PASS — 5 lint passes green: D-077 tenant-env-manifest, coverage-matrix (51 routes, 44 exempt), i18n-sync (1483 keys × 4 languages, 1288 t() calls verified, 56 dynamic exempt), D-078a PII, D-105 dedup",
+      "yarn_build": "PASS (Done in 25.07s, exit 0). /invite route = 4.6 kB / 209 kB First Load JS",
+      "i18n_keys_delta": "1455 → 1483 (+28) as specified"
+    },
+    "no_regressions": {
+      "welcome_b2b": "Does not import invite_form.* — unaffected",
+      "platform_register": "Does not import invite_form.* — unaffected",
+      "billing_success": "Does not import invite_form.* — unaffected",
+      "admin_TenantViewer": "Does not import invite_form.* — unaffected"
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "All D-120 requirements met. Code is clean, well-commented, and consistent.",
+    "Minor stylistic note (not blocking): The errMsg() closure is recreated on every render inside InvitePageInner. Since ERROR_CODE_KEYS is module-level and t() comes from useLocale, this is correct and cheap, but if React DevTools profiling ever flags it, wrapping in useCallback([t]) would memoize across re-renders without behavior change.",
+    "Minor observation (not blocking): line 476 contains the literal 'OK, gå videre' inside a multi-line JSX `{/* ... */}` comment block (continuation line). This is dead text in a comment and not user-facing, but if you want to be 100% Norwegian-free in source, you could rewrite the comment to reference the i18n key (`invite_form.live_action`) instead of the original Norwegian copy.",
+    "Suggestion (future): Consider lifting helper_master_password to support multiple placeholders via a shared `tInterpolate(key, vars)` util — currently each interpolation pattern is hand-coded. Not required for D-120."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "100% (static review)"},
+  "test_credentials": "N/A — no auth flow tested",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-120 verified via static analysis only (per user prohibition on yarn dev / E2E browser tests in this kubernetes pod). yarn tsc / lint:all / build all green. i18n-sync-lint now reports 1483 keys × 4 languages (was 1455, +28 invite_form.* keys). All hardcoded Norwegian UI strings in /app/frontend/app/invite/page.tsx replaced with t() calls. useLocale() hook + setPageLocale-on-validate-success + ERROR_CODE_KEYS + errMsg() closure + {subdomain}/{action}/{code} interpolations all verified. EN translations contain zero Norwegian residue. Previous reports: iteration_19.json (D-117), iteration_20.json (D-118), iteration_21.json (D-119)."
+}
