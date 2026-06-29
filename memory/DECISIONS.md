@@ -3910,3 +3910,48 @@ For å unngå at noen ved et uhell skriver til feltet ("denne kan ikke skrives")
 
 ---
 
+
+## D-115 — Invite-flow: branding + provisioning-vent (NY · 2026-06-29 · Mike-direktiv)
+
+**DATO:** 2026-06-29 (kveld)
+
+**KONTEKST:** Mike rapporterte to symptomer fra invite-flowen som hang sammen:
+1. Public `/invite?token=…` viste bare "Ko | Do · Vault" i headeren — ingen indikasjon på hvilket firma invitasjonen tilhørte. Bar svart bakgrunn. Mer kontekstløst og "fishing-aktig" enn nødvendig.
+2. Etter at ansatte fylte ut skjemaet og POST `/api/invite/accept` returnerte OK, redirectet siden til `/welcome-b2b/[subdomain]`. Derfra klikket de "Fortsett →" — og landet på en pod som returnerte `wrong_pod`/404 fordi Vercel-deployen ikke var ferdig provisjonert ennå.
+
+**VURDERTE:**
+
+(A) **La server vente på vault_live før den returnerer fra `/invite/accept`.** Forenkler klienten, men gir 1–3 minutters HTTP-request. Bryter med Vercel timeouts (60s default for serverless funksjoner) og lar browseren henge. Forkastet.
+
+(B) **Background-job + polling i welcome-b2b.** Flytter `<ProvisioningTracker>` inn i welcome-skjermen, hindrer "Fortsett"-knappen til vault er live. Krever endring av to sider og krymper welcome-skjermens primære budskap (zero-knowledge-forklaring). Forkastet.
+
+(C) **Mellom-skjerm med ProvisioningTracker mellom skjema og welcome-b2b.** Holder welcome-b2b ren og semantisk fokusert på trust-building, lar tracker-en gjøre sin jobb fullt ut før redirect. Gjenbruker eksisterende `mode="public"`. **Valgt.**
+
+For branding:
+- (1) **Fallback til prefix-kode** hvis branding-endepunktet feiler. Mike avviste: "navnet skal være firmaet, ikke en teknisk kode."
+- (2) **Streng — vis feil hvis branding mangler.** **Valgt.** Konsistent med D-114 (am-admin-login bruker samme endepunkt, men der lov å falle tilbake siden prefix ER teknisk relevant for innlogging; her er det ikke).
+
+**VALGTE:** (C) + (2).
+
+**Implementasjon:**
+- `app/invite/page.tsx` rewrite:
+  - Ny `BrandingState` (`idle` / `loading` / `ok` / `error`), fetcher fra `/api/am-admin/branding/[parentTenant]` så snart `validate.state === "ok"`.
+  - Streng visning: `companyName ?? <henter…>` i header. Hvis branding-state er `error`, vises feilmelding og skjemaet renderes ikke (samme klasse som token-error).
+  - `phase`-state-maskin: `form` (default) → `provisioning` (etter `/invite/accept` OK) → `failed` (hvis tracker fyrer `onDone(false)`). På `onDone(true)` settes `window.location.href` til `/welcome-b2b/...` direkte.
+  - Default `aurora`-gradient via `findGradient("aurora")?.css` brukt både på main-container og Suspense-fallback.
+- Branding-endepunkt (`/api/am-admin/branding/[prefix]/route.ts`) gjenbrukt uten endring.
+- `<ProvisioningTracker mode="public" subdomain={…} onDone={…}>` gjenbrukt uten endring.
+
+**HVORFOR:**
+- Tracker-en finnes allerede, mode="public" er allerede testet i `/platform/register` skjerm 5. Null ny kompleksitet, maks gjenbruk (D-105-konformt).
+- Streng branding er konsistent med produktintensjonen — invitasjons-flowen er det første møtet en ansatt har med Ko|Do Vault på vegne av sin arbeidsgiver. Det skal aldri se ut som en generisk teknisk side.
+- Mellom-skjerm gir naturlig "vi setter opp ditt miljø"-narrativ som dempler ventetid-frustrasjon.
+
+**KONSEKVENS:**
+- `/invite` har nå 3 mulige rendering-stier: form (default), provisioning (mellom-skjerm), failed. Welcome-b2b er garantert å motta en bruker med live vault.
+- Hvis branding-endepunktet blir tregt, "Henter firmaprofil…"-spinner vises i headeren. Skjemaet kommer først når begge er klare.
+- Hvis admin sletter B2B-parent mellom invite-utsending og accept, vil branding-fetchen returnere 404 → bruker ser "branding_missing"-feil. Workaround: admin sender ny invite eller gjenoppretter parent. Akseptabelt (sjeldent edge-case).
+- Hvis provisjonering feiler permanent, tracker-en fyrer `onDone(false)` og UI viser tydelig feilmelding. Brukeren kan ikke selv komme videre — Mike må retry-e via D-055-knappene i admin.
+
+---
+

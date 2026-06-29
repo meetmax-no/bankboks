@@ -3,6 +3,29 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-06-29 — D-115 Invite-flow fix (P0)
+
+### Bug-fiks
+
+**Invite-side (`/invite?token=…`)** — tre koblede problemer ble fikset i samme leveranse:
+
+1. **Manglende branding på public-siden.** Tidligere viste headeren bare "Ko | Do · Vault" — ingen indikasjon på hvilken firma-konto invitasjonen tilhørte. Nå hentes `companyName` via det publike `/api/am-admin/branding/[prefix]`-endepunktet (D-114) på samme måte som am-admin-login. **Strengt:** hvis endepunktet returnerer 404 eller mangler `companyName`, vises en feilmelding og skjemaet skjules — vi gjør IKKE prefix-fallback (prefix er teknisk og skal ikke eksponeres til sluttbrukere i et velkomst-flow).
+
+2. **Bar svart bakgrunn.** La til samme aurora-gradient som am-admin-login (`findGradient("aurora")?.css`) som default-bakgrunn på hele siden + Suspense-fallback. Konsistent visuell identitet på tvers av public touch-points.
+
+3. **Premature redirect → 404 "wrong_pod" (P0).** `/api/invite/accept` trigger Upstash+Vercel-provisjonering for ansatt-subdomenet, men ruten returnerte før Vercel-deploy var live. Den gamle UI-flyten redirectet umiddelbart til `/welcome-b2b/[subdomain]` — derfra kunne brukeren klikke "Fortsett →" og lande på en pod som ikke svarte ennå. **Fix:** etter `{ok:true}` fra `/invite/accept` bytter siden nå til en "provisioning"-fase som monterer `<ProvisioningTracker mode="public" subdomain={…}>` med eksisterende polling mot `/api/status`. Først når `vault_live`-event fanges opp (eller `provisioning_failed`) skjer redirect til `/welcome-b2b/...`. Failure-state viser dedikert feilmelding (`invite-provisioning-failed`) i stedet for å la brukeren henge på en død flow.
+
+**Filer endret:**
+- `app/invite/page.tsx` — rewrite med ny `BrandingState`, `phase`-state-maskin (`form` → `provisioning` → (`failed`)) og full integrasjon av `ProvisioningTracker`.
+
+**Ikke endret (men berørt):**
+- `app/api/am-admin/branding/[prefix]/route.ts` — D-114-endepunktet brukes som-er.
+- `components/platform/ProvisioningTracker.tsx` — `mode="public"` allerede støttet, gjenbrukt uten endring.
+- `app/welcome-b2b/[subdomain]/page.tsx` — uendret; mottar nå brukeren først når vault'en garantert er live.
+
+**Verifisering:** `yarn tsc --noEmit` ✅, `yarn lint:all` ✅ (i18n-sync, D-078, D-105, coverage-matrix — alle grønne), `yarn build` ✅. E2E må valideres av Mike på Vercel preview.
+
+---
 ## 2026-06-29 — D-111 + D-104b + D-112 + bug-rydd-runde
 
 ### Bug-fikser

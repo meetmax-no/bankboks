@@ -33,6 +33,13 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-06-29 — D-115 Invite-flow fix (P0)
+- **Branding på public invite-side**: henter `companyName` via `/api/am-admin/branding/[prefix]` (D-114-endepunktet). STRENGT — ingen prefix-fallback; mangler firmanavn vises `branding_missing`-feil og skjemaet skjules.
+- **Default aurora-gradient** på hele invite-siden + Suspense-fallback (samme som am-admin-login fra D-114).
+- **ProvisioningTracker mellom skjema og redirect**: etter `POST /api/invite/accept` bytter siden til `phase: "provisioning"` og monterer `<ProvisioningTracker mode="public">` som poller `/api/status`. Først ved `vault_live`-event redirectes brukeren til `/welcome-b2b/[subdomain]`. Fikser P0 hvor "Fortsett →"-knappen ledet til 404/`wrong_pod` mens Vercel-deploy fortsatt bygget.
+- **Failure-state**: `onDone(false)` viser `invite-provisioning-failed`-melding med klar instruksjon (kontakt admin, Ko|Do-team varslet).
+- Statisk QA: TSC ✓ · lint:all ✓ (D-078, D-105, i18n-sync, coverage-matrix grønne) · build ✓.
+
 ### ✅ Iter 20.9 KOMPLETT — Konsoll-shell + rollestyring (2026-06-27)
 - **Refaktor av flat am-admin-side til "Konsoll"-shell** med Aurora-gradient bakgrunn + glass-pill header.
 - **4-fane pill-tab-navigasjon** (Lucide-ikoner): Ansatte, Invitasjoner, MPW, Innstillinger.
