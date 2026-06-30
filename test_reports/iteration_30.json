@@ -1,0 +1,55 @@
+{
+  "summary": "D-133 (idempotency-key) + D-134 (MVA via tax_behavior + automatic_tax) statisk verifisert. Alle fire fikser (D-131/D-132/D-133/D-134) sameksisterer korrekt i send-invoice/route.ts. tsc, lint:all (7/7), build, D-127 (27/27) og D-130 (16/16) alle grønt. Ingen E2E (Mike forbyr i podd mot Stripe LIVE).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.23s)",
+    "yarn_lint_all": "PASS (alle 7 sub-lints grønt: d069, isolation, tenant-env, coverage-matrix, i18n-sync, d078, d105)",
+    "yarn_build": "PASS (exit 0, 23.77s — Next.js produksjons-build OK)",
+    "D-127_pricing_structured": "PASS 27/27",
+    "D-130_plan_consistency_guard": "PASS 16/16"
+  },
+  "code_verification_D134_MVA": {
+    "tax_behavior_exclusive_paa_invoiceItem": "✓ L162: `tax_behavior: \"exclusive\"` på stripe.invoiceItems.create — 522 kr er pre-MVA, Stripe legger til 25% norsk MVA",
+    "automatic_tax_enabled_paa_invoice": "✓ L186: `automatic_tax: { enabled: true }` på stripe.invoices.create — Stripe beregner MVA basert på customer.address",
+    "samme_route_fil": "✓ Begge endringer i /app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts som spesifisert",
+    "konsistens_med_checkout_ts": "✓ Bruker samme `automatic_tax: { enabled: true }`-mønster som lib/stripe/checkout.ts (L194/L235/L293)"
+  },
+  "code_verification_D133_idempotency": {
+    "idempoDate_UTC_dato": "✓ L140: `new Date().toISOString().slice(0,10)` → YYYY-MM-DD UTC",
+    "idempoBase_format": "✓ L141: `b2b-invoice:${parent.subdomain}:${billing}:${parent.maxLicenses}:${idempoDate}` — stabil per (tenant, billing, seats, dato)",
+    "idempotency_paa_invoiceItem": "✓ L165: `{ idempotencyKey: \"${idempoBase}:item\" }` — andre arg til invoiceItems.create",
+    "idempotency_paa_invoice": "✓ L195: `{ idempotencyKey: \"${idempoBase}:invoice\" }` — andre arg til invoices.create",
+    "separate_suffix": "✓ `:item` og `:invoice` så Stripe behandler dem som distinkte idempotent-operasjoner — uten begge ville en retry attache duplikat-item til samme invoice"
+  },
+  "code_verification_sameksistens_D131_D132_D133_D134": {
+    "D131_amount_currency": "✓ L160-161: `amount: totalOre, currency: \"nok\"` — fortsatt på plass (recurring/one_time-fiks)",
+    "D132_auto_advance_false": "✓ L185: `auto_advance: false` — fortsatt på plass",
+    "D132_finalize_status_guard": "✓ L202 finalizeInvoice + L207-211 status-guard + L212 sendInvoice — kjeden intakt",
+    "D133_idempotency": "✓ L141/L165/L195 — som dokumentert ovenfor",
+    "D134_MVA": "✓ L162/L186 — som dokumentert ovenfor",
+    "konklusjon": "Alle fire fikser ligger på riktig sted i samme route-fil, ingen overlapp eller fjernet kode."
+  },
+  "test_report_links": [
+    "/app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/plan-consistency-guard.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Positivt: Idempotency-suffix-strategien (`:item` vs `:invoice`) er korrekt — Stripe behandler dem som separate operasjoner. Dette er kritisk fordi uten egen key på invoiceItems ville en retry legge til et duplikat-item på samme idempotent invoice.",
+    "Positivt: idempoDate bruker toISOString().slice(0,10) som er UTC-stabil — unngår tidssone-drift hvor dato kunne 'rulle' midnatt CET/UTC og bryte idempotensen.",
+    "Positivt: `tax_behavior: \"exclusive\"` matcher pricing-modellen (522 kr per seat er pre-MVA i client-config) — Stripe vil vise MVA-linje separat i invoice.",
+    "Positivt: `automatic_tax: { enabled: true }` er konsistent med øvrige Stripe-flyter (checkout.ts L194/L235/L293) — Mike har Stripe Tax aktivert allerede.",
+    "Minor (ikke-blokkerende): Hvis customer.address mangler i Stripe vil automatic_tax kaste en deterministisk feil — det er forventet adferd (kommer som 'stripe_call_failed' med Stripe-msg via try/catch L234-251) og Mike får actionable feilmelding i provisioning-log.",
+    "Minor (ikke-blokkerende): Idempotency-vinduet er ett kalenderdag UTC. Hvis Mike av en eller annen grunn må sende to fakturaer samme dag for samme tenant/billing/seats (f.eks. korreksjon etter cancel) må han først cancele/voide den første i Stripe Dashboard, ellers returnerer Stripe samme invoice. Dette er sannsynligvis ønsket adferd men verdt å nevne."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% (static checks)" },
+  "test_credentials": "n/a — ingen runtime-test",
+  "seed_data_creation": "n/a",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-133 + D-134 er ren statisk verifisering. Mike forbyr E2E mot Stripe LIVE-konto. Hvis E2E senere åpnes: (1) Verifiser at faktura nå har MVA-linje (25% norsk) når sendt til kunde med norsk adresse, (2) Verifiser at to klikk på 'Bekreft og send' samme dag returnerer samme invoice (Stripe Dashboard logger 'idempotent replay'), (3) Verifiser at faktura ikke lenger sitter som 'draft' i Stripe Dashboard men går til 'open' og kan sendes via Stripe-email. Forutsetning for automatic_tax: customer.address må være satt på Stripe-customer'en — hvis ikke kaster Stripe og vi får 502 med deterministisk detail i provisioning-log.",
+  "rca_of_the_issue": "D-134 MVA: Send-invoice-flyten manglet tax-konfigurasjon. invoiceItems.create hadde ikke tax_behavior, og invoices.create hadde ikke automatic_tax. Resultat: Stripe kunne ikke beregne MVA og lot fakturaen ligge som draft fordi tax-status var udefinert. Fiks: tax_behavior:'exclusive' (prisen er pre-MVA) + automatic_tax:{enabled:true} (Stripe Tax beregner MVA basert på customer.address). D-133 Idempotency: Hvis Mike dobbeltklikker 'Bekreft og send' uten idempotency-key opprettes to separate invoiceItems og to separate invoices — kunde får to fakturaer for samme periode. Fiks: stabil idempotency-key per (tenant, billing, seats, dato UTC) påført både invoiceItems.create og invoices.create med separate suffiks (`:item`/`:invoice`) for å garantere at hele kjeden er idempotent."
+}

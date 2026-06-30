@@ -129,6 +129,17 @@ export async function POST(
   const unitAmountOre = Math.round(unitAmountNok * 100);
   const totalOre = unitAmountOre * parent.maxLicenses;
 
+  // D-133 (2026-02): idempotency-key for hele send-invoice-operasjonen.
+  // Stabil per (tenant, billing, seats, dato) — hvis Mike klikker "Bekreft
+  // og send" to ganger samme dag med samme parametere returnerer Stripe
+  // samme invoice i stedet for å opprette en duplikat. Dato-suffiks lar
+  // Mike kjøre samme operasjon dagen etter (forventet bruk: én faktura
+  // per periode). Brukes på BÅDE invoiceItems.create og invoices.create
+  // så hele kjeden er idempotent — ellers ville en retry attache et
+  // duplikat-item til samme invoice.
+  const idempoDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+  const idempoBase = `b2b-invoice:${parent.subdomain}:${billing}:${parent.maxLicenses}:${idempoDate}`;
+
   // ── Stripe: opprett InvoiceItem + Invoice + send ───────────────
   const stripe = getStripeClient();
   try {
@@ -138,12 +149,21 @@ export async function POST(
     //    stedet for `pricing.price` (som krever one_time-price-ID som vi
     //    ikke har — env-ID-ene er recurring for subscription-flowen).
     //    Description bærer per-seat-breakdown så Stripe-UI viser detaljer.
-    await stripe.invoiceItems.create({
-      customer: parent.stripeCustomerId,
-      amount: totalOre,
-      currency: "nok",
-      description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
-    });
+    //
+    //    D-134 (2026-02 · MVA): `tax_behavior: "exclusive"` — 522 kr er
+    //    pris FØR MVA, Stripe legger til 25% norsk MVA via automatic_tax.
+    //    Uten dette flagges fakturaen i Stripe Dashboard og kan ikke
+    //    sendes via Stripe-emailen før tax-behaviour er konfigurert.
+    await stripe.invoiceItems.create(
+      {
+        customer: parent.stripeCustomerId,
+        amount: totalOre,
+        currency: "nok",
+        tax_behavior: "exclusive",
+        description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
+      },
+      { idempotencyKey: `${idempoBase}:item` },
+    );
 
     // 2. Opprett invoice som send_invoice-collection (Stripe sender email
     //    til kunden, 14 dagers due-frist).
@@ -152,19 +172,28 @@ export async function POST(
     //    en race der Stripe auto-finaliserte og auto-sendte samtidig som vi
     //    manuelt kalte `sendInvoice`, og Stripe svarte "This invoice cannot
     //    be sent right now" på det manuelle send-kallet.
-    const invoice = await stripe.invoices.create({
-      customer: parent.stripeCustomerId,
-      collection_method: "send_invoice",
-      days_until_due: 14,
-      auto_advance: false,
-      metadata: {
-        kodo_subdomain: parent.subdomain,
-        kodo_tenant_prefix: parent.tenantPrefix ?? "",
-        kodo_billing: billing,
-        kodo_max_licenses: String(parent.maxLicenses),
-        kodo_source: "admin_send_invoice_btn",
+    //
+    //    D-134 (2026-02 · MVA): `automatic_tax: { enabled: true }` — Stripe
+    //    beregner og legger til norsk MVA basert på customer'ens adresse
+    //    (Stripe Tax må være aktivert på kontoen + customer.address satt).
+    //    Sameksisterer med tax_behavior på invoice-item-et.
+    const invoice = await stripe.invoices.create(
+      {
+        customer: parent.stripeCustomerId,
+        collection_method: "send_invoice",
+        days_until_due: 14,
+        auto_advance: false,
+        automatic_tax: { enabled: true },
+        metadata: {
+          kodo_subdomain: parent.subdomain,
+          kodo_tenant_prefix: parent.tenantPrefix ?? "",
+          kodo_billing: billing,
+          kodo_max_licenses: String(parent.maxLicenses),
+          kodo_source: "admin_send_invoice_btn",
+        },
       },
-    });
+      { idempotencyKey: `${idempoBase}:invoice` },
+    );
 
     // 3. Finaliser eksplisitt (auto_advance=false → vi må selv).
     if (!invoice.id) {
