@@ -1523,7 +1523,15 @@ function TenantDetailCard({
             testId="tenant-detail-plan-select"
             value={record.plan}
             onChange={(v) => void onPatch({ plan: v as TenantRecord["plan"] })}
-            options={PLAN_OPTIONS}
+            options={
+              // D-129 (2026-02 · Mike): B2B parent-tenants skal kun se B2B-
+              // plan-options i detail-card-ens dropdown. Tidligere viste den
+              // alltid B2C-listen (trial/free/monthly/yearly) — så Mike kunne
+              // ikke endre `mm-admin` til `b2b_yearly` via UI uten DB-edit.
+              record.customerType === "b2b" && record.parentTenant === null
+                ? getB2BPlanOptions(t)
+                : PLAN_OPTIONS
+            }
           />
           {record.plan === "free" && (
             <span
