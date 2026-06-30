@@ -1,0 +1,49 @@
+{
+  "summary": "D-140 (idempotency-replay status-guard for send-invoice) statisk verifisering fullført. Mike forbød E2E — kun statisk verifisering. TSC noEmit exit 0 (2.28s), yarn lint:all exit 0 (alle 7 sub-lints grønt: ESLint, tenant-env-manifest D-077, coverage-matrix 52 ruter/45 exempt, i18n-sync 4 språk × 1473 nøkler, d078-pii, d105-duplication), yarn build exit 0 (23.53s), og alle 4 regresjonstester består (pricing-structured 27/27, plan-consistency-guard 16/16, trial-days 22/22, find-subdomain-event 15/15). D-140 branch-logikk manuelt verifisert mot route.ts L195-249. Alle tidligere D-131..D-139 sameksisterer i samme fil.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.28s)",
+    "lint_all": "PASS (alle 7 sub-lints grønt: ESLint, tenant-env-manifest D-077 (123 filer, 17 process.env-bruk), coverage-matrix (52 ruter, 45 exempt), i18n-sync (4 språk × 1473 nøkler, 1278 t/translate-litteraler), d078-pii (40 filer, 13 super-admin-scope), d105-duplication (325 filer, 3 mønstre))",
+    "yarn_build": "PASS (exit 0, 23.53s, alle ruter kompilert, ingen nye route-endringer for D-140 — kun intern branch-logikk i eksisterende send-invoice/route.ts)",
+    "regression_tests": {
+      "pricing-structured": "27/27 passed",
+      "plan-consistency-guard": "16/16 passed",
+      "trial-days": "22/22 passed",
+      "find-subdomain-event": "15/15 passed"
+    }
+  },
+  "feature_verification_d140": {
+    "finalize_branch_guard": "VERIFISERT — route.ts L215-218: `let finalized = invoice;` initialiseres til invoice. `if (invoice.status === 'draft') { finalized = await stripe.invoices.finalizeInvoice(invoice.id); }`. finalize-kallet skjer KUN i draft-branchen. Hvis status er noe annet (open/paid/void/uncollectible) hoppes finalize over og finalized peker fortsatt på den opprinnelige invoicen returnert fra invoices.create — som er korrekt siden idempotency-cachen returnerer den faktiske gjeldende state-en fra Stripe.",
+    "send_branch_logic": "VERIFISERT — L241-249: `if (finalized.status === 'draft') throw new Error('...etter finalize-forsøk (uventet)')` håndterer den teoretisk umulige situasjonen hvor finalize ikke endret status. `if (finalized.status === 'open') await sendInvoice(invoice.id)` re-sender e-post (Stripe-dok: sendInvoice på 'open' re-sender). 'paid'/'void'/'uncollectible' fallesummen — ingen handling, kontrollen faller gjennom til steg 6 (logg-event) og returnerer success med invoice-data fra første-respons.",
+    "mva_diagnostic_preserved": "VERIFISERT — L226-232: MVA-diagnostikk uendret, plassert ETTER finalize-branch (L215-218) men FØR send-branch (L241-248). Bruker `finalized.automatic_tax`. Hvis tax.enabled && tax.status && tax.status !== 'complete' → throw Error med `tax.disabled_reason ?? tax.status` + actionable melding om customer.address i Stripe Dashboard.",
+    "d131_to_d139_coexistence": "VERIFISERT — D-131 amount+currency (L201-202: `amount: totalOre, currency: 'nok'`). D-132 auto_advance:false (L169). D-133 idempotency-key v2: `idempoBase` (L147 med ':v2'-suffix), brukt på BÅDE `invoices.create` (L180 ':invoice') og `invoiceItems.create` (L206 ':item'). D-134 automatic_tax:{enabled:true} (L170) + tax_behavior:'inclusive' (L203). D-135 pending_invoice_items_behavior:'exclude' (L171) + invoice-binding `invoice: invoice.id` på invoiceItems.create (L200). D-136 er innenfor D-134-blokken (automatic_tax enabled).",
+    "stripe_sdk_type_compatibility": "VERIFISERT — TSC noEmit exit 0 bekrefter at `invoice.status === 'draft'/'open'` literal-sammenligningene matcher Stripe.Invoice.Status union ('deleted'|'draft'|'open'|'paid'|'uncollectible'|'void'|null). `let finalized = invoice; finalized = await stripe.invoices.finalizeInvoice(...)` type-checker fordi finalizeInvoice returnerer Stripe.Response<Stripe.Invoice> som er kompatibel med initial invoice-typen."
+  },
+  "edge_case_analysis": {
+    "scenario_1_first_click_happy_path": "Mike klikker første gang. invoices.create returnerer status='draft'. Finalize utføres (L217). MVA-sjekk passerer. sendInvoice kalles fordi finalized.status='open' etter finalize. ✓",
+    "scenario_2_second_click_same_day": "Mike klikker andre gang innen samme UTC-dag med samme parametere. Stripe idempotency-cache returnerer SAMME invoice som første gang, men nå med status='open' (fordi finalize allerede skjedde). L216 if-branchen hoppes over (status!='draft'), finalized=invoice (status='open'). MVA-sjekk OK (allerede 'complete'). L246 sendInvoice kalles → Stripe re-sender e-post-en. Returnerer success. Mike får ingen feilmelding. ✓",
+    "scenario_3_already_paid": "Tredje klikk etter kunden har betalt. Idempotency returnerer invoice med status='paid'. finalize hoppes over. MVA-sjekk OK. L246 hoppes over (status!='open'). Ingen handling, fortsetter til logg-event + return success. Mike får OK-respons med hosted-url. ✓",
+    "scenario_4_voided": "Etter manuell void i Stripe Dashboard. Idempotency returnerer status='void'. Samme som scenario 3 — ingen handling, success. ✓",
+    "scenario_5_deleted": "Stripe.Invoice.Status inkluderer 'deleted' og null. Disse går også gjennom no-action-pathway. Burde teoretisk ikke skje siden invoices.create akkurat returnerte invoicen, men type-systemet tvinger oss å håndtere det. ingen feil. ✓"
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Liten merknad (ikke-blokkerende, kan utsettes): når status='open' og sendInvoice kalles på re-klikk, returnerer endepunktet `hostedInvoiceUrl: invoice.hosted_invoice_url` fra ORIGINAL invoices.create-respons (L262), ikke fra `finalized`. Den opprinnelige draft-respons-en hadde sannsynligvis null/undefined på hosted_invoice_url siden den ikke var finalisert ennå — men idempotency-cachen returnerer GJELDENDE state, så invoice.hosted_invoice_url skal allerede være satt. Verifiser ved manuell sjekk i Stripe-respons-objekt. Forbedring: bruke `finalized.hosted_invoice_url` for konsistens, men dette er kosmetisk siden invoice og finalized peker på samme objekt når status ikke er 'draft'.",
+    "Liten merknad (ikke-blokkerende): logg-event-detail (L256) bruker fortsatt `stripe_invoice_sent`-stage for alle scenarier, også for 'paid'/'void' der ingen ny send-handling skjedde. Vurder å logge ulike messages avhengig av status (eks. 'stripe_invoice_resent', 'stripe_invoice_noop_paid') for bedre admin-log-traceability. Ikke blokkerende — Mike kan tolke det fra invoice-id-en uansett.",
+    "Type-safety merknad: `let finalized = invoice;` initialiseres til invoice (Stripe.Invoice fra invoices.create). Etter `finalized = await stripe.invoices.finalizeInvoice(...)` (Stripe.Response<Stripe.Invoice>) blir typen union — TSC takler dette, men hvis fremtidig kode trenger Response-headers fra finalized må vi narrow med type-guard. Foreslå: `let finalized: Stripe.Invoice = invoice;` eksplisitt for klarhet. Ikke-blokkerende."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skip backend)", "frontend": "100% (static)" },
+  "test_credentials": "n/a — E2E forbudt av Mike",
+  "seed_data_creation": "Ingen — kun statisk verifisering",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-140 er tiende iterasjon på send-invoice/route.ts (D-131..D-140). Filen er nå ~290 linjer med 6 lagvise direktiver dokumentert inline. Idempotency-key v2 (D-135 base + D-133 application) gjør re-klikk innen samme dag idempotent på Stripes side. D-140 lager status-guard rundt finalize for å håndtere idempotency-replay korrekt. Hvis Mike legger til ny direktiv som endrer create-parametere må :v2 inkrementeres til :v3 og idempoBase-suffix oppdateres (L147). Stripe.Invoice.Status union inkluderer 'deleted'|null som vi behandler som no-op via fallthrough. send-invoice/route.ts er EXEMPT fra coverage-matrix (write-side via admin UI).",
+  "rca of the issue": "Bug D-140 RCA: D-133 introduserte stabil idempotency-key per (subdomain, billing, maxLicenses, dato, v2). Når Mike klikket 'Bekreft og send' to ganger samme dag returnerte Stripe samme invoice fra idempotency-cachen — men ved attempt 2 hadde invoicen allerede vært finalisert i attempt 1 (status='open'/'paid'). Vår kode kalte alltid stripe.invoices.finalizeInvoice() uten å sjekke status først → Stripe avviste med 'This invoice is already finalized, you can't re-finalize a non-draft invoice' (HTTP 400). Mitigering: status-guard rundt finalize (L216-218) + branched send-logikk (L241-248). Reproduksjon (forbudt av Mike å kjøre mot LIVE): POST /api/admin/tenants/mm-admin/send-invoice {billing:'yearly'} to ganger med <86400s mellomrom. Etter fiks: andre kall returnerer success med samme invoiceId og e-post re-sendes."
+}

@@ -206,8 +206,16 @@ export async function POST(
       { idempotencyKey: `${idempoBase}:item` },
     );
 
-    // 3. Finaliser eksplisitt (auto_advance=false → vi må selv).
-    const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
+    // 3. Finaliser KUN hvis fakturaen er i draft-state.
+    //    D-140 (2026-02): idempotency-key kan returnere en allerede-finalisert
+    //    invoice fra et tidligere forsøk samme dag (status="open" eller "paid").
+    //    Stripe avviser re-finalize ("This invoice is already finalized, you
+    //    can't re-finalize a non-draft invoice"). Vi hopper over finalize hvis
+    //    status er noe annet enn "draft" — fakturaen er allerede klar.
+    let finalized = invoice;
+    if (invoice.status === "draft") {
+      finalized = await stripe.invoices.finalizeInvoice(invoice.id);
+    }
 
     // 4. D-135 MVA-diagnostikk: Stripe kan finalize en invoice med
     //    `automatic_tax.status = "failed"` eller `"requires_location_inputs"`.
@@ -223,15 +231,22 @@ export async function POST(
       );
     }
 
-    // 5. Send fakturaen til kundens e-post. Stripe kun aksepterer dette
-    //    når invoice.status === "open" (etter finalize). Hvis ikke åpen,
-    //    rapporter detaljert feil i stedet for kryptisk "cannot be sent".
-    if (finalized.status !== "open") {
+    // 5. Send fakturaen til kundens e-post.
+    //    D-140 (2026-02): hvis invoicen allerede er "paid"/"void"/
+    //    "uncollectible" hopper vi over send (den er ferdig-håndtert).
+    //    Hvis "open" kaller vi sendInvoice — Stripe re-sender e-post-en,
+    //    nyttig hvis kunden ikke fikk den første gangen.
+    //    Hvis "draft" etter steg 3 er noe alvorlig galt (skulle vært
+    //    finalized) — feile deterministisk.
+    if (finalized.status === "draft") {
       throw new Error(
-        `Kan ikke sende: invoice.status='${finalized.status}' (forventet 'open' etter finalize)`,
+        `Kan ikke sende: invoice.status='draft' etter finalize-forsøk (uventet)`,
       );
     }
-    await stripe.invoices.sendInvoice(invoice.id);
+    if (finalized.status === "open") {
+      await stripe.invoices.sendInvoice(invoice.id);
+    }
+    // status "paid", "void", "uncollectible": ikke-handling, returner success.
 
     // 6. Logg event på parent
     await appendProvisioningEvent(parent.subdomain, {
