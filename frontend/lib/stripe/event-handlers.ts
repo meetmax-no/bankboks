@@ -35,6 +35,7 @@ import { provisioningLogger } from "@/lib/platform/provisioning-log";
 import { canAutoLock, canAutoCancel } from "@/lib/platform/lifecycle-guard";
 import { deleteTenant } from "@/lib/platform/delete-tenant";
 import { sendLockedFromCancel } from "@/lib/platform/notify-email";
+import { warnIfB2BHasB2CPlan } from "@/lib/platform/plan-consistency-guard";
 import type { Plan, TenantRecord } from "@/lib/platform/tenant-types";
 
 export interface HandlerResult {
@@ -169,6 +170,15 @@ export async function handleSubscriptionCreated(
     pendingExpiresAt: null,
     nextBillingDate,
   });
+
+  // D-130 (2026-02): plan-konsistens-vakt. Hvis en B2B parent ender opp
+  // med en B2C-plan-verdi etter Stripe-mapping, logg advarsel (blokker
+  // ikke). Vanlig årsak: STRIPE_PRICE_MONTHLY/_YEARLY ble brukt mot en
+  // B2B-customer i Stripe Dashboard — bør egentlig vært B2B_*-prisen.
+  warnIfB2BHasB2CPlan(
+    { ...fresh, plan, status: "active", parentTenant: fresh.parentTenant },
+    "stripe_subscription_created",
+  );
 
   // Hvis allerede provisjonert (admin har retry-et manuelt) → ferdig
   if (tenant.vercelProjectId && tenant.upstashDatabaseId) {
@@ -306,6 +316,12 @@ export async function handleSubscriptionUpdated(
       cancelFlag && cancelAtIso ? ` (cancel_at=${cancelAtIso})` : ""
     }`,
   });
+
+  // D-130 (2026-02): plan-konsistens-vakt etter subscription.updated.
+  warnIfB2BHasB2CPlan(
+    { ...tenant, ...updates } as TenantRecord,
+    "stripe_subscription_updated",
+  );
 
   return { ok: true, detail: `oppdatert: ${Object.keys(updates).join(", ")}` };
 }

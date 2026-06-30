@@ -4136,3 +4136,59 @@ For B2B-ansatte i skip/merge/overwrite-all:
 - D-127 (Strukturert pricing — D-128 cascader nå B2B-priser også når SA endrer dem)
 - D-060 (deep merge i migrate-client-configs)
 - D-103e (parentTenant lagrer prefiks, ikke full subdomain)
+
+## D-130 — Plan-konsistens-vakt for B2B-parents
+
+**DATO:** 2026-02 (Mike-direktiv etter D-129)
+
+**KONTEKST:** D-129 avdekket at `TenantDetailCard`'s PLAN-dropdown viste B2C-options for B2B-parents — så Mike kunne aldri sette `plan = "b2b_yearly"` via UI. Etter fiks ble Mike bekymret for at andre bypass-veier (manuell DB-edit, Stripe-mapping-feil, race-conditions) kan etterlate en B2B-parent med en B2C-plan. Han ville ha en lavkostnads-vakt som logger advarsel tidlig.
+
+**KRAV:**
+- Logg, ikke blokker. Skal aldri bryte PATCH eller Stripe-webhook.
+- Søkbart i logg (stabilt prefix).
+- Inkluder subdomain, plan, customerType, status.
+- Plasseres i (a) PATCH-rute for tenants, (b) Stripe-webhook-handlere som rører plan.
+
+**VURDERTE:**
+- (A) Hard-validering i `buildTenantRecord` / `putTenant`. Forkastet — bryter Mikes krav om at det skal være kun varsel, ikke blokk.
+- (B) Inline-sjekk i hver kode-sti. Forkastet — duplisering, brudd på D-105.
+- (C) **Sentralisert helper-funksjon `warnIfB2BHasB2CPlan(tenant, context)`.** **VALGT.** Én sannhetskilde, kalles fra alle relevante steder. Lett å teste isolert.
+
+**IMPLEMENTASJON:**
+
+1. **`lib/platform/plan-consistency-guard.ts`** (ny fil):
+   - `isB2BWithB2CPlan(t)` — pure, ren predikat-funksjon for unit-test.
+   - `warnIfB2BHasB2CPlan(t, context)` — kaller `console.warn` med stabilt prefix `[plan-consistency-guard]` + kontekst + alle relevante felter.
+   - `PlanConsistencyContext`-type for typed call-sites.
+   - "Trial" inkludert i B2C-listen per Mikes spec (selv om B2B-parents starter med trial — Mike vil se varselet for å verifisere konvertering skjer på tid).
+
+2. **`app/api/admin/tenants/[subdomain]/route.ts`** (PATCH-rute):
+   - Importerer `warnIfB2BHasB2CPlan`.
+   - Kaller etter `await putTenant(record);` på linje 367 — med endelig committed state.
+   - Kontekst: `"admin_patch"`.
+
+3. **`lib/stripe/event-handlers.ts`**:
+   - `handleSubscriptionCreated`: kalles etter `putTenant({ ...fresh, plan, status: "active" })`. Kontekst: `"stripe_subscription_created"`.
+   - `handleSubscriptionUpdated`: kalles etter `putTenant({ ...tenant, ...updates })`. Kontekst: `"stripe_subscription_updated"`.
+   - Begge bygger en eksplisitt "endelig record"-objekt for å unngå å treffe stale state.
+
+4. **`lib/__tests__/plan-consistency-guard.test.ts`** (16 assertions, alle PASS):
+   - 3 positive (trial/monthly/yearly på B2B-parent → true)
+   - 5 negative (b2b_*, free på B2B-parent; B2C-tenant; B2B-child → false)
+   - 8 log-format-assertions (prefix, kontekst, subdomain, plan, customerType; no-log for gyldige tilstander)
+
+**LOGGFORMAT:**
+```
+[plan-consistency-guard] <context>: B2B parent '<subdomain>' has B2C plan='<plan>' (customerType=b2b, parentTenant=null, status=<status>, tenantPrefix=<prefix>)
+```
+Søkbar via `grep "[plan-consistency-guard]"` i Vercel-logs eller filtrering i Sentry/Datadog.
+
+**KONSEKVENS:**
+- Mike kan nå sette opp et Sentry-alert eller log-watcher på prefix `[plan-consistency-guard]` for å få varsel når den uønskede tilstanden oppstår — uten å bryte normal drift.
+- Helper er pure og lett å gjenbruke hvis Mike senere vil legge til samme sjekk i andre flyter (f.eks. cron-jobber som restart-er subscription-mapping).
+- Hvis den uønskede tilstanden blir vanlig (mer enn N varsler per dag), kan vi senere oppgradere til hard-validering eller proaktiv auto-correction. Per nå: bare advarsel.
+
+**RELATERT:**
+- D-129 (PLAN-dropdown viste B2C-options for B2B-parents — bug-en som motiverte denne vakten)
+- Iter 20.4 (B2B-priser, plan-mapping fra Stripe-price-ID)
+- D-105 (anti-dupliserings-prinsipp — helper i stedet for inline-sjekk)

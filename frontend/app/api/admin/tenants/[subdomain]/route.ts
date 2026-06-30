@@ -12,6 +12,7 @@ import { deleteTenant } from "@/lib/platform/delete-tenant";
 import { countLiveActiveLicenses } from "@/lib/platform/seat-counter";
 import { validateOrgNumber } from "@/lib/platform/org-number-validation";
 import { getStripeClient } from "@/lib/stripe/client";
+import { warnIfB2BHasB2CPlan } from "@/lib/platform/plan-consistency-guard";
 import type {
   CreatedBy,
   Plan,
@@ -365,6 +366,11 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     await putTenant(record);
+
+    // D-130 (2026-02): plan-konsistens-vakt — varsler hvis en B2B parent-
+    // tenant har endt opp med en B2C-plan-verdi etter PATCH. Logger kun,
+    // blokkerer ikke. Søkbar via prefix [plan-consistency-guard].
+    warnIfB2BHasB2CPlan(record, "admin_patch");
 
     // D-104 (2026-06-28) — Stripe Customer auto-sync.
     // Hvis (a) tenant er B2B, (b) har stripeCustomerId satt, og (c) minst
