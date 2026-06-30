@@ -794,6 +794,18 @@ Ingen aktive. Tidligere kandidater (streaming-dekryptering, "binde sammen N cont
 
 Liste over ideer som har vært diskutert, har konkret kontekst, og som vi vil huske til senere. Ikke nødvendigvis prioritert — dette er en idé-bank, ikke en roadmap.
 
+### Fakturahistorikk-eksport (ZIP/CSV) i `InvoiceHistoryCard`
+**Dato lagt til:** 2026-02 (post-D-141)
+**Kontekst:** Etter D-141 har firma-admins fakturahistorikk i Konsoll → Innstillinger → Fakturering, men må klikke seg gjennom Stripes hosted-portal for å laste ned hver PDF enkeltvis. For regnskaps-arkivering ønsker mange å hente alt i ett kall.
+
+**To kandidater:**
+- **a) "Last ned alle som ZIP"** — backend henter PDF-blobs fra Stripe og pakker dem i en ZIP (krever streaming, ev. midlertidig fil). Tyngst implementasjon.
+- **b) "Eksport til CSV"** — klient-side bygger CSV med nummer, dato, status, beløp, MVA, hosted-link. Letteste vei. Passer fint med D-113 backup-tankegangen (én "type"-kolonne, RFC 4180 + OWASP formula-injection-mitigering apostrof-prefiks).
+
+**Estimert arbeid:** b) 2-3 timer. a) 1 dag (streaming-ZIP + minne-management).
+
+**Avhengigheter:** Ingen — `/api/am-admin/invoices` har allerede all metadata. PDF-ZIP-varianten krever Stripe `invoice_pdf`-URL-er og en server-side ZIP-streamer.
+
 ### Streaming-dekryptering for store filer (>100 MB)
 **Dato lagt til:** 2026-02 (post-v4.0)
 **Kontekst:** Per i dag laster `UnpackModule` hele pakka inn i RAM før dekryptering. iOS Safari kollapser typisk ved 100-200 MB. Lars og Anna lever bra med dagens grense, men hvis bruker rapporterer "kunne ikke pakke ut" på store filer, er dette løsningen.
