@@ -2,7 +2,7 @@
 /**
  * Ko | Do · Vault — Iter 20.4f (2026-06-26 · D-080) — SendTestInvoiceCard
  *
- * Mike-only-knapp i TenantDetailCard for å sende test-/første faktura til
+ * Mike-only-knapp i TenantDetailCard for å sende første faktura til
  * en B2B-parent. Kun synlig hvis:
  *   - tenant.customerType === "b2b"
  *   - tenant.parentTenant === null  (kun parents — ikke children)

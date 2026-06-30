@@ -1,0 +1,70 @@
+{
+  "summary": "D-136 statisk verifisert: (a) tax_behavior endret fra 'exclusive' til 'inclusive' så 522 kr ER kundens sluttpris (Stripe regner baklengs MVA), (b) 'testfaktura'-strenger fjernet fra route + locale-filer + audit-logg-meldinger + komponent-kommentarer. Alle tidligere fikser (D-131..D-135) intakt. tsc, lint:all (7/7), build, pricing-structured (27/27), plan-consistency-guard (16/16) — alle grønt. Ingen E2E (Mike forbyr i podd mot Stripe LIVE).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.52s)",
+    "yarn_lint_all": "PASS — alle 7 sub-lints grønt (d069, isolation, tenant-env, coverage-matrix, i18n-sync 1473 nøkler × 4 språk i sync, d078, d105)",
+    "yarn_build": "PASS (exit 0, 27.66s — Next.js produksjons-build OK)",
+    "D-127_pricing_structured": "PASS 27/27",
+    "D-130_plan_consistency_guard": "PASS 16/16",
+    "grep_testfaktura_in_repo": "0 treff i /app/frontend/app, /app/frontend/components, /app/frontend/lib (utenom node_modules) — strengen er fullstendig fjernet"
+  },
+  "code_verification_D136_tax_inclusive": {
+    "tax_behavior_inclusive": "✓ L203 i send-invoice/route.ts: `tax_behavior: \"inclusive\"` (tidligere 'exclusive'). Stripe regner baklengs: netto + 25 % MVA = 522.",
+    "description_includes_VAT_suffix": "✓ L204: `description: \"Ko|Do Vault B2B — ${maxLicenses} seats × ${unitAmountNok} kr inkl. MVA (${billing})\"` — eksplisitt 'inkl. MVA' i Stripe-fakturaens linjebeskrivelse.",
+    "comment_explains_rationale": "✓ L192-196 dokumenterer Mike-direktivet 2026-02 + det numeriske eksemplet (522+25 % = 652,50 i 'exclusive' vs. ønsket 522 i 'inclusive')."
+  },
+  "code_verification_D136_naming_testfaktura_removed": {
+    "route_file_audit_log_strings": "✓ L241: `detail: \"stripe_invoice_sent: Mike sendte faktura (...)\"` — IKKE 'testfaktura'. ✓ L263: `detail: \"stripe_invoice_sent: Send faktura feilet (...)\"` — IKKE 'testfaktura'.",
+    "route_file_module_doc_and_comments": "✓ L5 doc-string: 'Mikes \"Send faktura\"-knapp for B2B-parents.' Ingen 'testfaktura' i hele filen.",
+    "locale_no_json": "✓ heading=\"Send faktura\", btn_open=\"Send faktura\", success_prefix=\"✓ Faktura sendt — \". Ingen 'testfaktura'.",
+    "locale_sv_json": "✓ heading=\"Skicka faktura\", btn_open=\"Skicka faktura\", success_prefix=\"✓ Faktura skickad — \". Ingen 'testfaktura'.",
+    "locale_da_json": "✓ heading=\"Send faktura\", btn_open=\"Send faktura\", success_prefix=\"✓ Faktura sendt — \". Ingen 'testfaktura'.",
+    "locale_en_json": "✓ heading=\"Send Invoice\", btn_open=\"Send Invoice\", success_prefix=\"✓ Invoice sent — \". Ingen 'testfaktura'.",
+    "billing_semiannual_VAT_suffix_all_4_langs": "✓ no=\"(inkl. MVA)\", sv=\"(inkl. moms)\", da=\"(inkl. moms)\", en=\"(incl. VAT)\" på BÅDE billing_semiannual og billing_yearly.",
+    "TenantViewer_comments_L1825_L1828": "✓ \"TAB 3 (forts.): FAKTURERING — Send faktura\" og \"Send faktura — kun for B2B-parents med Stripe customer\". Ingen 'testfaktura'.",
+    "SendTestInvoiceCard_doc_L5": "✓ \"Mike-only-knapp i TenantDetailCard for å sende første faktura til en B2B-parent\" — 'første faktura' (ikke 'testfaktura'). Fil-navn beholdt per Mike-direktiv.",
+    "SendTestInvoiceTab_doc_L5_L6": "✓ \"Test-Tools-tab-versjon av SendTestInvoiceCard. Lar Mike velge en B2B-parent-tenant og sende første faktura …\" — 'første faktura' (ikke 'testfaktura'). Fil-navn beholdt per Mike-direktiv.",
+    "coverage_matrix_lint_L62": "✓ Beskrivelse i lib/__tests__/coverage-matrix-lint.test.ts L62: \"Iter 20.4f · D-080: Mike sender faktura til B2B-parent …\" — 'Mike sender faktura' (ikke 'Mike sender testfaktura')."
+  },
+  "code_verification_no_regression_D131_D135": {
+    "D131_amount_currency": "✓ L201-202: `amount: totalOre, currency: \"nok\"` på invoiceItems.create — bevart",
+    "D132_auto_advance_false": "✓ L169: `auto_advance: false` på invoices.create — bevart",
+    "D132_finalize_status_guard": "✓ L210 finalizeInvoice → L229-232 `if (finalized.status !== \"open\")`-guard → L234 sendInvoice — kjeden intakt",
+    "D133_D135_idempotency_v2": "✓ L147: `idempoBase = b2b-invoice:${subdomain}:${billing}:${maxLicenses}:${YYYY-MM-DD}:v2`. ✓ L180 `:invoice`-suffiks, ✓ L206 `:item`-suffiks. v2-base bevart.",
+    "D134_automatic_tax_enabled": "✓ L170: `automatic_tax: { enabled: true }` på invoices.create — bevart",
+    "D135_invoice_create_first": "✓ L164-181 (invoices.create) FØR L197-207 (invoiceItems.create). Rekkefølge bevart.",
+    "D135_pending_invoice_items_exclude": "✓ L171: `pending_invoice_items_behavior: \"exclude\"` — bevart",
+    "D135_explicit_invoice_binding": "✓ L200: `invoice: invoice.id` på invoiceItems.create — bevart",
+    "D135_MVA_diagnostics": "✓ L218-224: post-finalize sjekk på `finalized.automatic_tax.status !== \"complete\"` med actionable feilmelding — bevart",
+    "konklusjon": "Alle seks fikser (D-131..D-136) sameksisterer korrekt i samme route-fil. D-136 endret kun én Stripe-parameter (tax_behavior) + tekst-strenger i description/audit-log/locales/kommentarer. Ingen funksjonell regresjon."
+  },
+  "test_report_links": [
+    "/app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts",
+    "/app/frontend/lib/locales/no.json",
+    "/app/frontend/lib/locales/sv.json",
+    "/app/frontend/lib/locales/da.json",
+    "/app/frontend/lib/locales/en.json",
+    "/app/frontend/lib/__tests__/coverage-matrix-lint.test.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/plan-consistency-guard.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Positivt: tax_behavior='inclusive' er semantisk korrekt for Mikes use-case — sluttpris vises og kommuniseres som 522 kr inkl. MVA, og Stripe håndterer backward-MVA-beregningen automatisk. Ingen risiko for diskrepans mellom UI-vist pris og fakturert beløp.",
+    "Positivt: Description-strengen 'kr inkl. MVA' på Stripe-line-itemet sikrer at kunden ser MVA-status tydelig på fakturaen — viktig for B2B-bokføring.",
+    "Positivt: Locale-konsistens er strikt vedlikeholdt (i18n-sync-lint grønt på 1473 nøkler × 4 språk). MVA-suffiks er språkidiomatisk: inkl. MVA (no) / inkl. moms (sv, da) / incl. VAT (en).",
+    "Minor (ikke-blokkerende, ikke krav): `send_invoice_tab.description` i en.json L1300 inneholder fortsatt frasen 'send a test/initial invoice'. Selve nøkkelen 'testfaktura' var det Mike spesifiserte fjernet (norsk compound), så dette bryter ikke kravet — men hvis Mike vil ha 100 % konsistens i spirit kan ordet 'test/' der fjernes. Påvirker ikke produksjonsadferd.",
+    "Minor (ikke-blokkerende, kontekst): Komponent-filnavnene SendTestInvoiceCard.tsx og SendTestInvoiceTab.tsx er bevart per eksplisitt Mike-direktiv (intern-navn). Eventuell fremtidig refactor er Mikes ansvar — påvirker ikke runtime, kun developer ergonomics.",
+    "Minor (ikke-blokkerende, idempotency-cache): Idempotency-key bruker fortsatt `:v2`-suffiks. Når Mike sender første faktura med ny 'inclusive'-flyt vil v2-cache være tom for nye (tenant, billing, dato)-kombinasjoner, så bumping til v3 var ikke nødvendig. Hvis Mike retry'r en SAMME-dags faktura som tidligere ble opprettet med 'exclusive' → vil Stripes idempotency returnere den gamle 'exclusive'-fakturaen. Skulle dette skje må Mike enten vente til neste UTC-dag eller bumpe til v3. Anbefales å dokumentere for Mike i operasjons-runbook."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% (static checks)" },
+  "test_credentials": "n/a — ingen runtime-test",
+  "seed_data_creation": "n/a",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-136 er sjette iterasjon på samme send-invoice-flyt. Bug-mønsteret nå dreid fra 'invoice-creation feiler' (D-131..D-135) til 'invoice opprettes korrekt men har feil pris/naming' (D-136). To selvstendige endringer i samme route+locales: (a) Stripe-parameter tax_behavior 'exclusive'→'inclusive' (semantisk MVA-fiks som kun synes i Stripe-ledger), (b) audit-log + locale-strenger 'testfaktura'→'faktura' (kun synlig for Mike i admin-UI/logg). Begge er ikke-brytende, ingen DB-migrering, ingen webhook-endring. Hvis Mike senere rapporterer at Stripe-ledger fortsatt viser MVA på toppen: verifiser at customer.tax_exempt='none' i Stripe Dashboard og at line-itemet faktisk har tax_behavior='inclusive' i Stripe Dashboard (kan inspeseres via invoice.lines.data[0].tax_behavior i Stripe API).",
+  "rca_of_the_issue": "Mikes regnskap etter D-135 viste Stripe-ledger: Revenue=5 220 + Tax liability=1 305 + Accounts receivable=6 525. Det betyr Stripe la 25 % MVA PÅ TOPPEN av 522 (522 × 10 seats = 5 220 netto → +1 305 MVA → 6 525 totalt fakturert). Forventet av Mike: 522 kr ER sluttprisen inkl. MVA (5 220 totalt fakturert, hvorav 1 044 er MVA og 4 176 er netto revenue). Rotårsak: invoiceItems.create hadde `tax_behavior: \"exclusive\"` som forteller Stripe at amount-feltet er PRE-MVA. Fiks D-136: bytte til `tax_behavior: \"inclusive\"` som forteller Stripe at amount-feltet er FINAL-PRIS inkl. MVA → Stripe regner baklengs (5 220 / 1.25 = 4 176 netto + 1 044 MVA = 5 220 fakturert). Sekundær fiks (uavhengig): 'testfaktura'-naming i UI/logg/kommentarer var et levning fra utviklingsfasen. Mike opererer nå i produksjon — fakturaen er ekte og 'test'-prefiks misleder regnskapet og audit-loggen. Endret til 'faktura' i alle 4 språk + audit-log-strenger + kommentarer. Komponent-filnavnene beholdt per Mike-direktiv (intern refactor er ikke prioritet nå)."
+}

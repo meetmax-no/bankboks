@@ -3,7 +3,7 @@
  * Ko | Do · Vault — Iter 20.8b (2026-06-26) — SendTestInvoiceTab
  *
  * Test-Tools-tab-versjon av SendTestInvoiceCard. Lar Mike velge en
- * B2B-parent-tenant fra en dropdown og sende test-/første faktura uten
+ * B2B-parent-tenant fra en dropdown og sende første faktura uten
  * å først navigere til tenant-detalj-siden.
  *
  * Speiler MailTestCard-mønsteret (samme styling/dropdown-flow).

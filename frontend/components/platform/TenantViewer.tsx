@@ -1822,10 +1822,10 @@ function TenantDetailCard({
       </>
       )}
 
-      {/* ═══ TAB 3 (forts.): FAKTURERING — Send testfaktura ═════════ */}
+      {/* ═══ TAB 3 (forts.): FAKTURERING — Send faktura ═════════ */}
       {activeTab === "fakturering" && (
         <>
-      {/* Send testfaktura — kun for B2B-parents med Stripe customer (Iter 20.4f / D-080) */}
+      {/* Send faktura — kun for B2B-parents med Stripe customer (Iter 20.4f / D-080) */}
       {record.customerType === "b2b" && record.parentTenant === null && (
         <SendTestInvoiceCard
           subdomain={record.subdomain}

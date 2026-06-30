@@ -59,7 +59,7 @@ const EXEMPT_ROUTES: Record<string, string> = {
   "app/api/admin/tenants/[subdomain]/provision-vercel/route.ts": "Sub-steg i provisjoneringskjede, ikke selvstendig entry-point",
   "app/api/admin/tenants/[subdomain]/provision-upstash/route.ts": "Sub-steg i provisjoneringskjede, ikke selvstendig entry-point",
   "app/api/admin/tenants/[subdomain]/sync-stripe/route.ts": "Manuell Stripe-resync, vises i admin UI som debug-knapp",
-  "app/api/admin/tenants/[subdomain]/send-invoice/route.ts": "Iter 20.4f · D-080: Mike sender testfaktura til B2B-parent (semiannual/yearly). Webhook handler dekker resten via D-080-matrise.",
+  "app/api/admin/tenants/[subdomain]/send-invoice/route.ts": "Iter 20.4f · D-080: Mike sender faktura til B2B-parent (semiannual/yearly). Webhook handler dekker resten via D-080-matrise.",
   "app/api/admin/tenants/[subdomain]/test-checkout/route.ts": "Test-trigger for Stripe checkout (intern QA)",
   "app/api/admin/tenants/[subdomain]/first-org-admin/route.ts":
     "D-107 (Mike 2026-06-28): GET-only lookup av opprinnelig super-admin for visning i Lisens & B2B-fanen. Beskyttet av middleware, leser kun, ikke en sidekanal.",

@@ -2,12 +2,12 @@
  * Ko | Do · Vault — Iter 20.4f (2026-06-26 · D-080) —
  * POST /api/admin/tenants/[subdomain]/send-invoice
  *
- * Mikes "Send testfaktura"-knapp for B2B-parents. Oppretter en Stripe-faktura
+ * Mikes "Send faktura"-knapp for B2B-parents. Oppretter en Stripe-faktura
  * via `invoices.create({ collection_method: "send_invoice" })` med `quantity =
  * parent.maxLicenses` og price-ID basert på valgt billing-frekvens.
  *
  * Flyt:
- *   1. Mike trykker "Send testfaktura" i TenantDetailCard (kun synlig for
+ *   1. Mike trykker "Send faktura" i TenantDetailCard (kun synlig for
  *      B2B-parents med stripeCustomerId satt)
  *   2. Modal lar Mike velge "semiannual" (522 kr/seat × 6mnd) eller
  *      "yearly" (1 044 kr/seat × 12mnd)
@@ -190,16 +190,18 @@ export async function POST(
     //    den kunne blitt blandet med orphans fra tidligere forsøk.
     //
     //    D-131: `amount + currency` direkte (vi har ikke en one_time price-ID).
-    //    D-134 (MVA): `tax_behavior: "exclusive"` — 522 kr er pre-MVA, Stripe
-    //    legger til 25% norsk MVA via automatic_tax.
+    //    D-134 (MVA): `tax_behavior: "inclusive"` — 522 kr ER prisen inkl.
+    //    25% norsk MVA. Stripe beregner baklengs: netto + MVA = 522. Tidligere
+    //    `"exclusive"` la MVA på toppen → kunde fakturert 522 + 25% = 652,50 kr.
+    //    Mike-direktiv 2026-02: prisen til kunden skal være 522 kr inkl. MVA.
     await stripe.invoiceItems.create(
       {
         customer: parent.stripeCustomerId,
         invoice: invoice.id,
         amount: totalOre,
         currency: "nok",
-        tax_behavior: "exclusive",
-        description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
+        tax_behavior: "inclusive",
+        description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr inkl. MVA (${billing})`,
       },
       { idempotencyKey: `${idempoBase}:item` },
     );
@@ -236,7 +238,7 @@ export async function POST(
       timestamp: new Date().toISOString(),
       stage: "status_change",
       status: "ok",
-      detail: `stripe_invoice_sent: Mike sendte testfaktura (${billing}, ${parent.maxLicenses} seats) → invoice=${invoice.id ?? "?"}`,
+      detail: `stripe_invoice_sent: Mike sendte faktura (${billing}, ${parent.maxLicenses} seats) → invoice=${invoice.id ?? "?"}`,
     });
 
     return NextResponse.json({
@@ -258,7 +260,7 @@ export async function POST(
       timestamp: new Date().toISOString(),
       stage: "status_change",
       status: "failed",
-      detail: `stripe_invoice_sent: Send testfaktura feilet (${billing}): ${msg}`,
+      detail: `stripe_invoice_sent: Send faktura feilet (${billing}): ${msg}`,
     }).catch(() => {});
 
     return NextResponse.json(
