@@ -1,0 +1,62 @@
+{
+  "summary": "D-135 statisk verifisert: restrukturert send-invoice-flyt (invoice.create FØR invoiceItems.create med eksplisitt binding + pending_invoice_items_behavior:'exclude'), idempotency v2-suffix, og post-finalize MVA-diagnostikk. Alle fire foregående fikser (D-131/D-132/D-133/D-134) sameksisterer korrekt. tsc, lint:all (7/7), build, D-127 (27/27) og D-130 (16/16) alle grønt. Ingen E2E (Mike forbyr i podd mot Stripe LIVE).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.18s)",
+    "yarn_lint_all": "PASS (alle 7 sub-lints grønt: d069, isolation, tenant-env, coverage-matrix, i18n-sync, d078, d105)",
+    "yarn_build": "PASS (exit 0, 23.75s — Next.js produksjons-build OK, alle ruter generert)",
+    "D-127_pricing_structured": "PASS 27/27",
+    "D-130_plan_consistency_guard": "PASS 16/16"
+  },
+  "code_verification_D135_restructured_flow": {
+    "invoice_create_first": "✓ L164-181: stripe.invoices.create kommer FØR invoiceItems.create (L195-205). Tidligere flyt var omvendt.",
+    "pending_invoice_items_behavior_exclude": "✓ L171: `pending_invoice_items_behavior: 'exclude'` — Stripe ignorer orphan-items fra tidligere mislykkede forsøk i customer'ens pending-bucket. Garanterer at kun OUR item havner på fakturaen.",
+    "explicit_invoice_binding_on_item": "✓ L198: `invoice: invoice.id` i invoiceItems.create — itemet bindes eksplisitt til den nyopprettede draft-invoicen i stedet for å havne i global pending-bucket på customer'en."
+  },
+  "code_verification_D135_idempotency_v2": {
+    "v2_suffix_in_idempoBase": "✓ L147: `b2b-invoice:${parent.subdomain}:${billing}:${parent.maxLicenses}:${idempoDate}:v2` — `:v2`-suffix tvinger Stripe til ny invoice i stedet for cached faulty pre-D-134-invoice.",
+    "format_match_spec": "✓ Format matcher spec eksakt: b2b-invoice:{subdomain}:{billing}:{maxLicenses}:{YYYY-MM-DD}:v2",
+    "applied_to_invoice_key": "✓ L180: `idempotencyKey: \"${idempoBase}:invoice\"` på invoices.create",
+    "applied_to_item_key": "✓ L204: `idempotencyKey: \"${idempoBase}:item\"` på invoiceItems.create",
+    "utc_date": "✓ L146: `new Date().toISOString().slice(0,10)` — UTC-stabilt"
+  },
+  "code_verification_D135_MVA_diagnostics": {
+    "check_after_finalize": "✓ L208 finalizeInvoice → L216 leser `finalized.automatic_tax` (samme tick)",
+    "guard_condition": "✓ L217: `if (tax && tax.enabled && tax.status && tax.status !== 'complete')` — fanger både 'failed' og 'requires_location_inputs'",
+    "actionable_error": "✓ L218-221: Error inneholder `disabled_reason ?? status` + customer-id (`parent.stripeCustomerId`) + handlingsinstruks ('komplett adresse country=NO, postnummer, by + aktiv tax registration for Norge i Stripe Dashboard'). Erstatter kryptisk 'cannot be sent right now'.",
+    "before_sendInvoice": "✓ MVA-sjekken (L217-222) skjer FØR sendInvoice (L232) — Mike får actionable feil i stedet for Stripes generiske 'cannot be sent' når MVA-oppsettet er broken."
+  },
+  "code_verification_no_regression_D131_D132_D133_D134": {
+    "D131_amount_currency": "✓ L199-200: `amount: totalOre, currency: 'nok'` på invoiceItems.create — bevart",
+    "D132_auto_advance_false": "✓ L169: `auto_advance: false` på invoices.create — bevart",
+    "D132_finalize_status_guard": "✓ L208 finalizeInvoice + L227-231 `if (finalized.status !== 'open')`-guard + L232 sendInvoice — kjeden intakt",
+    "D133_idempotency_on_both": "✓ L180/L204 — separat suffiks `:invoice` og `:item` bevart, men nå med `:v2`-base",
+    "D134_tax_behavior_exclusive": "✓ L201: `tax_behavior: 'exclusive'` på invoiceItems.create — bevart",
+    "D134_automatic_tax_enabled": "✓ L170: `automatic_tax: { enabled: true }` på invoices.create — bevart",
+    "konklusjon": "Alle fem fikser (D-131..D-135) ligger på riktig sted i samme route-fil. D-135 endret rekkefølge (invoice→item i stedet for item→invoice) og la til 3 nye parametre/sjekker uten å fjerne noen av de gamle."
+  },
+  "test_report_links": [
+    "/app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/plan-consistency-guard.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Positivt: Rekkefølge-fiks (invoice→item) er strukturelt korrekt — uten `invoice: invoice.id`-binding på itemet vil Stripe alltid trekke det fra customer'ens globale pending-bucket, hvor det kan blande seg med orphans fra tidligere forsøk. Eksplisitt binding er den eneste robuste løsningen.",
+    "Positivt: `pending_invoice_items_behavior: 'exclude'` er belt-and-suspenders — selv om vår invoiceItems.create binder eksplisitt, garanterer denne at draft-invoicen ikke trekker inn orphans fra tidligere feil. Kombinasjonen av disse to mekanismene gjør flyten deterministisk.",
+    "Positivt: `:v2`-suffix er en pragmatisk og dokumentert måte å invalidere Stripes idempotency-cache uten å endre key-strukturen permanent. Hvis tilsvarende problem skjer i fremtiden kan Mike bumpe til `:v3` osv.",
+    "Positivt: MVA-diagnostikk-feilmeldingen er actionable og inneholder customer-ID-en så Mike kan lime den direkte inn i Stripe Dashboard. `disabled_reason ?? status`-fallback dekker alle tre mulige status-verdier ('complete'/'failed'/'requires_location_inputs') og alle disabled_reason-verdier ('finalization_requires_location_inputs'/'finalization_system_error'/null).",
+    "Positivt: Guard-condition `tax.enabled && tax.status && tax.status !== 'complete'` er korrekt defensiv — ignorerer tilfellet der automatic_tax er av (skulle ikke skje gitt vår config men robust), og krever positive status-verdi før kast.",
+    "Minor (ikke-blokkerende): Errorobjektet på L219-221 går gjennom try/catch L254-271 og blir til `stripe_call_failed` + `detail`-streng i 502-respons + provisioning-log. Mike ser detail-strengen i admin-loggen. Dette er forventet adferd og matcher mønsteret fra D-131/D-132.",
+    "Minor (ikke-blokkerende): Hvis Mike treffer MVA-feilen, fikser oppsettet i Stripe Dashboard og prøver igjen samme dag — vil idempotency-key returnere den faulty invoicen som ble opprettet før MVA-fiksen. Mike må enten vente til neste UTC-dag, eller bumpe `:v2` → `:v3` i koden. Bør dokumenteres for Mike, men er ikke en kodefeil."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% (static checks)" },
+  "test_credentials": "n/a — ingen runtime-test",
+  "seed_data_creation": "n/a",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-135 er femte iterasjon på samme send-invoice-flyt. Bug-mønsteret er nå: Stripe LIVE har runtime-state (pending invoice-items bucket per customer + idempotency-cache) som ikke fanges av statiske tester. D-135 adresserer begge via (1) eksplisitt item↔invoice-binding + exclude-pending, og (2) v2-suffix. Hvis Mike rapporterer samme feil igjen, vurder: (a) er customer.address fortsatt satt i Stripe Dashboard? (b) Trenger v3-suffix? (c) Er det andre orphan invoice-items (Mike kan rydde i Stripe Dashboard → Invoices → Pending invoice items). Hvis E2E senere åpnes: verifiser at finalized.automatic_tax.status === 'complete' før sendInvoice kalles.",
+  "rca_of_the_issue": "Etter D-131..D-134 fortsatte Mike å få Stripes generiske 'cannot be sent right now'-feil. To runtime-state-rotårsaker som ikke kunne fanges statisk: (1) ORPHAN INVOICE-ITEMS — tidligere mislykkede forsøk hadde opprettet invoice-items uten å binde til invoice, så de lå som 'pending' på customer'en. Når ny invoice.create kjørte, trakk Stripe AUTOMATISK inn alle pending items, inkludert orphans uten tax_behavior. Orphans uten tax-konfig brøt automatic_tax-beregningen for hele invoicen. (2) STALE IDEMPOTENCY-CACHE — Stripes idempotency-system returnerte faulty pre-D-134-invoicer (uten automatic_tax) ved retries med samme key. Fiks D-135: (a) Restrukturert flyt: invoice.create FØRST med `pending_invoice_items_behavior:'exclude'` (ignorer pending bucket) → invoiceItems.create med `invoice: invoice.id` (eksplisitt binding). (b) `:v2`-suffix på idempotency-base. (c) Post-finalize MVA-diagnostikk: les `finalized.automatic_tax.status`, hvis !== 'complete' kast deterministisk feil med disabled_reason + customer-id + handlingsinstruks. Resultat: Mike får actionable feilmelding hvis MVA-oppsettet er broken, og Stripe garantert opererer på rene parametre (ingen orphans, ingen stale cache)."
+}

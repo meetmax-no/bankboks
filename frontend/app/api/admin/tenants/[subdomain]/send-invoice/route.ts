@@ -129,7 +129,7 @@ export async function POST(
   const unitAmountOre = Math.round(unitAmountNok * 100);
   const totalOre = unitAmountOre * parent.maxLicenses;
 
-  // D-133 (2026-02): idempotency-key for hele send-invoice-operasjonen.
+  // D-133/D-135 (2026-02): idempotency-key for hele send-invoice-operasjonen.
   // Stabil per (tenant, billing, seats, dato) — hvis Mike klikker "Bekreft
   // og send" to ganger samme dag med samme parametere returnerer Stripe
   // samme invoice i stedet for å opprette en duplikat. Dato-suffiks lar
@@ -137,46 +137,30 @@ export async function POST(
   // per periode). Brukes på BÅDE invoiceItems.create og invoices.create
   // så hele kjeden er idempotent — ellers ville en retry attache et
   // duplikat-item til samme invoice.
+  //
+  // D-135 (2026-02): `:v2`-suffix tvinger ny idempotency-cache. Tidligere
+  // forsøk (før D-134 MVA-fiks) lagret en faulty invoice uten automatic_tax
+  // i Stripes idempotency-cache; nye kall med samme key returnerte den
+  // gamle ødelagte invoicen. v2 garanterer at vi treffer Stripes API på
+  // nytt med ferske parametre.
   const idempoDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
-  const idempoBase = `b2b-invoice:${parent.subdomain}:${billing}:${parent.maxLicenses}:${idempoDate}`;
+  const idempoBase = `b2b-invoice:${parent.subdomain}:${billing}:${parent.maxLicenses}:${idempoDate}:v2`;
 
-  // ── Stripe: opprett InvoiceItem + Invoice + send ───────────────
+  // ── Stripe: opprett Invoice + InvoiceItem (eksplisitt-bundet) + send ──
   const stripe = getStripeClient();
   try {
-    // 1. Legg invoice item på customer'en. Når vi kaller invoices.create
-    //    etterpå plukker Stripe opp dette pending-item'et automatisk.
-    //    D-131: bruker `amount + currency` direkte (totalbeløp i øre) i
-    //    stedet for `pricing.price` (som krever one_time-price-ID som vi
-    //    ikke har — env-ID-ene er recurring for subscription-flowen).
-    //    Description bærer per-seat-breakdown så Stripe-UI viser detaljer.
+    // 1. Opprett invoice FØRST som draft, med
+    //    `pending_invoice_items_behavior: "exclude"` så Stripe ikke trekker
+    //    inn orphan-items fra tidligere mislykkede forsøk (D-135).
     //
-    //    D-134 (2026-02 · MVA): `tax_behavior: "exclusive"` — 522 kr er
-    //    pris FØR MVA, Stripe legger til 25% norsk MVA via automatic_tax.
-    //    Uten dette flagges fakturaen i Stripe Dashboard og kan ikke
-    //    sendes via Stripe-emailen før tax-behaviour er konfigurert.
-    await stripe.invoiceItems.create(
-      {
-        customer: parent.stripeCustomerId,
-        amount: totalOre,
-        currency: "nok",
-        tax_behavior: "exclusive",
-        description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
-      },
-      { idempotencyKey: `${idempoBase}:item` },
-    );
-
-    // 2. Opprett invoice som send_invoice-collection (Stripe sender email
-    //    til kunden, 14 dagers due-frist).
     //    D-132 (2026-02): `auto_advance: false` — vi eier livssyklusen
     //    eksplisitt (finalize → send). Tidligere `auto_advance: true` lagde
     //    en race der Stripe auto-finaliserte og auto-sendte samtidig som vi
-    //    manuelt kalte `sendInvoice`, og Stripe svarte "This invoice cannot
-    //    be sent right now" på det manuelle send-kallet.
+    //    manuelt kalte `sendInvoice`.
     //
     //    D-134 (2026-02 · MVA): `automatic_tax: { enabled: true }` — Stripe
-    //    beregner og legger til norsk MVA basert på customer'ens adresse
-    //    (Stripe Tax må være aktivert på kontoen + customer.address satt).
-    //    Sameksisterer med tax_behavior på invoice-item-et.
+    //    beregner og legger til norsk MVA basert på customer.address
+    //    (krever Stripe Tax aktivert + customer.address satt).
     const invoice = await stripe.invoices.create(
       {
         customer: parent.stripeCustomerId,
@@ -184,6 +168,7 @@ export async function POST(
         days_until_due: 14,
         auto_advance: false,
         automatic_tax: { enabled: true },
+        pending_invoice_items_behavior: "exclude",
         metadata: {
           kodo_subdomain: parent.subdomain,
           kodo_tenant_prefix: parent.tenantPrefix ?? "",
@@ -195,13 +180,48 @@ export async function POST(
       { idempotencyKey: `${idempoBase}:invoice` },
     );
 
-    // 3. Finaliser eksplisitt (auto_advance=false → vi må selv).
     if (!invoice.id) {
       throw new Error("Stripe returnerte invoice uten id");
     }
+
+    // 2. Bind invoice item eksplisitt til denne invoice'en (D-135).
+    //    `invoice: invoice.id` garanterer at item havner på vår draft —
+    //    ikke i den globale "pending items"-bucketen på customer'en hvor
+    //    den kunne blitt blandet med orphans fra tidligere forsøk.
+    //
+    //    D-131: `amount + currency` direkte (vi har ikke en one_time price-ID).
+    //    D-134 (MVA): `tax_behavior: "exclusive"` — 522 kr er pre-MVA, Stripe
+    //    legger til 25% norsk MVA via automatic_tax.
+    await stripe.invoiceItems.create(
+      {
+        customer: parent.stripeCustomerId,
+        invoice: invoice.id,
+        amount: totalOre,
+        currency: "nok",
+        tax_behavior: "exclusive",
+        description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
+      },
+      { idempotencyKey: `${idempoBase}:item` },
+    );
+
+    // 3. Finaliser eksplisitt (auto_advance=false → vi må selv).
     const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
 
-    // 4. Send fakturaen til kundens e-post. Stripe kun aksepterer dette
+    // 4. D-135 MVA-diagnostikk: Stripe kan finalize en invoice med
+    //    `automatic_tax.status = "failed"` eller `"requires_location_inputs"`.
+    //    I begge tilfeller refuserer Stripe å sende den (samme generiske
+    //    "cannot be sent right now"-feilmelding som Mike så). Hent det
+    //    presise status og gi Mike en actionable feilmelding så han kan
+    //    fikse oppsettet i Stripe Dashboard.
+    const tax = finalized.automatic_tax;
+    if (tax && tax.enabled && tax.status && tax.status !== "complete") {
+      const reason = tax.disabled_reason ?? tax.status;
+      throw new Error(
+        `Stripe Tax: ${reason}. Verifiser at customer '${parent.stripeCustomerId}' har komplett adresse (country=NO, postnummer, by) i Stripe Dashboard og at Stripe Tax har en aktiv tax registration for Norge.`,
+      );
+    }
+
+    // 5. Send fakturaen til kundens e-post. Stripe kun aksepterer dette
     //    når invoice.status === "open" (etter finalize). Hvis ikke åpen,
     //    rapporter detaljert feil i stedet for kryptisk "cannot be sent".
     if (finalized.status !== "open") {
@@ -211,7 +231,7 @@ export async function POST(
     }
     await stripe.invoices.sendInvoice(invoice.id);
 
-    // 5. Logg event på parent
+    // 6. Logg event på parent
     await appendProvisioningEvent(parent.subdomain, {
       timestamp: new Date().toISOString(),
       stage: "status_change",
