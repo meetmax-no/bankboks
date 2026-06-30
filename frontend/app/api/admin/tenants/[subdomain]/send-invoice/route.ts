@@ -27,7 +27,8 @@
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { getTenant } from "@/lib/platform/tenant-store";
-import { getStripeClient, getB2BPriceId } from "@/lib/stripe/client";
+import { getStripeClient } from "@/lib/stripe/client";
+import { getB2BPricing } from "@/lib/platform/client-config-store";
 import { appendProvisioningEvent } from "@/lib/platform/tenant-store";
 
 export const runtime = "nodejs";
@@ -103,30 +104,45 @@ export async function POST(
     );
   }
 
-  // ── Hent price-ID fra env-var ───────────────────────────────────
-  let priceId: string;
-  try {
-    priceId = getB2BPriceId(billing);
-  } catch (err) {
+  // ── Hent per-seat-pris fra D-127 client-config (single source of truth) ──
+  // D-131 (2026-02 · Mike): tidligere brukte vi STRIPE_PRICE_B2B_SEMIANNUAL/
+  // _YEARLY direkte i `invoiceItems.create({ pricing: { price } })`. Det
+  // feilet med "type=recurring not allowed" fordi env-ID-ene er recurring
+  // subscription-priser i Stripe Dashboard — `invoiceItems` krever
+  // `type=one_time`. Fiks: bygg invoice-item inline med `amount + currency`
+  // basert på D-127 `getB2BPricing()` som er sannhetskilde for B2B-priser.
+  // Stripe Dashboard-prisene fortsetter å brukes når en ekte subscription
+  // opprettes (det er da `subscription.created`-webhook setter parent.plan).
+  const pricing = await getB2BPricing(parent.subdomain);
+  const unitAmountNok =
+    billing === "semiannual" ? pricing.semiannualPerSeat : pricing.yearlyPerSeat;
+  if (!Number.isFinite(unitAmountNok) || unitAmountNok <= 0) {
     return NextResponse.json(
       {
-        error: "missing_price_env",
-        detail: err instanceof Error ? err.message : "Price env-var mangler.",
+        error: "invalid_pricing",
+        detail: `B2B pricing.${billing}PerSeat er ugyldig (${unitAmountNok}). Sjekk client-config eller default.json.`,
       },
       { status: 500 },
     );
   }
+  // Stripe forventer minor units (øre for NOK). 522 kr → 52 200 øre.
+  const unitAmountOre = Math.round(unitAmountNok * 100);
+  const totalOre = unitAmountOre * parent.maxLicenses;
 
   // ── Stripe: opprett InvoiceItem + Invoice + send ───────────────
   const stripe = getStripeClient();
   try {
     // 1. Legg invoice item på customer'en. Når vi kaller invoices.create
     //    etterpå plukker Stripe opp dette pending-item'et automatisk.
+    //    D-131: bruker `amount + currency` direkte (totalbeløp i øre) i
+    //    stedet for `pricing.price` (som krever one_time-price-ID som vi
+    //    ikke har — env-ID-ene er recurring for subscription-flowen).
+    //    Description bærer per-seat-breakdown så Stripe-UI viser detaljer.
     await stripe.invoiceItems.create({
       customer: parent.stripeCustomerId,
-      pricing: { price: priceId },
-      quantity: parent.maxLicenses,
-      description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats (${billing})`,
+      amount: totalOre,
+      currency: "nok",
+      description: `Ko|Do Vault B2B — ${parent.maxLicenses} seats × ${unitAmountNok} kr (${billing})`,
     });
 
     // 2. Opprett invoice som send_invoice-collection (Stripe sender email

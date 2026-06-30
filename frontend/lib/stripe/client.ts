@@ -56,26 +56,11 @@ export function getPriceIdForPlan(plan: "monthly" | "yearly"): string {
   return priceId;
 }
 
-/**
- * B2B-priser (Iter 20.4 · 2026-06-26). Egne Stripe Price IDer for per-seat-
- * pris. Mike oppretter Subscription manuelt i Stripe Dashboard og setter
- * quantity = parent.maxLicenses. Webhook plukker opp `subscription.created`
- * / `invoice.paid` og oppdaterer parent.plan + parent.nextBillingDate.
- *
- * Prismatrise (per seat, NOK):
- *   - semiannual: 522 kr/seat per 6 mnd (87 kr/seat × 6)
- *   - yearly:    1 044 kr/seat per år   (87 kr/seat × 12)
- */
-export function getB2BPriceId(billing: "semiannual" | "yearly"): string {
-  const envKey =
-    billing === "semiannual"
-      ? "STRIPE_PRICE_B2B_SEMIANNUAL"
-      : "STRIPE_PRICE_B2B_YEARLY";
-  const priceId = process.env[envKey];
-  if (!priceId) {
-    throw new Error(
-      `${envKey} mangler i miljøvariabler. Sett B2B price-IDen i Vercel.`,
-    );
-  }
-  return priceId;
-}
+// D-131 (2026-02): `getB2BPriceId()` ble fjernet. Send-invoice-flyten brukte
+// den til å hente recurring Stripe-prise-IDer for `invoiceItems.create` —
+// men `invoiceItems` krever `type=one_time`, mens env-ID-ene er recurring
+// (designet for subscriptions). Send-invoice bygger nå inline med `amount +
+// currency` basert på D-127 `getB2BPricing()`. Env-vars-ene
+// `STRIPE_PRICE_B2B_SEMIANNUAL` / `_YEARLY` beholdes fordi
+// `priceIdToPlan()` i event-handlers.ts mapper dem til `b2b_*`-plan-verdier
+// når en framtidig subscription opprettes manuelt i Stripe Dashboard.
