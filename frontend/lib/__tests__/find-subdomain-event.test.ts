@@ -131,6 +131,45 @@ console.log("\n[7] Lowercase-normalisering");
   assert(r === "mm-admin", "kodo_subdomain lowercased ved retur");
 }
 
+// D-137 utvidelse: verifiser at fiksen treffer ALLE webhook-event-typer
+// som kan oppstå for en manuelt sendt B2B-faktura. Hver event-type har
+// nøyaktig samme metadata-shape (kodo_subdomain på toppnivå-objektet),
+// så helperen plukker den opp uansett hvilken event-type Stripe sender.
+//
+// Eventer som IKKE treffer manuell-faktura-pathen (subscription.*) er
+// utelatt fordi det aldri eksisterer en subscription for D-080-flowen.
+console.log("\n[8] Real-world payload-matrise (invoice.* events for manuell faktura)");
+{
+  const eventTypes = [
+    "invoice.paid",
+    "invoice.payment_failed",
+    "invoice.finalization_failed",
+    "invoice.marked_uncollectible",
+    "invoice.sent",
+    "invoice.voided",
+  ];
+  for (const type of eventTypes) {
+    // Speilet payload fra app/api/admin/tenants/[subdomain]/send-invoice/route.ts L172-178
+    const payload = {
+      object: "invoice",
+      id: `in_test_${type.replace(/\./g, "_")}`,
+      customer: "cus_Unc4FFvSVMucgZ",
+      metadata: {
+        kodo_subdomain: "mm-admin",
+        kodo_tenant_prefix: "mm",
+        kodo_billing: "semiannual",
+        kodo_max_licenses: "10",
+        kodo_source: "admin_send_invoice_btn",
+      },
+    };
+    const result = findSubdomainFromEventClone(mkEvent(payload));
+    assert(
+      result === "mm-admin",
+      `${type}: kodo_subdomain leses fra real-world payload`,
+    );
+  }
+}
+
 console.log("\n");
 console.log(`Resultat: ${passed} passert, ${failed} feilet`);
 if (failed > 0) {

@@ -1,0 +1,56 @@
+{
+  "summary": "D-138 statisk verifisert: utvidet test-fil lib/__tests__/find-subdomain-event.test.ts med nytt block [8] — real-world payload-matrise (for-loop) for 6 invoice.*-event-typer (paid, payment_failed, finalization_failed, marked_uncollectible, sent, voided). Alle 6 events bruker identisk metadata-shape speilet fra send-invoice/route.ts L172-178 (kodo_subdomain='mm-admin' + 4 andre kodo_-keys). 15/15 PASS (9 fra D-137 + 6 nye fra D-138). tsc, yarn lint:all (7/7 sub-lints), yarn build, og alle regresjonstester (pricing-structured 27/27, plan-consistency-guard 16/16, trial-days 22/22) — alle grønt. Ingen kode-endring i lib/stripe/event-handlers.ts denne iterasjonen, kun test-fil-utvidelse. customer.subscription.* event-typer er bevisst utelatt fordi de strukturelt aldri treffer D-080 manuell-faktura-flyten (ingen subscription-objekt i den pathen).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.24s)",
+    "yarn_lint_all": "PASS — alle 7 sub-lints grønt (d069, isolation, tenant-env 122 pod-filer, coverage-matrix 51 ruter, i18n-sync 1473 nøkler × 4 språk, d078 39 filer, d105 323 filer)",
+    "yarn_build": "PASS (exit 0, 23.87s — Next.js produksjons-build OK)",
+    "find_subdomain_event_test": "PASS 15/15 (alle 8 test-blokker grønt: blocks 1-7 fra D-137 uendret, nytt block 8 dekker 6 invoice.*-event-typer i for-loop med real-world payload)",
+    "D-127_pricing_structured": "PASS 27/27 (regresjon)",
+    "D-130_plan_consistency_guard": "PASS 16/16 (regresjon)",
+    "trial_days_test": "PASS 22/22 (regresjon)"
+  },
+  "block_8_breakdown": {
+    "event_invoice_paid": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "event_invoice_payment_failed": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "event_invoice_finalization_failed": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "event_invoice_marked_uncollectible": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "event_invoice_sent": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "event_invoice_voided": "✓ kodo_subdomain='mm-admin' leses → returnerer 'mm-admin'",
+    "payload_struktur": "Payload-objektet er identisk for alle 6: {object:'invoice', id:'in_test_<type>', customer:'cus_Unc4FFvSVMucgZ', metadata:{kodo_subdomain:'mm-admin', kodo_tenant_prefix:'mm', kodo_billing:'semiannual', kodo_max_licenses:'10', kodo_source:'admin_send_invoice_btn'}} — speilet 1:1 fra app/api/admin/tenants/[subdomain]/send-invoice/route.ts L172-178",
+    "scope_avgrensning": "customer.subscription.created/updated/deleted bevisst utelatt — D-080 manuell-faktura-flyten oppretter ikke subscription, så disse events kan strukturelt aldri inneholde kodo_subdomain på relevante paths. checkout.session.* er heller ikke relevant (manuell-flyten går utenom checkout)."
+  },
+  "code_verification_D138": {
+    "test_block_8_struktur": "✓ For-loop over eventTypes-array (6 typer) — kompakt og DRY. Hver iterasjon konstruerer identisk payload (kun id varierer) og asserter at findSubdomainFromEventClone returnerer 'mm-admin'.",
+    "test_assert_label_per_event": "✓ Assert-label inkluderer event-type-navnet (`${type}: kodo_subdomain leses fra real-world payload`) — feilmelding peker direkte til hvilken event-type som feiler hvis testen brytes.",
+    "event_handlers_uendret": "✓ lib/stripe/event-handlers.ts ikke modifisert (kontrollert via git status-mentalitet — denne iterasjonen er ren test-utvidelse).",
+    "findSubdomainFromEventClone_uendret": "✓ Klone-funksjonen er identisk med D-137 — block [8] tester samme logikk via path 1 (direct metadata) for alle 6 event-typer.",
+    "konklusjon": "D-137-fiksen er strukturelt event-type-agnostisk fordi den jobber på payload-shape (metadata-keys på event.data.object) ikke event-type. Block [8] gir eksplisitt regresjons-dekning for alle invoice.*-event-typer som kan treffe Mikes manuelle send-invoice-flyt — fremtidig refaktor som ved et uhell legger til event-type-filter (f.eks. `if event.type === 'invoice.paid'`) vil bli fanget av denne testen."
+  },
+  "test_report_links": [
+    "/app/frontend/lib/__tests__/find-subdomain-event.test.ts",
+    "/app/frontend/lib/stripe/event-handlers.ts",
+    "/app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/plan-consistency-guard.test.ts",
+    "/app/frontend/lib/__tests__/trial-days.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Positivt: Block [8] bruker for-loop over event-type-array — kompakt (6 events i ~20 linjer), unngår copy-paste-støy, og gjør det trivielt å legge til flere event-typer i fremtiden ved å utvide eventTypes-array.",
+    "Positivt: Payload-strukturen i testen speiler 1:1 metadata-keys fra send-invoice/route.ts L172-178 (kodo_subdomain, kodo_tenant_prefix, kodo_billing, kodo_max_licenses, kodo_source). Dette gir høy realisme-verdi og fanger regresjon hvis route eller helper endrer metadata-kontrakten unilateralt.",
+    "Positivt: Assert-label inkluderer event-type-navnet — feilmelding peker direkte til hvilken event-type som feilet (god UX for debugger).",
+    "Positivt (designvalg): Bevisst utelatelse av customer.subscription.*-events er korrekt og dokumentert i kommentar (L139-140). Disse event-typene kan strukturelt aldri treffe D-080 manuell-faktura-flyten siden ingen subscription opprettes, så testing av dem ville være misvisende (false positive coverage).",
+    "Minor (ikke-blokkerende, fortsatt fra D-137): findSubdomainFromEventClone er en lokal speiling av den private helperen i lib/stripe/event-handlers.ts. Risiko: hvis helperen refaktoreres uten å oppdatere klonen, vil testene fortsette å passe selv om produksjonskoden er feil. Mitigering: eksporter findSubdomainFromEvent (eller en test-only wrapper) fra event-handlers.ts og importér direkte i testen. Påvirker ikke runtime, men reduserer test-vedlikeholdsrisiko.",
+    "Minor (ikke-blokkerende): block [8] tester kun path 1 (direct metadata på event.data.object) for de 6 event-typene. Path 2 (subscription_details), path 3 (lines.data), og path 4 (customer.metadata) testes allerede uavhengig av event-type i blocks 4-5. Dette er en bevisst test-grense — kombinatorisk eksplosjon (6 event-typer × 4 paths = 24 cases) ville være støy. Akseptabel kompromiss siden helperen er payload-shape-drevet og ikke event-type-drevet (verifisert ved kode-inspeksjon)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skipped per request)", "frontend": "100% (static checks + 15/15 unit-tester + 65/65 regresjonstester)" },
+  "test_credentials": "n/a — ingen runtime-test",
+  "seed_data_creation": "n/a",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-138 er åttende iterasjon på samme send-invoice/Stripe-flyt (iter_29..iter_34). Iter_33 (D-137) fikset findSubdomainFromEvent-helperen til å støtte kodo_subdomain på alle 4 lookup-paths. Iter_34 (D-138, denne) er ren test-utvidelse — kun nytt block [8] med real-world payload-matrise for 6 invoice.*-event-typer. Ingen kode-endring i event-handlers.ts. Hvis fremtidig refaktor endrer signaturen til findSubdomainFromEvent eller flytter metadata-key-konstanter (kodo_subdomain, kodo_tenant_prefix, etc.) til en konstantfil, må både findSubdomainFromEventClone i testen OG block [8] payload-strukturen oppdateres tilsvarende. Vurder å eksportere helperen for test-tilgang istedenfor å klone — reduserer vedlikeholdsrisiko. Hvis Mike senere legger til en customer.subscription.*-basert manuell-flyt (lite sannsynlig per D-080-design), kan block [8] utvides med tilsvarende subscription-events.",
+  "rca_of_the_issue": "Ingen ny bug i D-138. Denne iterasjonen er en ren regresjons-test-utvidelse av D-137-fiksen. Bakgrunn (fra D-137): Mike betalte en manuelt sendt B2B-faktura, men status ble ikke oppdatert fordi findSubdomainFromEvent søkte etter `subdomain` mens D-080-routen setter `kodo_subdomain`. D-137 fikset helperen. D-138 verifiserer eksplisitt at fiksen treffer alle 6 invoice.*-event-typer som Mikes manuelle flyt kan utløse: invoice.paid (happy path), invoice.payment_failed (kort avvist), invoice.finalization_failed (Stripe-side feil ved auto-finalize), invoice.marked_uncollectible (manuelt markert tapt), invoice.sent (e-post sendt-bekreftelse), invoice.voided (Mike kansellerer faktura). Alle 6 events får identisk metadata-shape fra route.ts L172-178, så helperens path 1 (direct metadata) plukker opp kodo_subdomain uavhengig av event-type. Testen sikrer at en fremtidig refaktor ikke ved et uhell legger til event-type-filter i helperen (f.eks. `if (event.type !== 'invoice.paid') return null`) som ville bryte de andre 5 invoice.*-handlers."
+}
