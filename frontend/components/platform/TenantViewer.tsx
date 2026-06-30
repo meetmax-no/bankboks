@@ -1838,11 +1838,11 @@ function TenantDetailCard({
         />
       )}
 
-      {/* D-139: fakturahistorikk for alle tenants som har stripeCustomerId
+      {/* D-139/D-141: fakturahistorikk for alle tenants som har stripeCustomerId
           (B2C + B2B parents). B2B children følger parents fakturaer. */}
       {record.parentTenant === null && record.stripeCustomerId && (
         <InvoiceHistoryCard
-          subdomain={record.subdomain}
+          endpoint={`/api/admin/tenants/${record.subdomain}/invoices`}
           stripeCustomerId={record.stripeCustomerId}
         />
       )}

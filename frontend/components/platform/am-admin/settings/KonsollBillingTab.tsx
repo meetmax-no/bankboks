@@ -1,12 +1,15 @@
 "use client";
 /**
  * Ko | Do · Vault — Iter 20.9 (D-087, 2026-06-27) — Konsoll Fakturering-fane
+ * D-141 (2026-02): utvidet med fakturahistorikk-kort (gjenbruker InvoiceHistoryCard).
  *
- * Plan, neste fornyelse, lisens-bruk. Synlig for alle admin-roller.
+ * Plan, neste fornyelse, lisens-bruk + fakturahistorikk for org-en.
+ * Synlig for alle admin-roller — ingen PII per ansatt, kun org-aggregat.
  */
 import { useLocale } from "@/lib/i18n-context";
 import { formatShortDate } from "@/lib/format-date";
 import { SeatProgressBar } from "../SeatProgressBar";
+import { InvoiceHistoryCard } from "@/components/platform/InvoiceHistoryCard";
 
 type Props = {
   trialEndsAt: string | null;
@@ -15,6 +18,12 @@ type Props = {
   activeLicenses: number | null;
   pendingLicenses: number | null;
   plan: string;
+  /**
+   * D-141 (2026-02): stripeCustomerId fra parent-tenant. Brukes for å
+   * vise fakturahistorikk-kortet. Hvis null/undefined viser kortet en
+   * "ingen Stripe-customer registrert"-melding.
+   */
+  stripeCustomerId?: string | null;
 };
 
 export function KonsollBillingTab(props: Props) {
@@ -66,6 +75,14 @@ export function KonsollBillingTab(props: Props) {
           </div>
         </dl>
       </section>
+
+      {/* D-141 (2026-02): per-org fakturahistorikk — gjenbruker
+          InvoiceHistoryCard via am-admin-endpoint. Vises kun hvis
+          stripeCustomerId er satt på parent-tenant. */}
+      <InvoiceHistoryCard
+        endpoint="/api/am-admin/invoices"
+        stripeCustomerId={props.stripeCustomerId ?? null}
+      />
     </div>
   );
 }

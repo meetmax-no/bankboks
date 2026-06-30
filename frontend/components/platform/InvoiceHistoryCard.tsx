@@ -78,10 +78,16 @@ function formatDate(unix: number): string {
 }
 
 export function InvoiceHistoryCard({
-  subdomain,
+  endpoint,
   stripeCustomerId,
 }: {
-  subdomain: string;
+  /**
+   * D-141 (2026-02): URL-agnostisk endepunkt så samme komponent kan brukes
+   * av både Mike-admin (`/api/admin/tenants/[subdomain]/invoices`) og
+   * SuperAdmin am-admin (`/api/am-admin/invoices`). Komponenten appender
+   * `?period=...` automatisk.
+   */
+  endpoint: string;
   stripeCustomerId: string | null | undefined;
 }) {
   const [period, setPeriod] = useState<Period>("90d");
@@ -94,10 +100,9 @@ export function InvoiceHistoryCard({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `/api/admin/tenants/${subdomain}/invoices?period=${p}`,
-        { credentials: "same-origin" },
-      );
+      const res = await fetch(`${endpoint}?period=${p}`, {
+        credentials: "same-origin",
+      });
       const body = (await res.json()) as ApiResponse | { error: string };
       if (!res.ok || "error" in body) {
         throw new Error(("error" in body && body.error) || `HTTP ${res.status}`);
@@ -113,7 +118,7 @@ export function InvoiceHistoryCard({
   useEffect(() => {
     void load(period);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, subdomain]);
+  }, [period, endpoint]);
 
   if (!stripeCustomerId) {
     return (
