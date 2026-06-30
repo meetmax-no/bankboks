@@ -55,9 +55,13 @@ async function findSubdomainFromEvent(
 ): Promise<string | null> {
   const obj = event.data.object as unknown as Record<string, unknown>;
 
-  // 1. Direkte metadata på event-objektet (session, subscription, customer)
+  // 1. Direkte metadata på event-objektet (session, subscription, customer).
+  //    Vi støtter både `subdomain` (Stripe-checkout / subscription flyt) og
+  //    `kodo_subdomain` (D-080/D-136 Mike's manuelle send-invoice-flyt som
+  //    bruker namespaced keys for å unngå konflikt med Stripes egne).
   const directMeta = obj.metadata as Record<string, string> | undefined;
   if (directMeta?.subdomain) return directMeta.subdomain.toLowerCase();
+  if (directMeta?.kodo_subdomain) return directMeta.kodo_subdomain.toLowerCase();
 
   // 2. invoice.subscription_details.metadata (Stripe Dahlia)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,11 +71,15 @@ async function findSubdomainFromEvent(
   if (subDetails?.metadata?.subdomain) {
     return subDetails.metadata.subdomain.toLowerCase();
   }
+  if (subDetails?.metadata?.kodo_subdomain) {
+    return subDetails.metadata.kodo_subdomain.toLowerCase();
+  }
 
   // 3. invoice.lines.data[].metadata (Stripe-eldre/varianter)
   const lines = (obj as { lines?: { data?: Array<{ metadata?: Record<string, string> }> } }).lines;
   const lineMeta = lines?.data?.[0]?.metadata;
   if (lineMeta?.subdomain) return lineMeta.subdomain.toLowerCase();
+  if (lineMeta?.kodo_subdomain) return lineMeta.kodo_subdomain.toLowerCase();
 
   // 4. Customer-fallback — bruker stripe.customers.retrieve
   const customerId = obj.customer as string | undefined;
@@ -83,6 +91,8 @@ async function findSubdomainFromEvent(
       )) as Stripe.Customer;
       const meta = customer.metadata?.subdomain;
       if (meta) return meta.toLowerCase();
+      const kodoMeta = customer.metadata?.kodo_subdomain;
+      if (kodoMeta) return kodoMeta.toLowerCase();
     } catch (e) {
       console.error(
         "[event-handlers] customer-fallback failed:",
