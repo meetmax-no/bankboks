@@ -65,6 +65,12 @@ type ParentInfo = {
   contactEmail: string | null;
   contactPhone: string | null;
   locale: string | null;
+  /**
+   * D-141 (2026-02): Stripe-customer-ID for parent-tenant. Brukes av
+   * Konsoll → Innstillinger → Fakturering (KonsollBillingTab) for å vise
+   * fakturahistorikk via `/api/am-admin/invoices`.
+   */
+  stripeCustomerId: string | null;
 };
 
 type MeResponse = {
@@ -396,6 +402,7 @@ function Konsoll() {
               trialEndsAt={me.parent?.trialEndsAt ?? null}
               nextBillingDate={me.parent?.nextBillingDate ?? null}
               orgEmailLocale={me.parent?.locale ?? null}
+              stripeCustomerId={me.parent?.stripeCustomerId ?? null}
               lastLoginAt={me.admin.lastLoginAt ?? null}
               mpwSetup={mpwSetup}
               bgPref={bgPref}

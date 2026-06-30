@@ -51,6 +51,11 @@ type Props = {
   trialEndsAt: string | null;
   nextBillingDate: string | null;
   orgEmailLocale: string | null;
+  /**
+   * D-141 (2026-02): Stripe-customer-ID fra parent-tenant. Sendes videre
+   * til KonsollBillingTab → InvoiceHistoryCard for fakturahistorikk.
+   */
+  stripeCustomerId: string | null;
   // Security
   lastLoginAt: string | null;
   mpwSetup: boolean;
@@ -177,6 +182,7 @@ export function KonsoletSettingsPanel(props: Props) {
             activeLicenses={props.activeLicenses}
             pendingLicenses={props.pendingLicenses}
             plan={props.plan}
+            stripeCustomerId={props.stripeCustomerId}
           />
         )}
         {tab === "backup" && props.isSuperAdmin && <KonsollBackupTab />}

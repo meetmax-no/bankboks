@@ -138,6 +138,8 @@ const EXEMPT_ROUTES: Record<string, string> = {
     "am-admin logout-all-devices POST (Iter 20.9 / D-086) — bumper sessionsInvalidatedAt + clear current cookie",
   "app/api/am-admin/org/locale/route.ts":
     "am-admin org default e-post-locale PATCH (Iter 20.9 / D-086) — super-admin only, oppdaterer parent.locale",
+  "app/api/am-admin/invoices/route.ts":
+    "am-admin per-org fakturahistorikk GET (D-141, 2026-02) — speiler /api/admin/tenants/[subdomain]/invoices, henter parent.stripeCustomerId og kaller stripe.invoices.list. Beskyttet av requireAmAdmin (super-admin + admin), ingen PII per ansatt — kun org-aggregat.",
   "app/api/admin/tenants/[subdomain]/create-org-admin/route.ts":
     "Mike oppretter første am-admin (Iter 20.2) — dekket av Matrise 6 i DECISIONS.md (Iter 20.6)",
 };

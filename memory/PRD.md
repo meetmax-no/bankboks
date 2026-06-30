@@ -33,6 +33,20 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-141 Per-org fakturahistorikk for am-admin (P1)
+- **Gjenbruk:** `InvoiceHistoryCard` (D-139) refaktorert til å ta `endpoint`-prop, slik at samme komponent dekker både Mike-admin (`/api/admin/tenants/[subdomain]/invoices`) og am-admin (`/api/am-admin/invoices`).
+- **Nytt endepunkt:** `GET /api/am-admin/invoices?period=30d|90d|365d|all` speiler shape og semantikk fra D-139-endepunktet. Beskyttet av `requireAmAdmin` — både super-admin og admin har lik tilgang (org-aggregat, ingen PII per ansatt).
+- **Wired inn i Konsoll → Innstillinger → Fakturering** (`KonsollBillingTab`): henter `stripeCustomerId` fra `me.parent` via `/api/am-admin/auth/me` og sender den hele veien gjennom `KonsoletSettingsPanel` → `KonsollBillingTab` → `InvoiceHistoryCard`.
+- **Filer:**
+  - `app/api/am-admin/invoices/route.ts` (ny)
+  - `components/platform/InvoiceHistoryCard.tsx` (endpoint-prop)
+  - `components/platform/am-admin/settings/KonsollBillingTab.tsx` (kort wired inn)
+  - `components/platform/am-admin/settings/KonsoletSettingsPanel.tsx` (props gjennomstrømming)
+  - `app/api/am-admin/auth/me/route.ts` (`stripeCustomerId` på `parent`)
+  - `app/platform/am-admin/page.tsx` (`ParentInfo` utvidet)
+  - `lib/__tests__/coverage-matrix-lint.test.ts` (EXEMPT-oppføring for ny rute)
+- **Statisk QA:** TSC ✓ · `yarn lint:all` ✓ (7/7) · `yarn build` ✓.
+
 ### ✅ 2026-02 — D-126 SuperAdmin client-config provisjonering + arv (P1)
 - **SA-init:** B2B parent-tenants (`<prefix>-admin`) får nå automatisk `client-config:<prefix>-admin` initialisert fra `default.json` ved første `provision-vercel`-kall (D-088-short-circuit-grenen). Idempotent — overskriver ikke eksisterende.
 - **Ansatt-arv:** Ny helper `buildTenantConfigFromParent()`. `provisionTenantOnVercel` har ny `parentSubdomain`-prop. Når en ansatt opprettes via invite/accept, arves SA-malen i stedet for global `default.json`. Fallback til default + logg-advarsel hvis SA mangler config.

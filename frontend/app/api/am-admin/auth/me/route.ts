@@ -137,6 +137,11 @@ export async function GET(req: NextRequest) {
           // Iter 20.9 (D-086): default e-post-locale for org, vises i
           // Innstillinger → Generelle. Kun super-admin kan endre.
           locale: parent.locale,
+          // D-141 (2026-02): Stripe-customer-ID for fakturahistorikk i
+          // Konsoll → Innstillinger → Fakturering. Brukes av
+          // InvoiceHistoryCard for å vise "ingen Stripe-customer"-state
+          // når null/undefined.
+          stripeCustomerId: parent.stripeCustomerId ?? null,
         }
       : null,
   });
