@@ -1,0 +1,42 @@
+{
+  "summary": "D-139 (per-kunde fakturahistorikk) statisk verifisering fullført. TSC (exit 0), yarn lint:all (alle 7 sub-lints grønt inkl. coverage-matrix/i18n-sync/D-077/D-078/D-105), yarn build (exit 0, ny route /api/admin/tenants/[subdomain]/invoices kompilert som ƒ dynamic), og alle 4 regresjonstester (pricing-structured 27/27, plan-consistency-guard 16/16, trial-days 22/22, find-subdomain-event 15/15) består. Endpoint, komponent, integration i TenantViewer og coverage-matrix-exempt verifisert ved manuell kode-inspeksjon mot kravspesifikasjonen. Mike forbød E2E — kun statisk verifisering utført.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.54s)",
+    "lint_all": "PASS (alle 7 sub-lints grønt: ESLint, tenant-env-manifest D-077, coverage-matrix, i18n-sync 4 språk a 1473 nøkler, d078-pii, d105-duplication)",
+    "yarn_build": "PASS (exit 0, 23.66s, 14 statiske sider, ny route '/api/admin/tenants/[subdomain]/invoices' ƒ 321 B / 101 kB)",
+    "regression_tests": {
+      "pricing-structured": "27/27 passed",
+      "plan-consistency-guard": "16/16 passed",
+      "trial-days": "22/22 passed",
+      "find-subdomain-event": "15/15 passed"
+    }
+  },
+  "feature_verification_d139": {
+    "endpoint_route_ts": "VERIFISERT — GET-handler, parsePeriod (30d|90d|365d|all, default 90d), getTenant→404, tom-liste hvis !stripeCustomerId, stripe.invoices.list med customer + limit:100 + created.gte når period!=='all', kompakt mapping (id/number/created/status/amount_due/amount_paid/total/tax/currency/urls/paid_at/collection_method/kodo_metadata), tax_minor=sum(total_taxes[].amount), summary ekskluderer void+uncollectible fra amount/tax men inkluderer i count, total_paid_minor inkluderer alle. 502-feilhåndtering med console.error.",
+    "component_InvoiceHistoryCard_tsx": "VERIFISERT — useState for period/data/loading/error, useEffect re-fetcher ved [period, subdomain]-endring, no-customer-fallback med testid 'invoice-history-no-customer', periode-dropdown 4 alternativer med testid 'invoice-history-period', refresh-knapp 'invoice-history-refresh' med disabled+spinner, tabell 'invoice-history-table' med thead/tbody/tfoot, status-badges STATUS_STYLE-mapping (paid=emerald, open=amber, void/uncollectible=red, draft=white/10), sum-rad 'invoice-history-summary' med 'Sum (N)'-label + colSpan, formatMinor bruker nb-NO Intl.NumberFormat min/max 2 desimaler, formatDate bruker nb-NO toLocaleDateString, ExternalLink-ikon for hosted_invoice_url, PDF-tekstlenke for invoice_pdf.",
+    "TenantViewer_integration": "VERIFISERT — import L49, render L1843-1848 inni activeTab==='fakturering'-blokk under SendTestInvoiceCard, condition: record.parentTenant === null && record.stripeCustomerId (dekker både B2C og B2B parents, B2B children hoppes).",
+    "coverage_matrix_exempt": "VERIFISERT — L63 EXEMPT_ROUTES-entry med D-139-begrunnelse ('GET-only read-side mot Stripe invoices.list ... ren projection ...').",
+    "data_testids": "VERIFISERT — alle 11 påkrevde testids til stede: invoice-history-card, -no-customer, -period, -refresh, -table, -summary, -empty, -error, invoice-row-{id}, invoice-pdf-{id}, invoice-link-{id}."
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Liten merknad (ikke-blokkerende): summary.currency faller tilbake til 'nok' hvis ingen fakturaer — frontend formatMinor uppercaser til 'NOK', OK. Vurder å logge customerType=b2c-tilfeller for å bekrefte at lower-case 'nok' fra Stripe alltid mappes til NOK i UI.",
+    "Liten merknad: tom-liste på no-customer returnerer fortsatt 200 med summary.currency='nok' og uten 'period'-felt (mens normal-respons inkluderer period). Konsistent å inkludere period også i tom-grenen for å matche TS-typen Summary; ikke-blokkerende siden komponenten bruker summary kun når invoices.length > 0.",
+    "Sikkerhet: Endpoint mangler eksplisitt rolle-sjekk i route-handler — antar at middleware (D-078) håndterer admin-tilgangskontroll for /api/admin/* slik som søsterruter. Verifiseres som standard for admin-skopet, ikke en regresjon for D-139."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (skip backend)", "frontend": "100% (static)" },
+  "test_credentials": "n/a — E2E forbudt av Mike",
+  "seed_data_creation": "Ingen — kun statisk verifisering",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "D-139 er en read-only Stripe-projection (invoices.list med created.gte-filter). Ingen webhook-tilknytning, ingen state-mutering. EXEMPT i coverage-matrix. Hvis senere iterasjon legger til mutation (refund, void, send-reminder) MÅ den ut av EXEMPT-listen og inn i webhook-matrisen.",
+  "rca of the issue": "n/a — feature addition, ingen bug"
+}

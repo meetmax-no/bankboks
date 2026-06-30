@@ -46,6 +46,7 @@ import { SeatProgressBar } from "@/components/platform/am-admin/SeatProgressBar"
 import { SubTabNav } from "@/components/platform/SubTabNav";
 import { CreateOrgAdminCard } from "./CreateOrgAdminCard";
 import { SendTestInvoiceCard } from "./SendTestInvoiceCard";
+import { InvoiceHistoryCard } from "./InvoiceHistoryCard";
 import { ClientConfigEditor } from "./ClientConfigEditor";
 import { ConfigToolsButton } from "./ConfigToolsButton";
 import { ProvisioningTracker } from "./ProvisioningTracker";
@@ -1834,6 +1835,15 @@ function TenantDetailCard({
           stripeCustomerId={record.stripeCustomerId}
           maxLicenses={record.maxLicenses}
           contactEmail={record.contactEmail || record.email}
+        />
+      )}
+
+      {/* D-139: fakturahistorikk for alle tenants som har stripeCustomerId
+          (B2C + B2B parents). B2B children følger parents fakturaer. */}
+      {record.parentTenant === null && record.stripeCustomerId && (
+        <InvoiceHistoryCard
+          subdomain={record.subdomain}
+          stripeCustomerId={record.stripeCustomerId}
         />
       )}
       </>
