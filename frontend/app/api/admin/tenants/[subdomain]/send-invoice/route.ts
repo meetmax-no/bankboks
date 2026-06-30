@@ -147,11 +147,16 @@ export async function POST(
 
     // 2. Opprett invoice som send_invoice-collection (Stripe sender email
     //    til kunden, 14 dagers due-frist).
+    //    D-132 (2026-02): `auto_advance: false` — vi eier livssyklusen
+    //    eksplisitt (finalize → send). Tidligere `auto_advance: true` lagde
+    //    en race der Stripe auto-finaliserte og auto-sendte samtidig som vi
+    //    manuelt kalte `sendInvoice`, og Stripe svarte "This invoice cannot
+    //    be sent right now" på det manuelle send-kallet.
     const invoice = await stripe.invoices.create({
       customer: parent.stripeCustomerId,
       collection_method: "send_invoice",
       days_until_due: 14,
-      auto_advance: true,
+      auto_advance: false,
       metadata: {
         kodo_subdomain: parent.subdomain,
         kodo_tenant_prefix: parent.tenantPrefix ?? "",
@@ -161,14 +166,21 @@ export async function POST(
       },
     });
 
-    // 3. Finaliser + send (med auto_advance=true håndterer Stripe finalize
-    //    selv, men vi triggrer sending eksplisitt for å være sikker).
-    if (invoice.id && invoice.status === "draft") {
-      await stripe.invoices.finalizeInvoice(invoice.id);
+    // 3. Finaliser eksplisitt (auto_advance=false → vi må selv).
+    if (!invoice.id) {
+      throw new Error("Stripe returnerte invoice uten id");
     }
-    if (invoice.id) {
-      await stripe.invoices.sendInvoice(invoice.id);
+    const finalized = await stripe.invoices.finalizeInvoice(invoice.id);
+
+    // 4. Send fakturaen til kundens e-post. Stripe kun aksepterer dette
+    //    når invoice.status === "open" (etter finalize). Hvis ikke åpen,
+    //    rapporter detaljert feil i stedet for kryptisk "cannot be sent".
+    if (finalized.status !== "open") {
+      throw new Error(
+        `Kan ikke sende: invoice.status='${finalized.status}' (forventet 'open' etter finalize)`,
+      );
     }
+    await stripe.invoices.sendInvoice(invoice.id);
 
     // 4. Logg event på parent
     await appendProvisioningEvent(parent.subdomain, {

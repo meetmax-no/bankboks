@@ -1,0 +1,47 @@
+{
+  "summary": "D-132 statisk verifisering: Stripe send_invoice race-condition fiks bekreftet via tsc, lint:all (7/7), build, og regresjonstester for D-127/D-130. Ingen E2E utført (Mike forbyr i podd).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "static_checks": {
+    "tsc_noEmit": "PASS (exit 0, 2.22s)",
+    "yarn_lint_all": "PASS (alle 7 sub-lints grønt: d069, isolation, tenant-env, coverage-matrix, i18n-sync, d078, d105)",
+    "yarn_build": "PASS (exit 0, 25.17s — Next.js 15.2.6 produksjons-build OK)",
+    "D-127_pricing_structured": "PASS 27/27",
+    "D-130_plan_consistency_guard": "PASS 16/16"
+  },
+  "code_verification_D132": {
+    "auto_advance_false": "✓ L159: `auto_advance: false` i `stripe.invoices.create(...)` — eier livssyklusen eksplisitt",
+    "manual_finalize_uten_status_sjekk": "✓ L173: `finalizeInvoice(invoice.id)` kalles direkte etter create — auto_advance:false garanterer draft, så status-sjekk før finalize er unødvendig",
+    "status_open_sjekk_for_send": "✓ L178-182: `if (finalized.status !== 'open') throw new Error(...)` med deterministisk feilmelding som inkluderer faktisk `finalized.status` ('Kan ikke sende: invoice.status=\\'…\\' (forventet \\'open\\' etter finalize)')",
+    "invoice_id_null_throw": "✓ L170-172: `if (!invoice.id) throw new Error('Stripe returnerte invoice uten id')` — håndterer Stripe TS-types som tillater null id",
+    "D131_amount_currency_fortsatt_paa_plass": "✓ L141-146: `invoiceItems.create({ customer, amount: totalOre, currency: 'nok', description: ... })` — D-131 fiksen for recurring/one_time-mismatch sameksisterer med D-132",
+    "ingen_STRIPE_PRICE_B2B_lekkasje": "✓ Eneste forekomst av 'STRIPE_PRICE_B2B' i route.ts er i historisk kommentar (L108) — ingen `process.env.STRIPE_PRICE_B2B_*` i kode-pathen. Webhook-laget (priceIdToPlan) er fortsatt eneste consumer."
+  },
+  "test_report_links": [
+    "/app/frontend/app/api/admin/tenants/[subdomain]/send-invoice/route.ts",
+    "/app/frontend/lib/__tests__/pricing-structured.test.ts",
+    "/app/frontend/lib/__tests__/plan-consistency-guard.test.ts"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor (ikke-blokkerende): L183 kaller `sendInvoice(invoice.id)` men kunne brukt `finalized.id` for konsistens med variabelnavnet — funksjonelt identisk siden finalize returnerer samme invoice-objekt.",
+    "Minor (ikke-blokkerende): Kommentar-nummerering L169/L185 har duplikat '4.' (skal være 3. og 4./5.) — kun kosmetisk.",
+    "Positivt: Feilmeldingen på L180 er deterministisk og inkluderer faktisk `finalized.status` slik at Mike får actionable feedback i provisioning-log i stedet for Stripes kryptiske 'cannot be sent right now'.",
+    "Positivt: D-131 (amount+currency) og D-132 (auto_advance:false + status-guard) sameksisterer korrekt — ingen overlapp eller motsetning."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (static checks)"},
+  "test_credentials": "n/a — ingen runtime-test",
+  "seed_data_creation": "n/a",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "D-132 er ren statisk verifisering — Mike forbød E2E i podd fordi det går mot Stripe LIVE-konto (max@meetmax.no er ekte kunde). Hvis E2E senere åpnes: kall POST /api/admin/tenants/mm-admin/send-invoice med {billing:'semiannual'} og verifiser at (1) invoice.status='open' etter finalize, (2) sendInvoice ikke returnerer 'cannot be sent right now', (3) provisioning-log får `stripe_invoice_sent: ok`. D-131-fiksen (amount+currency i invoiceItems) må fortsatt være på plass i samme run.",
+  "rca_of_the_issue": "Race condition: Tidligere `auto_advance: true` på `invoices.create` triggered Stripes interne auto-finalize-and-send loop. Vår manuelle `finalizeInvoice` + `sendInvoice` kjørte parallelt med Stripes auto-pipeline → når vi traff `sendInvoice`-endepunktet hadde Stripe allerede statet-transisjon i gang, og API-et svarte 'This invoice cannot be sent right now'. Mitigering verifisert i koden: `auto_advance: false` deaktiverer Stripes auto-pipeline; vår eksplisitte finalize+status-guard+send blir nå eneste path. Status-guard kaster deterministisk feil hvis finalize uventet ikke produserer status='open', slik at vi får actionable signal i stedet for Stripes generiske feilmelding."
+}
