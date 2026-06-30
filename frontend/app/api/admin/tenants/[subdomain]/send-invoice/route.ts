@@ -182,7 +182,7 @@ export async function POST(
     }
     await stripe.invoices.sendInvoice(invoice.id);
 
-    // 4. Logg event på parent
+    // 5. Logg event på parent
     await appendProvisioningEvent(parent.subdomain, {
       timestamp: new Date().toISOString(),
       stage: "status_change",
