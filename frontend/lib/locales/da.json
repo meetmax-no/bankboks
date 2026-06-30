@@ -1437,7 +1437,7 @@
   "am_admin_settings.history_summary_devices": "Unikke enheder:",
   "am_admin_settings.history_show_more_prefix": "Vis hele historikken",
   "am_admin_settings.history_show_more_suffix": "flere",
-  "am_admin_settings.history_show_less": "Skjul hele historikken",
+  "am_admin_settings.history_modal_close": "Luk",
   "am_admin_settings.history_filter_prefix": "Sidste",
   "am_admin_settings.history_filter_days": "dage",
   "am_admin_settings.ui_locale_heading": "Sprog (dit)",

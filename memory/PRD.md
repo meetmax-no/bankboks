@@ -33,6 +33,13 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-142 Login-historikk i eget modal-vindu (P2/UX)
+- "Vis full historikk"-lenken i Konsoll → Innstillinger → Sikkerhet åpner nå et sentrert modal i stedet for å ekspandere inline. Det kompakte 5-rads-kortet er alltid synlig; modalen inneholder filter-pills (7/30/90 dager), full scrollbar tabell, sticky thead, og lukkes via X-knapp, "Lukk"-footer-knapp, ESC eller backdrop-klikk.
+- Begrunnelse: inline-utvidelsen "ødela" den fine card-layouten på Innstillinger-fanen ved å pushe nedoverliggende seksjoner langt nedover. Modal-pattern matcher `AmAdminDeleteResultModal` (D-116) for konsistens.
+- **Plassering Generelle-fanen:** byttet rekkefølge — Org-info først, deretter "Språk (din)", deretter "Default e-post-språk (org)". Brukervalg.
+- **Files:** `components/platform/am-admin/settings/KonsollSecurityTab.tsx`, `components/platform/am-admin/settings/KonsollGeneralTab.tsx`. i18n: ny nøkkel `am_admin_settings.history_modal_close` × 4 språk (erstatter dead `history_show_less`).
+- **Statisk QA:** TSC ✓ · `yarn lint:all` ✓ (7/7) · `yarn build` ✓.
+
 ### ✅ 2026-02 — D-141 Per-org fakturahistorikk for am-admin (P1)
 - **Gjenbruk:** `InvoiceHistoryCard` (D-139) refaktorert til å ta `endpoint`-prop, slik at samme komponent dekker både Mike-admin (`/api/admin/tenants/[subdomain]/invoices`) og am-admin (`/api/am-admin/invoices`).
 - **Nytt endepunkt:** `GET /api/am-admin/invoices?period=30d|90d|365d|all` speiler shape og semantikk fra D-139-endepunktet. Beskyttet av `requireAmAdmin` — både super-admin og admin har lik tilgang (org-aggregat, ingen PII per ansatt).

@@ -1437,7 +1437,7 @@
   "am_admin_settings.history_summary_devices": "Unique devices:",
   "am_admin_settings.history_show_more_prefix": "Show full history",
   "am_admin_settings.history_show_more_suffix": "more",
-  "am_admin_settings.history_show_less": "Hide full history",
+  "am_admin_settings.history_modal_close": "Close",
   "am_admin_settings.history_filter_prefix": "Last",
   "am_admin_settings.history_filter_days": "days",
   "am_admin_settings.ui_locale_heading": "Language (yours)",

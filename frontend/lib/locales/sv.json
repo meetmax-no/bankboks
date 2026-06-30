@@ -1437,7 +1437,7 @@
   "am_admin_settings.history_summary_devices": "Unika enheter:",
   "am_admin_settings.history_show_more_prefix": "Visa hela historiken",
   "am_admin_settings.history_show_more_suffix": "till",
-  "am_admin_settings.history_show_less": "Dölj hela historiken",
+  "am_admin_settings.history_modal_close": "Stäng",
   "am_admin_settings.history_filter_prefix": "Senaste",
   "am_admin_settings.history_filter_days": "dagar",
   "am_admin_settings.ui_locale_heading": "Språk (ditt)",

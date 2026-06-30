@@ -1437,7 +1437,7 @@
   "am_admin_settings.history_summary_devices": "Unike enheter:",
   "am_admin_settings.history_show_more_prefix": "Vis full historikk",
   "am_admin_settings.history_show_more_suffix": "flere",
-  "am_admin_settings.history_show_less": "Skjul full historikk",
+  "am_admin_settings.history_modal_close": "Lukk",
   "am_admin_settings.history_filter_prefix": "Siste",
   "am_admin_settings.history_filter_days": "dager",
   "am_admin_settings.ui_locale_heading": "Språk (din)",
