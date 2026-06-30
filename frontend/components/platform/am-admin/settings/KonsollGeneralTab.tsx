@@ -3,8 +3,8 @@
  * Ko | Do · Vault — Iter 20.9 (D-086, 2026-06-27) — Konsoll Generelle
  *
  * Innhold:
- *   1. SPRÅK (din) — LanguagePicker (4 flagg) — kun denne enheten/browseren
- *   2. ORG-INFO — read-only (firmanavn, prefix, org.nr, kontakt, plan, lisenser)
+ *   1. ORG-INFO — read-only (firmanavn, prefix, org.nr, kontakt, plan, lisenser)
+ *   2. SPRÅK (din) — LanguagePicker (4 flagg) — kun denne enheten/browseren
  *   3. DEFAULT E-POST-SPRÅK (org) — kun super-admin kan endre
  */
 import { useState } from "react";
@@ -72,39 +72,6 @@ export function KonsollGeneralTab(props: Props) {
 
   return (
     <div className="space-y-5">
-      {/* ─── SPRÅK (din) ───────────────────────────────────────────── */}
-      <section
-        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-        data-testid="konsoll-general-ui-locale"
-      >
-        <SectionTitle>{t("am_admin_settings.ui_locale_heading")}</SectionTitle>
-        <p className="text-[11px] text-white/45 mb-3 mt-1">
-          {t("am_admin_settings.ui_locale_help")}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(LOCALE_FLAGS) as Locale[]).map((loc) => {
-            const meta = LOCALE_FLAGS[loc];
-            const active = uiLocale === loc;
-            return (
-              <button
-                key={loc}
-                onClick={() => handleUiLocaleChange(loc)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition ${
-                  active
-                    ? "bg-amber-400/15 border-amber-400/60 text-white"
-                    : "bg-white/[0.03] border-white/10 text-white/70 hover:text-white hover:border-white/30"
-                }`}
-                data-testid={`konsoll-ui-locale-${loc}`}
-                aria-pressed={active}
-              >
-                <span className="text-base leading-none">{meta.flag}</span>
-                <span>{meta.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       {/* ─── ORG-INFO (read-only) ─────────────────────────────────── */}
       <section
         className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
@@ -162,6 +129,39 @@ export function KonsollGeneralTab(props: Props) {
             />
           </div>
         </dl>
+      </section>
+
+      {/* ─── SPRÅK (din) ───────────────────────────────────────────── */}
+      <section
+        className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+        data-testid="konsoll-general-ui-locale"
+      >
+        <SectionTitle>{t("am_admin_settings.ui_locale_heading")}</SectionTitle>
+        <p className="text-[11px] text-white/45 mb-3 mt-1">
+          {t("am_admin_settings.ui_locale_help")}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(LOCALE_FLAGS) as Locale[]).map((loc) => {
+            const meta = LOCALE_FLAGS[loc];
+            const active = uiLocale === loc;
+            return (
+              <button
+                key={loc}
+                onClick={() => handleUiLocaleChange(loc)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm transition ${
+                  active
+                    ? "bg-amber-400/15 border-amber-400/60 text-white"
+                    : "bg-white/[0.03] border-white/10 text-white/70 hover:text-white hover:border-white/30"
+                }`}
+                data-testid={`konsoll-ui-locale-${loc}`}
+                aria-pressed={active}
+              >
+                <span className="text-base leading-none">{meta.flag}</span>
+                <span>{meta.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       {/* ─── DEFAULT E-POST-SPRÅK (org) ────────────────────────────── */}
