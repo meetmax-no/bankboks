@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { LogOut, ShieldAlert } from "lucide-react";
+import { LogOut, ShieldAlert, X } from "lucide-react";
 import { useLocale } from "@/lib/i18n-context";
 import { formatShortDateTime } from "@/lib/format-date";
 import { ChangePasswordForm } from "../ChangePasswordForm";
@@ -40,22 +40,31 @@ export function KonsollSecurityTab({
   const [events, setEvents] = useState<LoginEvent[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [logoutBusy, setLogoutBusy] = useState(false);
-  // Iter 20.9 (D-087, Mike 2026-06-27): kompakt log-visning — 5 events default,
-  // utvid til scrollbar container + dato-filter (7/30/90d) ved klikk.
-  const [historyExpanded, setHistoryExpanded] = useState(false);
+  // D-142 (2026-02): full historikk åpnes nå i et eget modal-vindu i stedet
+  // for å ekspandere inline (som "ødela" den fine card-layouten). Det
+  // kompakte 5-radskortet er alltid synlig; "Vis full historikk" åpner
+  // modalen. ESC + backdrop-klikk + X-knapp lukker.
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
   const [historyFilterDays, setHistoryFilterDays] = useState<7 | 30 | 90>(90);
 
   const COMPACT_COUNT = 5;
 
-  // Filtrer events basert på filter-pills (kun aktivt når ekspandert).
+  // Filtrer events basert på filter-pills (kun aktivt i modal).
   const filteredEvents = (() => {
-    if (!historyExpanded) return events;
     const cutoff = Date.now() - historyFilterDays * 24 * 60 * 60 * 1000;
     return events.filter((e) => e.ts >= cutoff);
   })();
-  const visibleEvents = historyExpanded
-    ? filteredEvents
-    : events.slice(0, COMPACT_COUNT);
+  const compactEvents = events.slice(0, COMPACT_COUNT);
+
+  // ESC lukker modal.
+  useEffect(() => {
+    if (!historyModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setHistoryModalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [historyModalOpen]);
 
   const fetchHistory = useCallback(async () => {
     setLoadingHistory(true);
@@ -222,45 +231,12 @@ export function KonsollSecurityTab({
 
         {!loadingHistory && events.length > 0 && (
           <>
-            {/* Filter-pills (synlig kun når ekspandert) */}
-            {historyExpanded && (
-              <div className="flex gap-1.5 mb-3" data-testid="konsoll-history-filter">
-                {([7, 30, 90] as const).map((d) => {
-                  const active = historyFilterDays === d;
-                  return (
-                    <button
-                      key={d}
-                      onClick={() => setHistoryFilterDays(d)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
-                        active
-                          ? "bg-amber-400/15 border-amber-400/60 text-amber-100"
-                          : "bg-white/5 border-white/10 text-white/55 hover:text-white/85"
-                      }`}
-                      data-testid={`history-filter-${d}d`}
-                    >
-                      {t("am_admin_settings.history_filter_prefix")}{" "}
-                      {d}{" "}
-                      {t("am_admin_settings.history_filter_days")}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div
-              className={`overflow-x-auto ${historyExpanded ? "max-h-96 overflow-y-auto" : ""}`}
-            >
+            <div className="overflow-x-auto">
               <table
                 className="w-full text-xs"
                 data-testid="konsoll-history-table"
               >
-                <thead
-                  className={
-                    historyExpanded
-                      ? "sticky top-0 bg-slate-900/95 backdrop-blur-sm"
-                      : ""
-                  }
-                >
+                <thead>
                   <tr className="text-left text-[10px] uppercase tracking-wide text-white/45 border-b border-white/10">
                     <th className="py-2 pr-3 font-medium">
                       {t("am_admin_settings.history_col_time")}
@@ -274,7 +250,7 @@ export function KonsollSecurityTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleEvents.map((e) => (
+                  {compactEvents.map((e) => (
                     <tr
                       key={e.ts}
                       className="border-b border-white/5 last:border-0"
@@ -297,21 +273,169 @@ export function KonsollSecurityTab({
               </table>
             </div>
 
-            {/* Toggle: expand/collapse */}
+            {/* D-142 (2026-02): klikk åpner modal i stedet for inline-utvidelse. */}
             {events.length > COMPACT_COUNT && (
               <button
-                onClick={() => setHistoryExpanded((v) => !v)}
+                onClick={() => setHistoryModalOpen(true)}
                 className="mt-3 text-[11px] text-amber-300 hover:text-amber-200 underline-offset-2 hover:underline"
-                data-testid="konsoll-history-toggle"
+                data-testid="konsoll-history-open-modal"
               >
-                {historyExpanded
-                  ? t("am_admin_settings.history_show_less")
-                  : `${t("am_admin_settings.history_show_more_prefix")} (${events.length - COMPACT_COUNT} ${t("am_admin_settings.history_show_more_suffix")})`}
+                {`${t("am_admin_settings.history_show_more_prefix")} (${events.length - COMPACT_COUNT} ${t("am_admin_settings.history_show_more_suffix")})`}
               </button>
             )}
           </>
         )}
       </section>
+
+      {/* D-142 (2026-02) — Full historikk i modal-vindu */}
+      {historyModalOpen && (
+        <div
+          data-testid="konsoll-history-modal"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setHistoryModalOpen(false);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="konsoll-history-modal-title"
+        >
+          <div className="w-full max-w-3xl bg-slate-900/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-2xl flex flex-col max-h-[85vh]">
+            {/* Header */}
+            <div className="p-5 border-b border-white/10 flex items-start justify-between gap-3 shrink-0">
+              <div>
+                <h3
+                  id="konsoll-history-modal-title"
+                  className="text-base font-semibold tracking-tight"
+                >
+                  {t("am_admin_settings.history_section_title")}
+                </h3>
+                {lastLoginAt && (
+                  <div className="mt-2 text-[11px] flex flex-wrap gap-x-4 gap-y-1">
+                    <span>
+                      <span className="text-white/45">
+                        {t("am_admin_settings.last_login_label")}
+                      </span>{" "}
+                      <span className="font-mono text-white/85">
+                        {formatShortDateTime(lastLoginAt, locale)}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="text-white/45">
+                        {t("am_admin_settings.history_summary_total")}
+                      </span>{" "}
+                      <span className="font-mono text-white/85">
+                        {events.length}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="text-white/45">
+                        {t("am_admin_settings.history_summary_devices")}
+                      </span>{" "}
+                      <span className="font-mono text-white/85">
+                        {uniqueDeviceCount(events)}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={() => setHistoryModalOpen(false)}
+                className="text-white/55 hover:text-white p-1 -m-1 shrink-0"
+                aria-label={t("am_admin_settings.history_modal_close")}
+                data-testid="konsoll-history-modal-close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Filter-pills */}
+            <div
+              className="px-5 pt-4 flex gap-1.5 shrink-0"
+              data-testid="konsoll-history-filter"
+            >
+              {([7, 30, 90] as const).map((d) => {
+                const active = historyFilterDays === d;
+                return (
+                  <button
+                    key={d}
+                    onClick={() => setHistoryFilterDays(d)}
+                    className={`text-[11px] px-2.5 py-1 rounded-full border transition ${
+                      active
+                        ? "bg-amber-400/15 border-amber-400/60 text-amber-100"
+                        : "bg-white/5 border-white/10 text-white/55 hover:text-white/85"
+                    }`}
+                    data-testid={`history-filter-${d}d`}
+                  >
+                    {t("am_admin_settings.history_filter_prefix")}{" "}
+                    {d}{" "}
+                    {t("am_admin_settings.history_filter_days")}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Scrollbar tabell */}
+            <div className="px-5 py-4 overflow-y-auto grow">
+              {filteredEvents.length === 0 ? (
+                <p className="text-sm text-white/45 py-8 text-center">
+                  {t("am_admin_settings.history_empty")}
+                </p>
+              ) : (
+                <table
+                  className="w-full text-xs"
+                  data-testid="konsoll-history-modal-table"
+                >
+                  <thead className="sticky top-0 bg-slate-900/95 backdrop-blur-sm">
+                    <tr className="text-left text-[10px] uppercase tracking-wide text-white/45 border-b border-white/10">
+                      <th className="py-2 pr-3 font-medium">
+                        {t("am_admin_settings.history_col_time")}
+                      </th>
+                      <th className="py-2 px-3 font-medium">
+                        {t("am_admin_settings.history_col_ip")}
+                      </th>
+                      <th className="py-2 px-3 font-medium">
+                        {t("am_admin_settings.history_col_ua")}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEvents.map((e) => (
+                      <tr
+                        key={e.ts}
+                        className="border-b border-white/5 last:border-0"
+                      >
+                        <td className="py-2 pr-3 font-mono text-white/80">
+                          {formatShortDateTime(
+                            new Date(e.ts).toISOString(),
+                            locale,
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-white/65">
+                          {e.ip}
+                        </td>
+                        <td className="py-2 px-3 text-white/55">
+                          {summarizeUserAgent(e.ua)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3 border-t border-white/10 flex justify-end shrink-0">
+              <button
+                onClick={() => setHistoryModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-xs"
+                data-testid="konsoll-history-modal-close-btn"
+              >
+                {t("am_admin_settings.history_modal_close")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Logg ut alle enheter ──────────────────────────────── */}
       <section
