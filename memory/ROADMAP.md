@@ -11,6 +11,16 @@
 
 ## 🚧 PRE-LAUNCH BLOCKERS (må fikses før prod-launch)
 
+### 🏛️ Arkitektur-kandidat — Admin/Vault-splitt (separate Vercel-apper)
+**Status:** ⏳ Kun kartlagt (2026-02-01). Ingen beslutning tatt.
+**Dokumentasjon:** [`/app/memory/ADMIN_SPLIT_SCOPING.md`](./ADMIN_SPLIT_SCOPING.md)
+
+**Kort:** Mike vurderer å splitte kodebasen i to Vercel-apper — `admin.kodovault.no` + `<prefix>-admin.kodovault.no` (admin-app) og `<prefix>.kodovault.no` (vault-app). Fullstendig kartleggingsrapport med filantall (~101 flyttes, ~15 gråsone, ~240 totalt å røre), delt state, risikoer og fase-estimat (9–11 dager) ligger i `ADMIN_SPLIT_SCOPING.md`.
+
+**Ikke start uten Mike's eksplisitte godkjenning.** Rapporten inkluderer beslutningsstøtte (når det bør vente vs. når det bør prioriteres).
+
+---
+
 ### P1-PRE-LAUNCH-B — Tenant lifecycle 3-stegs modell (Inaktiv → Arkivert → Slettet)
 **Status:** ⏳ Backlog (Mike 2026-02-01: "Vi må lage Vei 2. Jeg kan selv rydde via firma-admin i mellomtiden.")
 
