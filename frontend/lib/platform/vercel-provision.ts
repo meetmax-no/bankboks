@@ -36,6 +36,14 @@ const PROVISION_REPO_NAME = "bankboks";
 const PROVISION_FRAMEWORK = "nextjs";
 const ROOT_DOMAIN = "kodovault.no";
 
+/**
+ * D-144 (2026-02): Hoved-Vercel-prosjektet som eier `admin.kodovault.no`
+ * og alle `<prefix>-admin.kodovault.no`-hostene. Navnet er identisk med
+ * det som vises i Vercel Dashboard. Prosjekt-ID slås opp dynamisk via
+ * `getMainProjectId()` og caches modul-lokalt.
+ */
+const MAIN_PROJECT_NAME = "kodo-vault";
+
 function getVercelToken(): string {
   const token = process.env.VERCEL_API_TOKEN;
   if (!token) {
@@ -254,6 +262,88 @@ export async function attachSubdomain(
   }
   const json = (await res.json()) as VercelProjectDomain;
   return json;
+}
+
+// ─── Step 3b (D-144): Attach <prefix>-admin til hoved-prosjektet ─────
+
+/**
+ * D-144 (2026-02): Modul-lokal cache av hoved-Vercel-prosjektets ID.
+ * Slås opp én gang per prosess-livssyklus via `getMainProjectId()`.
+ * Ved omdøping av prosjektet i Vercel må serverless-instanser resyncs
+ * (kald deploy) — akseptabel trade-off for å unngå ny env-var.
+ */
+let cachedMainProjectId: string | null = null;
+
+/**
+ * D-144 (2026-02): Slår opp Vercel-prosjekt-ID for `MAIN_PROJECT_NAME`
+ * via GET /v9/projects. Cacher resultatet modul-lokalt for å unngå
+ * gjentakende API-kall.
+ *
+ * Kaster hvis prosjektet ikke finnes (feilkonfigurasjon — MAIN_PROJECT_NAME
+ * matcher ikke Vercel-Dashboard). Denne feilen bør fanges av caller og
+ * emittes som `admin_subdomain_attach: failed` — men resten av
+ * provisjoneringen skal ikke rulles tilbake.
+ */
+async function getMainProjectId(): Promise<string> {
+  if (cachedMainProjectId) return cachedMainProjectId;
+
+  const url = `${VERCEL_API}/v9/projects${teamQuery()}`;
+  const res = await fetchWithRetry(url, { headers: vercelHeaders() });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `Vercel list projects ${res.status}: ${text} (leter etter '${MAIN_PROJECT_NAME}')`,
+    );
+  }
+  const json = (await res.json()) as { projects?: VercelProject[] };
+  const match = (json.projects ?? []).find(
+    (p) => p.name === MAIN_PROJECT_NAME,
+  );
+  if (!match) {
+    throw new Error(
+      `Vercel-prosjektet '${MAIN_PROJECT_NAME}' ikke funnet i team. Sjekk MAIN_PROJECT_NAME-konstanten i vercel-provision.ts.`,
+    );
+  }
+  cachedMainProjectId = match.id;
+  return match.id;
+}
+
+/**
+ * D-144 (2026-02): Attacher `<prefix>-admin.kodovault.no` til hoved-
+ * prosjektet (`kodo-vault`). Kalles KUN for B2B-parents fra
+ * `provisionTenantOnVercel()`. Vault-host (`<prefix>.kodovault.no`)
+ * attaches separat til per-tenant-prosjektet via `attachSubdomain()`.
+ *
+ * Ved 409 (domain already exists) returnerer vi "ok" — det betyr at
+ * hosten allerede er registrert (feks manuell add via Dashboard, eller
+ * en tidligere retry). Idempotent.
+ *
+ * Andre feil kastes til caller for logging i `provisioning-log` som
+ * `admin_subdomain_attach: failed`. Provisjonering fortsetter — vault
+ * fungerer selv om admin-hosten feiler (D-063/D-064 failsoft-mønster).
+ */
+export async function attachAdminSubdomain(
+  subdomain: string,
+): Promise<VercelProjectDomain> {
+  const mainProjectId = await getMainProjectId();
+  const adminHost = `${subdomain.toLowerCase().trim()}-admin.${ROOT_DOMAIN}`;
+  const url = `${VERCEL_API}/v10/projects/${encodeURIComponent(mainProjectId)}/domains${teamQuery()}`;
+  const res = await fetchWithRetry(url, {
+    method: "POST",
+    headers: vercelHeaders(),
+    body: JSON.stringify({ name: adminHost }),
+  });
+  if (res.status === 409) {
+    // Idempotent — domenet er allerede registrert (manuell add eller retry).
+    return { name: adminHost, verified: true };
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `Vercel attach admin-domain ${adminHost} ${res.status}: ${text}`,
+    );
+  }
+  return (await res.json()) as VercelProjectDomain;
 }
 
 // ─── Slett prosjekt (tenant-sletting) ──────────────────────────────────
