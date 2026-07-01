@@ -33,6 +33,16 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-145 Test connectivity-verktøy for B2B-parents (P1/UX)
+- **Bakgrunn:** Etter D-144 kan admin-host-attach failsoft-feile (Vercel API-hicke, rate-limit, etc.). Uten synlig signal risikerer Mike å opprette SuperAdmin før hosten er nåbar → e-post-lenken feiler for kunden. D-145 gir umiddelbart grønt/rødt-signal.
+- **Endpoint:** `POST /api/admin/tenants/[subdomain]/test-connectivity` — HEAD-request til `https://<subdomain>.kodovault.no/api/status` med 8s timeout. Returnerer `{ host, url, status: "ok"|"unreachable"|"tls_error"|"http_error"|"timeout", httpStatus, responseTimeMs, error? }`. Ingen PII, ingen state-endring.
+- **Komponent:** `ConnectivityTestCard` — kort med "Test tilkobling"-knapp, viser resultat-badge inline (grønn Wifi = OK, rød WifiOff = feil) med HTTP-status og responsetid i ms.
+- **Plassering i TenantViewer for B2B-parents:**
+  - Oversikt → plan-kommunikasjon-fanen (øverst)
+  - Lisens & B2B-fanen (rett over CreateOrgAdminCard — så Mike verifiserer host FØR han oppretter SuperAdmin)
+- **Files:** `app/api/admin/tenants/[subdomain]/test-connectivity/route.ts` (ny), `components/platform/ConnectivityTestCard.tsx` (ny), `components/platform/TenantViewer.tsx` (2 innsetningspunkter), i18n × 4 språk (10 nye nøkler, 4 EXEMPT-mapped for dynamisk status-lookup), `lib/__tests__/coverage-matrix-lint.test.ts` (EXEMPT-oppføring), `lib/__tests__/i18n-sync-lint.test.ts` (KEYS_EXEMPT_FROM_UNUSED for dynamisk `status_*`).
+- **Statisk QA:** TSC ✓ · `yarn lint:all` ✓ (7/7) · `yarn build` ✓
+
 ### ✅ 2026-02 — D-144 Automatisk Vercel-registrering av `<prefix>-admin`-hosts (P0)
 - **Problem:** Ved opprettelse av ny B2B-parent (`customerType=b2b`, `parentTenant=null`, subdomain ender med `-admin`) provisjonerte vi bevisst IKKE et eget Vercel-prosjekt (D-088 host-prefix-routing). Men vi glemte å registrere `<subdomain>.kodovault.no` som Domain i hoved-Vercel-prosjektet (`kodo-vault`) som eier all admin-routing. Resultat: TLS-handshake feilet med `ERR_CONNECTION_CLOSED` til Mike manuelt la til hosten via Vercel Dashboard.
 - **Fiks:** Ny helper `attachAdminSubdomain(hostSubdomain)` + `getMainProjectId()` (module-lokal cache) i `lib/platform/vercel-provision.ts`. Kalles automatisk fra `provision-vercel/route.ts` sin skipped-gren for B2B-parents, rett etter `putTenant()`. Failsoft (D-063/D-064-mønster): ved Vercel API-feil er tenant-recorden lagret og feilen logges i `provisioning-log` med melding om manuell add. Idempotent (409-handling): hvis hosten allerede finnes, returneres OK.

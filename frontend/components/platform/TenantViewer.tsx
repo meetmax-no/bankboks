@@ -45,6 +45,7 @@ import { LocaleRadioGroup } from "@/components/platform/LocaleRadioGroup";
 import { SeatProgressBar } from "@/components/platform/am-admin/SeatProgressBar";
 import { SubTabNav } from "@/components/platform/SubTabNav";
 import { CreateOrgAdminCard } from "./CreateOrgAdminCard";
+import { ConnectivityTestCard } from "./ConnectivityTestCard";
 import { SendTestInvoiceCard } from "./SendTestInvoiceCard";
 import { InvoiceHistoryCard } from "./InvoiceHistoryCard";
 import { ClientConfigEditor } from "./ClientConfigEditor";
@@ -1632,6 +1633,12 @@ function TenantDetailCard({
       {/* ═══ TAB 1 (forts.): OVERSIKT — Identity + Notes ════════════ */}
       {activeTab === "oversikt" && oversiktSubTab === "plan-kommunikasjon" && (
         <>
+      {/* D-145 (2026-02): Test tilkobling for B2B-parents — sjekker at
+          <subdomain>.kodovault.no faktisk svarer. Umiddelbart signal om
+          D-144 admin-host-attach har fungert. */}
+      {isB2BParent && (
+        <ConnectivityTestCard subdomain={record.subdomain} />
+      )}
       <div
         data-testid="tenant-detail-identity"
         className="space-y-2 mb-5 pb-5 border-b border-white/10"
@@ -1807,13 +1814,21 @@ function TenantDetailCard({
 
       {/* am-admin-konto opprettelse — kun for B2B med tenantPrefix (Iter 20.2 / D-078) */}
       {record.customerType === "b2b" && record.tenantPrefix && (
-        <CreateOrgAdminCard
-          subdomain={record.subdomain}
-          tenantPrefix={record.tenantPrefix}
-          hasExistingSuperAdmin={(record.provisioningLog ?? []).some(
-            (ev) => ev.stage === "org_admin_created",
-          )}
-        />
+        <>
+          {/* D-145 (2026-02): Test tilkobling til <subdomain>.kodovault.no
+              før SuperAdmin-oppretting. Verifiserer at D-144 admin-host-
+              attach fungerer og at TLS-cert er utstedt. Rødt merkes hvis
+              host ikke er nåbar — da vet Mike at han må sjekke Vercel
+              Dashboard før han inviterer SuperAdmin. */}
+          <ConnectivityTestCard subdomain={record.subdomain} />
+          <CreateOrgAdminCard
+            subdomain={record.subdomain}
+            tenantPrefix={record.tenantPrefix}
+            hasExistingSuperAdmin={(record.provisioningLog ?? []).some(
+              (ev) => ev.stage === "org_admin_created",
+            )}
+          />
+        </>
       )}
 
       {/* Invitasjoner — D-078 (2026-06-28): Super-admin SKAL IKKE se ansatt-

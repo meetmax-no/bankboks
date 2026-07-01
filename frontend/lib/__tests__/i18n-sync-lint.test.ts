@@ -70,6 +70,18 @@ const KEYS_EXEMPT_FROM_UNUSED: Record<string, string> = {
   "admin_tenants.wizard_step3":
     "components/platform/TenantViewer.tsx — t(`admin_tenants.wizard_step${n}`) i wizard-stepper (Iter 20.8)",
 
+  // ── connectivity_test.status_{status} — D-145 (2026-02) ─────────
+  // ConnectivityTestCard: t(`connectivity_test.status_${result.status}`)
+  // hvor status ∈ {ok, unreachable, tls_error, http_error, timeout}.
+  "connectivity_test.status_unreachable":
+    "components/platform/ConnectivityTestCard.tsx — t(`connectivity_test.status_${result.status}`)",
+  "connectivity_test.status_tls_error":
+    "components/platform/ConnectivityTestCard.tsx — t(`connectivity_test.status_${result.status}`)",
+  "connectivity_test.status_http_error":
+    "components/platform/ConnectivityTestCard.tsx — t(`connectivity_test.status_${result.status}`)",
+  "connectivity_test.status_timeout":
+    "components/platform/ConnectivityTestCard.tsx — t(`connectivity_test.status_${result.status}`)",
+
   // ── pwd_score.{0..4} — t(`pwd_score.${score}`) ─────────────────
   "pwd_score.0": "lib/password-strength.ts:147 — t(`pwd_score.${score}`)",
   "pwd_score.1": "lib/password-strength.ts:147 — t(`pwd_score.${score}`)",

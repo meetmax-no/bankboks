@@ -140,6 +140,8 @@ const EXEMPT_ROUTES: Record<string, string> = {
     "am-admin org default e-post-locale PATCH (Iter 20.9 / D-086) — super-admin only, oppdaterer parent.locale",
   "app/api/am-admin/invoices/route.ts":
     "am-admin per-org fakturahistorikk GET (D-141, 2026-02) — speiler /api/admin/tenants/[subdomain]/invoices, henter parent.stripeCustomerId og kaller stripe.invoices.list. Beskyttet av requireAmAdmin (super-admin + admin), ingen PII per ansatt — kun org-aggregat.",
+  "app/api/admin/tenants/[subdomain]/test-connectivity/route.ts":
+    "SuperAdmin connectivity-test POST (D-145, 2026-02) — HEAD-request til https://<subdomain>.kodovault.no, returnerer HTTP-status + responsetid. Brukes av ConnectivityTestCard i TenantViewer for å verifisere D-144 admin-host-attach. Ingen PII, ingen state-endring.",
   "app/api/admin/tenants/[subdomain]/create-org-admin/route.ts":
     "Mike oppretter første am-admin (Iter 20.2) — dekket av Matrise 6 i DECISIONS.md (Iter 20.6)",
 };
