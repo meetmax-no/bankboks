@@ -26,6 +26,7 @@ import { useVaultRuntime } from "@/lib/vault-runtime";
 import { TenantViewer } from "@/components/platform/TenantViewer";
 import { StripeTestCard } from "@/components/platform/StripeTestCard";
 import { MailTestCard } from "@/components/platform/MailTestCard";
+import { EnvVarsCard } from "@/components/platform/EnvVarsCard";
 import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
 type AdminTab = "tenants" | "b2b" | "test-tools";
@@ -173,6 +174,7 @@ export default function AdminLandingPage() {
             <OrphanInvitesCard />
             <StripeTestCard />
             <MailTestCard />
+            <EnvVarsCard />
           </>
         )}
         {tab === "b2b" && <TenantViewer defaultCustomerType="b2b" />}

@@ -142,6 +142,8 @@ const EXEMPT_ROUTES: Record<string, string> = {
     "am-admin per-org fakturahistorikk GET (D-141, 2026-02) — speiler /api/admin/tenants/[subdomain]/invoices, henter parent.stripeCustomerId og kaller stripe.invoices.list. Beskyttet av requireAmAdmin (super-admin + admin), ingen PII per ansatt — kun org-aggregat.",
   "app/api/admin/tenants/[subdomain]/test-connectivity/route.ts":
     "SuperAdmin connectivity-test POST (D-145, 2026-02) — HEAD-request til https://<subdomain>.kodovault.no, returnerer HTTP-status + responsetid. Brukes av ConnectivityTestCard i TenantViewer for å verifisere D-144 admin-host-attach. Ingen PII, ingen state-endring.",
+  "app/api/admin/env-vars/route.ts":
+    "SuperAdmin env-var reveal POST (D-147, 2026-02) — validerer ekstra reveal-passord via bcrypt-compare mot ADMIN_REVEAL_SECRETS_PASSWORD_HASH env-var. Returnerer alle Vercel env-vars med gruppekategorisering. Beskyttet av admin-session-middleware + separat passord. Verdier logges aldri; kun tilgangs-forsøk (timestamp + IP + UA).",
   "app/api/admin/tenants/[subdomain]/create-org-admin/route.ts":
     "Mike oppretter første am-admin (Iter 20.2) — dekket av Matrise 6 i DECISIONS.md (Iter 20.6)",
 };
