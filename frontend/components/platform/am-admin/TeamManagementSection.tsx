@@ -9,8 +9,10 @@
  * sendes automatisk fra `POST /api/am-admin/team`.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { useLocale } from "@/lib/i18n-context";
 import { formatShortDateTime } from "@/lib/format-date";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { OrgAdminPublic } from "@/lib/platform/org-admin-types";
 
 type Props = {
@@ -44,6 +46,13 @@ export function TeamManagementSection({ currentAdminId }: Props) {
   const [createMode, setCreateMode] = useState<null | "admin" | "super-admin">(
     null,
   );
+  // D-143 (2026-02): erstatt native window.confirm() med ConfirmDialog +
+  // type-to-confirm på e-post. Alerts erstattet med toast.error.
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+    email: string;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -79,48 +88,55 @@ export function TeamManagementSection({ currentAdminId }: Props) {
   );
 
   const handleDelete = useCallback(
-    async (admin: OrgAdminPublic) => {
+    (admin: OrgAdminPublic) => {
       if (admin.id === currentAdminId) {
-        alert(t("am_admin_team.error_cannot_delete_self"));
+        toast.error(t("am_admin_team.error_cannot_delete_self"));
         return;
       }
-      if (
-        !confirm(
-          t("am_admin_team.confirm_delete").replace(
-            "{name}",
-            `${admin.firstName} ${admin.lastName}`,
-          ),
-        )
-      )
-        return;
-      setBusy(`delete:${admin.id}`);
-      try {
-        const res = await fetch(
-          `/api/am-admin/team/${encodeURIComponent(admin.id)}`,
-          { method: "DELETE", credentials: "include" },
-        );
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          if (data.error === "org_admin_last_super_admin") {
-            alert(t("am_admin_team.error_last_super_admin"));
-          } else {
-            alert(data.detail || data.error || `HTTP ${res.status}`);
-          }
-          return;
-        }
-        await refresh();
-      } finally {
-        setBusy(null);
-      }
+      setPendingDelete({
+        id: admin.id,
+        name: `${admin.firstName} ${admin.lastName}`.trim() || admin.email,
+        email: admin.email,
+      });
     },
-    [currentAdminId, refresh, t],
+    [currentAdminId, t],
   );
+
+  const performDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setBusy(`delete:${pendingDelete.id}`);
+    try {
+      const res = await fetch(
+        `/api/am-admin/team/${encodeURIComponent(pendingDelete.id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === "org_admin_last_super_admin") {
+          toast.error(t("am_admin_team.error_last_super_admin"));
+        } else {
+          toast.error(data.detail || data.error || `HTTP ${res.status}`);
+        }
+        return;
+      }
+      toast.success(
+        t("am_admin_team.delete_success").replace(
+          "{name}",
+          pendingDelete.name,
+        ),
+      );
+      setPendingDelete(null);
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  }, [pendingDelete, refresh, t]);
 
   const handleSuspendToggle = useCallback(
     async (admin: OrgAdminPublic) => {
       const action = admin.suspended ? "unsuspend" : "suspend";
       if (admin.id === currentAdminId && action === "suspend") {
-        alert(t("am_admin_team.error_cannot_suspend_self"));
+        toast.error(t("am_admin_team.error_cannot_suspend_self"));
         return;
       }
       setBusy(`${action}:${admin.id}`);
@@ -132,9 +148,9 @@ export function TeamManagementSection({ currentAdminId }: Props) {
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
           if (data.error === "org_admin_last_super_admin") {
-            alert(t("am_admin_team.error_last_super_admin"));
+            toast.error(t("am_admin_team.error_last_super_admin"));
           } else {
-            alert(data.detail || data.error || `HTTP ${res.status}`);
+            toast.error(data.detail || data.error || `HTTP ${res.status}`);
           }
           return;
         }
@@ -319,6 +335,30 @@ export function TeamManagementSection({ currentAdminId }: Props) {
           </table>
         </div>
       )}
+
+      {/* D-143 (2026-02): erstatt native window.confirm() med mørk
+          ConfirmDialog + type-to-confirm på e-post. */}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={t("am_admin_team.delete_dialog_title")}
+        description={
+          pendingDelete ? (
+            <span data-testid="team-delete-dialog-desc">
+              {t("am_admin_team.delete_dialog_desc")
+                .replace("{name}", pendingDelete.name)
+                .replace("{email}", pendingDelete.email)}
+            </span>
+          ) : (
+            ""
+          )
+        }
+        confirmLabel={t("am_admin_team.delete_dialog_confirm")}
+        variant="destructive"
+        busy={busy?.startsWith("delete:") ?? false}
+        requireConfirmText={pendingDelete?.email}
+        onConfirm={() => void performDelete()}
+        onCancel={() => setPendingDelete(null)}
+      />
     </section>
   );
 }
