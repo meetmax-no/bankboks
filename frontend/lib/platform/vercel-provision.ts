@@ -309,24 +309,28 @@ async function getMainProjectId(): Promise<string> {
 }
 
 /**
- * D-144 (2026-02): Attacher `<prefix>-admin.kodovault.no` til hoved-
- * prosjektet (`kodo-vault`). Kalles KUN for B2B-parents fra
- * `provisionTenantOnVercel()`. Vault-host (`<prefix>.kodovault.no`)
- * attaches separat til per-tenant-prosjektet via `attachSubdomain()`.
+ * D-144 (2026-02): Attacher `<hostSubdomain>.kodovault.no` til hoved-
+ * prosjektet (`kodo-vault`). Kalles fra `provision-vercel/route.ts`
+ * SKIPPED-grenen for B2B-parents. Vault-host attaches separat til
+ * per-tenant-prosjektet via `attachSubdomain()`.
+ *
+ * `hostSubdomain` er subdomain-verdien fra TenantRecord slik den lagres
+ * — feks `mm-admin` for B2B-parent med host `mm-admin.kodovault.no`.
  *
  * Ved 409 (domain already exists) returnerer vi "ok" — det betyr at
  * hosten allerede er registrert (feks manuell add via Dashboard, eller
  * en tidligere retry). Idempotent.
  *
- * Andre feil kastes til caller for logging i `provisioning-log` som
- * `admin_subdomain_attach: failed`. Provisjonering fortsetter — vault
- * fungerer selv om admin-hosten feiler (D-063/D-064 failsoft-mønster).
+ * Andre feil kastes til caller for logging som `admin_subdomain_attach:
+ * failed`. Selve tenant-recorden markeres OK — vault-hosten fungerer
+ * uansett; admin-hosten kan retry-es via Vercel Dashboard eller
+ * framtidig retry-knapp.
  */
 export async function attachAdminSubdomain(
-  subdomain: string,
+  hostSubdomain: string,
 ): Promise<VercelProjectDomain> {
   const mainProjectId = await getMainProjectId();
-  const adminHost = `${subdomain.toLowerCase().trim()}-admin.${ROOT_DOMAIN}`;
+  const adminHost = `${hostSubdomain.toLowerCase().trim()}.${ROOT_DOMAIN}`;
   const url = `${VERCEL_API}/v10/projects/${encodeURIComponent(mainProjectId)}/domains${teamQuery()}`;
   const res = await fetchWithRetry(url, {
     method: "POST",

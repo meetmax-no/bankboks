@@ -14,7 +14,10 @@
  */
 import { NextResponse } from "next/server";
 import { getTenant, putTenant } from "@/lib/platform/tenant-store";
-import { provisionTenantOnVercel } from "@/lib/platform/vercel-provision";
+import {
+  provisionTenantOnVercel,
+  attachAdminSubdomain,
+} from "@/lib/platform/vercel-provision";
 import { getDatabaseRestCredentials } from "@/lib/platform/upstash-provision";
 import { notifyProvisioningFailure } from "@/lib/platform/notify";
 import { provisioningLogger, logEvent } from "@/lib/platform/provisioning-log";
@@ -108,6 +111,42 @@ export async function POST(_req: Request, { params }: Params) {
         status: tenant.status === "provisioning_failed" ? "trial" : tenant.status,
       };
       await putTenant(updated);
+
+      // ─── D-144 (2026-02 · Mike) — Attach admin-host til hoved-prosjektet
+      // Hoved-prosjektet `kodo-vault` eier `admin.kodovault.no` og alle
+      // `<prefix>-admin.kodovault.no`-hostene. Uten dette steget ville
+      // TLS-handshake feile ved første besøk (ERR_CONNECTION_CLOSED)
+      // fordi Vercel ikke gjenkjenner hosten.
+      //
+      // Failsoft: hvis kallet feiler, logger vi det men returnerer
+      // fortsatt ok:true. Tenant-recorden er lagret; admin-host kan
+      // registreres manuelt via Vercel Dashboard eller ved neste
+      // provision-retry (idempotent 409-handling).
+      try {
+        const adminDom = await attachAdminSubdomain(subdomain);
+        await logEvent(
+          subdomain,
+          "subdomain_attach",
+          "ok",
+          `D-144: admin-host ${adminDom.name} attached til kodo-vault (verified=${adminDom.verified})`,
+        );
+      } catch (attachErr) {
+        const msg =
+          attachErr instanceof Error
+            ? attachErr.message
+            : String(attachErr);
+        await logEvent(
+          subdomain,
+          "subdomain_attach",
+          "failed",
+          `D-144: admin-host attach feilet: ${msg}. Legg til manuelt i Vercel Dashboard → kodo-vault → Domains, eller trigg retry.`,
+        );
+        console.error(
+          `[provision-vercel D-144] admin-domain attach failed for ${subdomain}.kodovault.no:`,
+          attachErr,
+        );
+      }
+
       return NextResponse.json({
         ok: true,
         skipped: true,

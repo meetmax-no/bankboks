@@ -33,6 +33,15 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-144 Automatisk Vercel-registrering av `<prefix>-admin`-hosts (P0)
+- **Problem:** Ved opprettelse av ny B2B-parent (`customerType=b2b`, `parentTenant=null`, subdomain ender med `-admin`) provisjonerte vi bevisst IKKE et eget Vercel-prosjekt (D-088 host-prefix-routing). Men vi glemte å registrere `<subdomain>.kodovault.no` som Domain i hoved-Vercel-prosjektet (`kodo-vault`) som eier all admin-routing. Resultat: TLS-handshake feilet med `ERR_CONNECTION_CLOSED` til Mike manuelt la til hosten via Vercel Dashboard.
+- **Fiks:** Ny helper `attachAdminSubdomain(hostSubdomain)` + `getMainProjectId()` (module-lokal cache) i `lib/platform/vercel-provision.ts`. Kalles automatisk fra `provision-vercel/route.ts` sin skipped-gren for B2B-parents, rett etter `putTenant()`. Failsoft (D-063/D-064-mønster): ved Vercel API-feil er tenant-recorden lagret og feilen logges i `provisioning-log` med melding om manuell add. Idempotent (409-handling): hvis hosten allerede finnes, returneres OK.
+- **Vercel-limits verifisert (docs 2026-03-19):** 100 000 domains/prosjekt på Pro-plan (soft-cap, kan økes), 100 domain-add-requests/time API-rate-limit. Ikke praktisk problem.
+- **Ingen ny env-var:** Hoved-prosjekt-ID slås opp dynamisk via `GET /v9/projects` og caches modul-lokalt. `MAIN_PROJECT_NAME = "kodo-vault"`-konstant i koden.
+- **Files:** `lib/platform/vercel-provision.ts`, `app/api/admin/tenants/[subdomain]/provision-vercel/route.ts`
+- **Statisk QA:** TSC ✓ · `yarn lint:all` ✓ (7/7) · `yarn build` ✓
+- **Eksisterende B2B-parents:** `mm-admin` fungerer allerede. `max-admin` er registrert manuelt av Mike i denne sesjonen. Alle framtidige B2B-parents får automatisk attach.
+
 ### ✅ 2026-02 — D-142 Login-historikk i eget modal-vindu (P2/UX)
 - "Vis full historikk"-lenken i Konsoll → Innstillinger → Sikkerhet åpner nå et sentrert modal i stedet for å ekspandere inline. Det kompakte 5-rads-kortet er alltid synlig; modalen inneholder filter-pills (7/30/90 dager), full scrollbar tabell, sticky thead, og lukkes via X-knapp, "Lukk"-footer-knapp, ESC eller backdrop-klikk.
 - Begrunnelse: inline-utvidelsen "ødela" den fine card-layouten på Innstillinger-fanen ved å pushe nedoverliggende seksjoner langt nedover. Modal-pattern matcher `AmAdminDeleteResultModal` (D-116) for konsistens.
