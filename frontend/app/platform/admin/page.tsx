@@ -29,12 +29,17 @@ import { MailTestCard } from "@/components/platform/MailTestCard";
 import { EnvVarsCard } from "@/components/platform/EnvVarsCard";
 import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
+import { SubTabNav } from "@/components/platform/SubTabNav";
 type AdminTab = "tenants" | "b2b" | "test-tools";
+// D-148 (2026-02): Test Tools splittet i sub-taber for lesbarhet.
+type TestToolsSubTab = "b2b-info" | "testing" | "env-system";
 
 export default function AdminLandingPage() {
   const { t } = useLocale();
   const { vault } = useVaultRuntime();
   const [tab, setTab] = useState<AdminTab>("tenants");
+  const [testToolsSubTab, setTestToolsSubTab] =
+    useState<TestToolsSubTab>("b2b-info");
 
   // v4.3 Iter 2.x — CMD+R / hard navigation logger ut.
   //
@@ -170,11 +175,31 @@ export default function AdminLandingPage() {
         {tab === "tenants" && <TenantViewer defaultCustomerType="b2c" />}
         {tab === "test-tools" && (
           <>
-            <OrgAdminListCard />
-            <OrphanInvitesCard />
-            <StripeTestCard />
-            <MailTestCard />
-            <EnvVarsCard />
+            {/* D-148 (2026-02): sub-taber gjør Test Tools mer oversiktlig
+                — separerer B2B-rydding, test-flyter og system-info. */}
+            <SubTabNav<TestToolsSubTab>
+              items={[
+                { id: "b2b-info", label: "B2B Info om Tenants", show: true },
+                { id: "testing", label: "Testing", show: true },
+                { id: "env-system", label: "ENV System", show: true },
+              ]}
+              active={testToolsSubTab}
+              onChange={setTestToolsSubTab}
+              testIdPrefix="test-tools-subtab"
+            />
+            {testToolsSubTab === "b2b-info" && (
+              <>
+                <OrgAdminListCard />
+                <OrphanInvitesCard />
+              </>
+            )}
+            {testToolsSubTab === "testing" && (
+              <>
+                <StripeTestCard />
+                <MailTestCard />
+              </>
+            )}
+            {testToolsSubTab === "env-system" && <EnvVarsCard />}
           </>
         )}
         {tab === "b2b" && <TenantViewer defaultCustomerType="b2b" />}

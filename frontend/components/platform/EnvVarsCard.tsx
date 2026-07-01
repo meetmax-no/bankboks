@@ -16,7 +16,7 @@
  */
 import { useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Copy, Check, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, Copy, Check, ShieldAlert, FileDown, FileJson } from "lucide-react";
 
 type Row = {
   name: string;
@@ -81,6 +81,85 @@ export function EnvVarsCard() {
     } catch {
       toast.error("Kunne ikke kopiere");
     }
+  };
+
+  // D-148 (2026-02): CSV/JSON-eksport av env-vars. Klient-side —
+  // ingen server-endring nødvendig, dataene er allerede lastet inn i
+  // state etter vellykket reveal.
+  //
+  // CSV-format: RFC 4180 + OWASP formula-injection-mitigering — samme
+  // mønster som am-admin-backup D-113. Kolonner: group, name, value,
+  // description, isSet.
+  //
+  // Filnavn: env-vars-YYYY-MM-DD-HHMM.{csv,json} (samme konvensjon som D-113).
+  const csvEscape = (cell: string): string => {
+    if (cell.length === 0) return "";
+    // Formula injection: hvis cellen starter med =, +, -, @, TAB eller CR
+    // → prefiks apostrof
+    const first = cell.charAt(0);
+    let out = cell;
+    if (first === "=" || first === "+" || first === "-" || first === "@" ||
+        first === "\t" || first === "\r") {
+      out = "'" + out;
+    }
+    // Escape " som "" og wrap i "" hvis cellen inneholder komma, ", eller newline
+    if (out.includes('"') || out.includes(",") || out.includes("\n")) {
+      out = '"' + out.replace(/"/g, '""') + '"';
+    }
+    return out;
+  };
+
+  const buildFilename = (ext: "csv" | "json"): string => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return `env-vars-${stamp}.${ext}`;
+  };
+
+  const downloadBlob = (content: string, mime: string, filename: string) => {
+    const blob = new Blob([content], { type: `${mime};charset=utf-8` });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportCsv = () => {
+    if (!rows || rows.length === 0) return;
+    const header = ["group", "name", "value", "description", "isSet"]
+      .map(csvEscape)
+      .join(",");
+    const lines = rows.map((r) =>
+      [
+        csvEscape(r.group),
+        csvEscape(r.name),
+        csvEscape(r.value),
+        csvEscape(r.description),
+        csvEscape(r.isSet ? "true" : "false"),
+      ].join(","),
+    );
+    const content = [header, ...lines].join("\r\n") + "\r\n";
+    downloadBlob(content, "text/csv", buildFilename("csv"));
+    toast.success(`CSV-eksport: ${rows.length} rader`);
+  };
+
+  const handleExportJson = () => {
+    if (!rows || rows.length === 0) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      count: rows.length,
+      rows,
+    };
+    downloadBlob(
+      JSON.stringify(payload, null, 2),
+      "application/json",
+      buildFilename("json"),
+    );
+    toast.success(`JSON-eksport: ${rows.length} rader`);
   };
 
   // Grupper radene
@@ -154,18 +233,36 @@ export function EnvVarsCard() {
 
       {rows && (
         <>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
             <span className="text-[11px] text-white/50">
               {rows.length} env-vars hentet
             </span>
-            <button
-              onClick={handleHide}
-              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-xs"
-              data-testid="env-vars-hide-btn"
-            >
-              <EyeOff className="h-3 w-3" />
-              Skjul verdier
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCsv}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-emerald-100 text-xs"
+                data-testid="env-vars-export-csv"
+              >
+                <FileDown className="h-3 w-3" />
+                Eksport CSV
+              </button>
+              <button
+                onClick={handleExportJson}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-400/40 text-sky-100 text-xs"
+                data-testid="env-vars-export-json"
+              >
+                <FileJson className="h-3 w-3" />
+                Eksport JSON
+              </button>
+              <button
+                onClick={handleHide}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/15 text-xs"
+                data-testid="env-vars-hide-btn"
+              >
+                <EyeOff className="h-3 w-3" />
+                Skjul verdier
+              </button>
+            </div>
           </div>
 
           <div className="space-y-5">
