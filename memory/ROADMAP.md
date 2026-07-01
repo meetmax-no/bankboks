@@ -11,6 +11,50 @@
 
 ## 🚧 PRE-LAUNCH BLOCKERS (må fikses før prod-launch)
 
+### P1-PRE-LAUNCH-B — Tenant lifecycle 3-stegs modell (Inaktiv → Arkivert → Slettet)
+**Status:** ⏳ Backlog (Mike 2026-02-01: "Vi må lage Vei 2. Jeg kan selv rydde via firma-admin i mellomtiden.")
+
+**Problem:** Dagens DELETE-flyt i SuperAdmin har hard-blokk (`route.ts:461-478`, D-038): "Kan ikke slette — det finnes aktive lisenser under prefikset. Slett barn-tenantene først." Konsekvens: kunder som slutter å bruke appen rydder aldri opp selv, og Mike står fast med tenants han ikke kan cascade-slette. Vei 1 (force-cascade-knapp) ble vurdert og forkastet — kortsiktig gevinst kun ~5 min per firma, ikke verdt engineering-tiden når manuell rydding via firma-admin allerede finnes.
+
+**Foreslått tilnærming (Vei 2 — full lifecycle-modell):**
+Tre stegs status-degradering med varsel-mails og deferred hard-delete for å balansere zero-knowledge-invariant, GDPR right-to-erasure og bokføringslov (D-070 Stripe-bevaring 5 år).
+
+1. **Steg 1 — Passiv (`status: "inactive"`)**
+   - Trigger: cron oppdager 0 login-aktivitet i 90–180 dager, ELLER grace-period utløpt uten betaling.
+   - Konsekvens: vault fortsatt tilgjengelig, banner viser "Konto inaktiv — kontakt oss for å reaktivere". Faktura pauses. Ingen datatap.
+   - Reversibel: enkel login re-aktiverer.
+
+2. **Steg 2 — Arkivert (`status: "archived"`, ny status)**
+   - Trigger: 180 dager til uten aktivitet etter `inactive`, ELLER SuperAdmin manuell arkivering.
+   - Konsekvens: vault-login blokkeres, tenant-record + kryptert blob beholdes i Upstash, Vercel-prosjekt kan slettes for kostnadsbesparelse.
+   - **Warning-mail** til `contactEmail` 14 dager før arkivering: "Vi arkiverer kontoen din — klikk her for å beholde."
+   - Reversibel innen 12 mnd (be Mike om re-aktivering).
+
+3. **Steg 3 — Hard-slettet (`status: "deleted"`)**
+   - Trigger: 12 mnd etter arkivering ELLER kunden ber om det eksplisitt (GDPR right-to-erasure).
+   - Konsekvens: alt slettes fra Upstash + client-config + Vercel. **Stripe-customer bevares** (D-070 bokføringsloven). Tenant-record beholdes som "tombstone": kun `{subdomain, deletedAt, deletedBy, deletionReason}`.
+   - Audit-log: hvem trykket hard-slett, hvorfor, når.
+
+**SuperAdmin får:**
+- **"Arkiver"-knapp** (safe, reversibel innen 12 mnd — setter status + trigger warning-mail)
+- **"Hard-slett"-knapp** (destruktiv, kun tilgjengelig for `status === "archived"`, ekstra type-to-confirm + krever grunn-tekst som logges)
+
+**Tekniske komponenter:**
+- Nytt `TenantStatus`-verdi `"archived"` + `archivedAt: ISOString | null` + `archiveReason?: string`.
+- `lib/platform/lifecycle-cron.ts`-utvidelse: to nye faser (90d-inaktiv-varsel + 180d-arkivering-trigger).
+- Mail-maler × 4 språk: `archive-warning`, `archived-confirmation`, `hard-delete-warning`, `hard-delete-confirmation`.
+- `TenantViewer` "Slett tenant"-knapp erstattes med "Arkiver" (default) + "Hard-slett" (kun synlig når archived).
+- Audit-store: `audit-log:tenant-lifecycle:<subdomain>` med per-tenant append-only historikk.
+
+**Estimat:** ~2 dager (backend + cron + UI + i18n × 4 språk + mail-maler + tester).
+
+**Blokkere:** Ingen. Kan startes når vi nærmer oss launch. Interaksjoner å hensynta:
+- D-070 (Stripe-customer-bevaring — beholdes uendret)
+- D-091 (cascade-delete av org-admins — trigges kun på Steg 3)
+- lifecycle-cron eksisterende B2B billing-grace-lock (må sameksistere med nye faser)
+
+---
+
 ### P1-PRE-LAUNCH-A — API-lag PII-redaktering for B2B-children (D-078 håndhevelse)
 **Status:** ⏳ Backlog (Mike 2026-06-28: "OK nå i testing, men IKKE når vi går live")
 
