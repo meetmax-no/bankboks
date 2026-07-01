@@ -1425,9 +1425,14 @@ function TenantDetailCard({
           )}
           {(record.status === "trial" ||
             record.status === "locked" ||
-            record.status === "pending") && (
-            <TestCheckoutButton subdomain={record.subdomain} />
-          )}
+            record.status === "pending") &&
+            record.customerType === "b2c" && (
+              // D-146 (2026-02): Test checkout er Stripe self-serve
+              // checkout-flyten — kun relevant for B2C. B2B-parents får
+              // manuell faktura (D-080/D-131), B2B-children har ingen
+              // egen billing-relasjon.
+              <TestCheckoutButton subdomain={record.subdomain} />
+            )}
           {record.vercelProjectId && (
             <button
               type="button"
