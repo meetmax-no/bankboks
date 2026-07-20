@@ -7,10 +7,9 @@
  *
  * Mønster identisk med `tenant-status-cache.ts` (D-077).
  *
- * Failsoft: kaster aldri. Logger warn og fortsetter.
+ * Failsoft: kaster aldri. Logger error og fortsetter.
  */
-
-const ADMIN_INTERNAL_URL_FALLBACK = "https://admin.kodovault.no";
+import { resolveAdminInternalUrl } from "@/lib/server/admin-url-guard";
 
 /**
  * D-149 — fire-and-forget activity-bump. Vault-request fortsetter selv
@@ -23,8 +22,7 @@ export async function bumpActivityViaRpc(
   subdomain: string,
   kind: "unlocks" | "writes" | "reads",
 ): Promise<void> {
-  const base =
-    process.env.ADMIN_INTERNAL_URL ?? ADMIN_INTERNAL_URL_FALLBACK;
+  const base = resolveAdminInternalUrl();
   const secret = process.env.INTERNAL_RPC_SECRET;
   if (!secret) {
     console.warn(

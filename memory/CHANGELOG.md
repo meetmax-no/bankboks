@@ -3,6 +3,54 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-149a P0 hotfix: ADMIN_INTERNAL_URL typo-guard + diagnose-verktøy
+
+### Rot-årsak
+Etter deploy av D-149a viste SuperAdmin Analytics 0 aktivitet på tvers av alle tenants selv om Mike testet innlogging aktivt. Diagnostisert via nytt `/api/admin/analytics/diagnose`-endepunkt:
+
+```
+"ADMIN_INTERNAL_URL": "https://admin.kodovaul.no"   ← TYPO! Mangler T.
+"error": "fetch failed"
+```
+
+Env-varen `ADMIN_INTERNAL_URL` var satt til `admin.kodovaul.no` (uten T) på tenant-podene — sannsynligvis propagert via D-077 fra en tenant som selv hadde typoen (samme historikk som `useAppConfig.ts` linje 30-35 dokumenterer for `NEXT_PUBLIC_ADMIN_CONFIG_HOST`). Alle activity-bump-kall endte i `fetch failed` fordi DNS-oppslag på ikke-eksisterende domene feiler. Feilen ble svelget stille (fire-and-forget), så analytics viste bare 0.
+
+### Endringer
+
+**1. Delt URL-guard (`lib/server/admin-url-guard.ts` — NY)**
+- `resolveAdminInternalUrl()`: validerer at `ADMIN_INTERNAL_URL` peker på `*.kodovault.no`. Ellers logger warning og faller tilbake til `https://admin.kodovault.no`. Samme mønster som eksisterende `resolveAdminConfigHost()` i `useAppConfig.ts`.
+
+**2. Wired inn i 3 kritiske RPC-klienter:**
+- `lib/server/activity-rpc.ts` (D-149 activity-bump — rot-årsak til denne hotfixen)
+- `lib/server/tenant-status-cache.ts` (D-077 write-block RPC — samme typo-risiko)
+- `app/api/admin/analytics/diagnose/route.ts` (diagnose viser typoen eksplisitt via `typoDetected`-flagg)
+
+**3. Forbedret error-logging i `activity-rpc.ts`:**
+- Fetch-feil logges nå med `console.error` inkl. faktisk base-URL og feil-tekst — synlig i Vercel Function Logs
+- HTTP-status ≠ 200 logges også (secret-mismatch, 404, etc.)
+- Tidligere `console.warn` med generisk melding maskerte problemet
+
+**4. Diagnose-verktøy (Test Tools → Testing → "D-149 Analytics-diagnose")**
+- `AnalyticsDiagnoseCard.tsx` (NY) med to knapper:
+  - **"Kjør RPC self-test"** → GET `/api/admin/analytics/diagnose` → tester admin→admin RPC med gjeldende `INTERNAL_RPC_SECRET`. Rapporterer secret-length, resolved base-URL, typo-flagg, HTTP-status.
+  - **"Manuell bump"** → POST `/api/admin/analytics/diagnose?subdomain=X&kind=Y` → kaller `bumpDailyActivity` DIREKTE (bypass RPC). Verifiserer at central-Upstash-write-path fungerer.
+
+### Verifisert
+- `yarn tsc --noEmit` ✓
+- `yarn lint:all` ✓ (7/7, coverage-matrix EXEMPT for ny diagnose-rute)
+- `yarn build` ✓
+
+### Mikes oppfølgings-oppgave (i Vercel Dashboard)
+Selv om guard-en nå fikser den kjørende koden, bør typoen ryddes opp i Vercel Env for alle prosjekter (admin + hver tenant-pod):
+
+1. Åpne hver tenant-pod (`kodo-kv-annelise`, `kodo-kv-mike`, `kodo-kv-max-admin`, admin-poden osv.)
+2. Fjern `ADMIN_INTERNAL_URL=https://admin.kodovaul.no` (typoen)
+3. Sett `ADMIN_INTERNAL_URL=https://admin.kodovault.no` (riktig verdi) på Production + Preview
+4. Redeploy
+
+Guarden gjør det trygt å ignorere også — men da lever typoen videre i env-var-listen som forvirringsspor.
+
+---
 ## 2026-02 — D-149a oppfølging: konfigurerbare periode-verdier + heartbeat wiring
 
 ### Justering etter Mike-review

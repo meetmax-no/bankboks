@@ -15,6 +15,7 @@
  */
 import { NextResponse } from "next/server";
 import { bumpDailyActivity, getTenant } from "@/lib/platform/tenant-store";
+import { resolveAdminInternalUrl } from "@/lib/server/admin-url-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,16 +65,14 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const subdomain = url.searchParams.get("subdomain")?.trim().toLowerCase() ?? "diagnose-noop";
 
-  const base =
-    process.env.ADMIN_INTERNAL_URL ??
-    (typeof process.env.VERCEL_URL === "string"
-      ? `https://${process.env.VERCEL_URL}`
-      : "https://admin.kodovault.no");
+  const base = resolveAdminInternalUrl();
+  const rawEnvUrl = process.env.ADMIN_INTERNAL_URL ?? "(unset)";
   const secret = process.env.INTERNAL_RPC_SECRET;
 
   const env = {
-    ADMIN_INTERNAL_URL: process.env.ADMIN_INTERNAL_URL ?? "(unset — using fallback)",
+    ADMIN_INTERNAL_URL_raw: rawEnvUrl,
     resolvedBase: base,
+    typoDetected: rawEnvUrl !== base && rawEnvUrl !== "(unset)",
     INTERNAL_RPC_SECRET_present: Boolean(secret),
     INTERNAL_RPC_SECRET_length: secret?.length ?? 0,
   };

@@ -17,6 +17,7 @@
  *   subdomain er identitet). Helperen parser host-en i hver write-rute.
  */
 import { Redis } from "@upstash/redis";
+import { resolveAdminInternalUrl } from "@/lib/server/admin-url-guard";
 
 const CACHE_KEY = "tenant:status:cache";
 const CACHE_TTL_SECONDS = 300; // 5 min — D-076 akseptert sync-vindu
@@ -68,8 +69,7 @@ export async function getTenantStatus(
   }
 
   // ─── 2. Cache miss → fetch fra admin ─────────────────────────────
-  const adminUrl =
-    process.env.ADMIN_INTERNAL_URL ?? "https://admin.kodovault.no";
+  const adminUrl = resolveAdminInternalUrl();
   const secret = process.env.INTERNAL_RPC_SECRET;
   if (!secret) {
     throw new Error("INTERNAL_RPC_SECRET not configured");
