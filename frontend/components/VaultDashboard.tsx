@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import {
+  Check,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Copy,
   ExternalLink,
   Fingerprint,
   LayoutGrid,
@@ -17,6 +20,8 @@ import {
 } from "lucide-react";
 import { EntryModal } from "./EntryModal";
 import { useLocale } from "@/lib/i18n-context";
+import { copyWithAutoClear } from "@/lib/clipboard";
+import { useLongPress } from "@/hooks/useLongPress";
 import type { VaultEntry } from "@/lib/types";
 import type { AppConfig, CategoryConfig } from "@/lib/config";
 import type { BiometricInfo } from "@/hooks/useVault";
@@ -48,6 +53,42 @@ export function VaultDashboard({
   onRemoveBiometric,
 }: VaultDashboardProps) {
   const { t } = useLocale();
+  // D-150 (2026-02): Rask kopiering av passord — copy-ikon på hver rad
+  // (A) + long-press på rad (C). Gjenbruker `copyWithAutoClear` (D-113/
+  // D-017 clipboard-mønster). Skjules hvis `clipboardEnabled: false` i
+  // client-config.
+  const clipboardEnabled = config.security.clipboardEnabled !== false;
+  const clipboardClearSeconds = config.security.clipboardClearSeconds;
+
+  const handleCopyPassword = async (entry: VaultEntry) => {
+    if (!clipboardEnabled) {
+      toast.error(t("copy.disabled"));
+      return;
+    }
+    if (!entry.password) {
+      toast.error(t("copy.no_password"));
+      return;
+    }
+    try {
+      await copyWithAutoClear(
+        entry.password,
+        clipboardClearSeconds,
+        (ok) => {
+          if (ok) {
+            toast.info(
+              `${t("copy.cleared_prefix")} ${entry.title}`,
+            );
+          }
+        },
+      );
+      toast.success(
+        `${t("copy.success_prefix")} ${entry.title} · ${t("copy.success_suffix")} ${clipboardClearSeconds}s`,
+      );
+    } catch {
+      toast.error(t("copy.failed"));
+    }
+  };
+
   const [modal, setModal] = useState<ModalState>({ open: false });
   // viewMode følger tenant-config (config.ui.passwordsViewMode). useState gir
   // ett initial-snapshot, men hvis config lastes asynkront (eller endrer seg)
@@ -351,6 +392,8 @@ export function VaultDashboard({
                 entry={entry}
                 categories={config.categories}
                 onClick={() => setModal({ open: true, mode: "view", entry })}
+                onCopyPassword={handleCopyPassword}
+                clipboardEnabled={clipboardEnabled}
               />
             ))}
           </ul>
@@ -371,6 +414,8 @@ export function VaultDashboard({
                 onEntryClick={(entry) =>
                   setModal({ open: true, mode: "view", entry })
                 }
+                onCopyPassword={handleCopyPassword}
+                clipboardEnabled={clipboardEnabled}
               />
             ))}
           </div>
@@ -433,6 +478,8 @@ function CategoryGroup({
   entries,
   categories,
   onEntryClick,
+  onCopyPassword,
+  clipboardEnabled,
 }: {
   groupKey: string;
   label: string;
@@ -444,6 +491,8 @@ function CategoryGroup({
   entries: VaultEntry[];
   categories: CategoryConfig[];
   onEntryClick: (entry: VaultEntry) => void;
+  onCopyPassword: (entry: VaultEntry) => void;
+  clipboardEnabled: boolean;
 }) {
   return (
     <div
@@ -494,6 +543,8 @@ function CategoryGroup({
               entry={entry}
               categories={categories}
               onClick={() => onEntryClick(entry)}
+              onCopyPassword={onCopyPassword}
+              clipboardEnabled={clipboardEnabled}
             />
           ))}
         </ul>
@@ -506,17 +557,44 @@ function EntryRow({
   entry,
   categories,
   onClick,
+  onCopyPassword,
+  clipboardEnabled,
 }: {
   entry: VaultEntry;
   categories: CategoryConfig[];
   onClick: () => void;
+  onCopyPassword: (entry: VaultEntry) => void;
+  clipboardEnabled: boolean;
 }) {
+  const { t } = useLocale();
   const cat = categories.find((c) => c.key === entry.category);
+  const [justCopied, setJustCopied] = useState(false);
+  const hasPassword = Boolean(entry.password);
+
+  // D-150 (2026-02): long-press på raden = kopier passord direkte.
+  const longPressHandlers = useLongPress(
+    () => {
+      if (!clipboardEnabled || !hasPassword) return;
+      onCopyPassword(entry);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1500);
+    },
+    { delayMs: 500, vibrate: true },
+  );
+
+  const handleCopyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCopyPassword(entry);
+    setJustCopied(true);
+    setTimeout(() => setJustCopied(false), 1500);
+  };
+
   return (
     <li>
       <button
         data-testid={`vault-entry-${entry.id}`}
         onClick={onClick}
+        {...longPressHandlers}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-left transition group"
       >
         <div
@@ -551,6 +629,35 @@ function EntryRow({
 
         {entry.url && (
           <ExternalLink className="h-3.5 w-3.5 text-white/30 group-hover:text-white/60 flex-shrink-0 transition" />
+        )}
+
+        {clipboardEnabled && hasPassword && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={t("copy.tooltip")}
+            title={t("copy.tooltip")}
+            onClick={handleCopyClick}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCopyClick(e as unknown as React.MouseEvent);
+              }
+            }}
+            className={`flex-shrink-0 p-1.5 rounded-md border transition cursor-pointer ${
+              justCopied
+                ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-200"
+                : "bg-white/5 hover:bg-white/15 border-white/10 hover:border-white/30 text-white/50 hover:text-white"
+            }`}
+            data-testid={`vault-entry-copy-${entry.id}`}
+          >
+            {justCopied ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </span>
         )}
       </button>
     </li>
