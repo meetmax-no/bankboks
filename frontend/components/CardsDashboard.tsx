@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
+  Copy,
   CreditCard,
   LayoutGrid,
   List,
@@ -16,12 +18,15 @@ import {
   Star,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { CardModal } from "./CardModal";
 import type { CardsStatus } from "@/hooks/useCards";
 import type { CardType, VaultCard } from "@/lib/types";
 import type { AppConfig } from "@/lib/config";
 import { useLocale } from "@/lib/i18n-context";
 import { localeCompare } from "@/lib/format-date";
+import { copyWithAutoClear } from "@/lib/clipboard";
+import { useLongPress } from "@/hooks/useLongPress";
 
 interface CardsDashboardProps {
   status: CardsStatus;
@@ -94,6 +99,35 @@ export function CardsDashboard({
   const isGroupExpanded = (key: string) =>
     isSearching ? true : expanded.has(key);
 
+  // D-150c (2026-02): kopi + long-press på kortnummer. Samme
+  // clipboardWithAutoClear-mønster som passord i VaultDashboard.
+  const clipboardEnabled = config.security.clipboardEnabled !== false;
+  const clipboardClearSeconds = config.security.clipboardClearSeconds;
+
+  const handleCopyCardNumber = async (card: VaultCard) => {
+    if (!clipboardEnabled) {
+      toast.error(t("copy.disabled"));
+      return;
+    }
+    const cleanNumber = card.cardNumber.replace(/\s/g, "");
+    if (!cleanNumber) {
+      toast.error(t("copy.no_password"));
+      return;
+    }
+    try {
+      await copyWithAutoClear(cleanNumber, clipboardClearSeconds, (ok) => {
+        if (ok) {
+          toast.info(`${t("copy.cleared_prefix")} ${card.title}`);
+        }
+      });
+      toast.success(
+        `${t("copy.success_prefix")} ${card.title} · ${t("copy.success_suffix")} ${clipboardClearSeconds}s`,
+      );
+    } catch {
+      toast.error(t("copy.failed"));
+    }
+  };
+
   const sorter = (a: VaultCard, b: VaultCard) => {
     if (!!a.favorite !== !!b.favorite) return a.favorite ? -1 : 1;
     return localeCompare(a.title, b.title, locale);
@@ -163,7 +197,7 @@ export function CardsDashboard({
       >
         <div className="flex items-center justify-between gap-3 mb-4">
           <h2 className="text-base font-semibold flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-blue-300" />
+            <CreditCard className="h-5 w-5 text-violet-300" />
             <span>
               {cards.length}{" "}
               {cards.length === 1
@@ -175,7 +209,7 @@ export function CardsDashboard({
             <button
               data-testid="cards-add-btn"
               onClick={() => setModal({ open: true, mode: "new", card: null })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold shadow transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-xs font-semibold shadow transition"
             >
               <Plus className="h-4 w-4" />
               {t("common.new")}
@@ -323,8 +357,8 @@ export function CardsDashboard({
             data-testid="cards-empty-state"
             className="py-12 px-6 text-center flex flex-col items-center gap-3"
           >
-            <div className="w-12 h-12 rounded-2xl bg-blue-400/15 border border-blue-300/30 flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-blue-200" />
+            <div className="w-12 h-12 rounded-2xl bg-violet-400/15 border border-violet-300/30 flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-violet-200" />
             </div>
             <div className="space-y-1.5 max-w-sm">
               <p className="text-sm font-semibold text-white/90">
@@ -337,7 +371,7 @@ export function CardsDashboard({
             <button
               data-testid="cards-empty-add-btn"
               onClick={() => setModal({ open: true, mode: "new", card: null })}
-              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition shadow"
+              className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-xs font-semibold transition shadow"
             >
               <Plus className="h-4 w-4" />
               {t("cards.empty_state_button")}
@@ -361,6 +395,8 @@ export function CardsDashboard({
                 key={card.id}
                 card={card}
                 onClick={() => setModal({ open: true, mode: "view", card })}
+                onCopyCardNumber={handleCopyCardNumber}
+                clipboardEnabled={clipboardEnabled}
               />
             ))}
           </ul>
@@ -405,6 +441,8 @@ export function CardsDashboard({
                           onClick={() =>
                             setModal({ open: true, mode: "view", card })
                           }
+                          onCopyCardNumber={handleCopyCardNumber}
+                          clipboardEnabled={clipboardEnabled}
                         />
                       ))}
                     </ul>
@@ -434,17 +472,43 @@ export function CardsDashboard({
 function CardRow({
   card,
   onClick,
+  onCopyCardNumber,
+  clipboardEnabled,
 }: {
   card: VaultCard;
   onClick: () => void;
+  onCopyCardNumber: (card: VaultCard) => void;
+  clipboardEnabled: boolean;
 }) {
   const { t } = useLocale();
   const color = CARD_TYPE_COLORS[card.cardType];
+  const [justCopied, setJustCopied] = useState(false);
+  const hasNumber = Boolean(card.cardNumber?.replace(/\s/g, ""));
+
+  // D-150c (2026-02): long-press på raden = kopier kortnummer direkte.
+  const longPressHandlers = useLongPress(
+    () => {
+      if (!clipboardEnabled || !hasNumber) return;
+      onCopyCardNumber(card);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1500);
+    },
+    { delayMs: 500, vibrate: true },
+  );
+
+  const handleCopyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCopyCardNumber(card);
+    setJustCopied(true);
+    setTimeout(() => setJustCopied(false), 1500);
+  };
+
   return (
     <li>
       <button
         data-testid={`card-row-${card.id}`}
         onClick={onClick}
+        {...longPressHandlers}
         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 text-left transition group"
       >
         <div
@@ -478,6 +542,35 @@ function CardRow({
             </span>
           </div>
         </div>
+
+        {clipboardEnabled && hasNumber && (
+          <span
+            role="button"
+            tabIndex={0}
+            aria-label={t("copy.tooltip")}
+            title={t("copy.tooltip")}
+            onClick={handleCopyClick}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCopyClick(e as unknown as React.MouseEvent);
+              }
+            }}
+            className={`flex-shrink-0 p-1.5 rounded-md border transition cursor-pointer ${
+              justCopied
+                ? "bg-emerald-500/20 border-emerald-400/50 text-emerald-200"
+                : "bg-white/5 hover:bg-white/15 border-white/10 hover:border-white/30 text-white/50 hover:text-white"
+            }`}
+            data-testid={`card-row-copy-${card.id}`}
+          >
+            {justCopied ? (
+              <Check className="h-3.5 w-3.5" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </span>
+        )}
       </button>
     </li>
   );
