@@ -529,14 +529,22 @@ export function ConfigToolsButton() {
 
               {/* Action-knapper */}
               {(() => {
-                // D-149 (2026-02): Kjør er disabled hvis dry-run allerede
-                // har vist at ingen tenants faktisk vil endres. Ellers
-                // ville brukeren kunne trigge en meningsløs operasjon.
-                const nothingToRun =
-                  result !== null &&
-                  result.dryRun &&
+                // D-149 (2026-02): Kjør krever ALLTID dry-run først —
+                // tryggere-mønster (Terraform plan → apply). Etter dry-run
+                // aktiveres Kjør bare hvis det faktisk er endringer å utføre.
+                // Endring i modus/scope/parent-prefix invaliderer dry-run
+                // (setResult(null) i onChange for hver kontroll).
+                const hasDryRun = result !== null && result.dryRun;
+                const hasChanges =
+                  hasDryRun &&
                   result.rows.length > 0 &&
-                  result.rows.every((r) => r.action === "skipped");
+                  result.rows.some((r) => r.action !== "skipped");
+                const runDisabled = busy || !hasDryRun || !hasChanges;
+                const runDisabledReason = !hasDryRun
+                  ? "Kjør «Dry-run» først for å se hva som vil skje."
+                  : !hasChanges
+                    ? "Ingen endringer å utføre — alle tenants er allerede i sync."
+                    : undefined;
                 return (
                   <div className="flex items-center gap-2 pt-2 border-t border-white/10">
                     <button
@@ -553,12 +561,8 @@ export function ConfigToolsButton() {
                       type="button"
                       data-testid="config-tools-run-btn"
                       onClick={() => void run(false)}
-                      disabled={busy || nothingToRun}
-                      title={
-                        nothingToRun
-                          ? "Ingen endringer å utføre — alle tenants er allerede i sync."
-                          : undefined
-                      }
+                      disabled={runDisabled}
+                      title={runDisabledReason}
                       className={`flex-1 text-xs px-3 py-2 rounded-md disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium flex items-center justify-center gap-1.5 transition ${
                         mode === "overwrite-all"
                           ? "bg-red-600 hover:bg-red-500"
