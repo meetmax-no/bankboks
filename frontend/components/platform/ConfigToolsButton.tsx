@@ -20,6 +20,7 @@ import {
   Wrench,
   X,
 } from "lucide-react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 type Mode =
   | "skip-existing"
@@ -111,6 +112,18 @@ export function ConfigToolsButton() {
   // Sensitive paths er default på "tenant"; alt annet på "default".
   const [policies, setPolicies] = useState<Record<string, "default" | "tenant">>({});
 
+  // D-149 (2026-02): styled confirm-dialog replaces browser-default
+  // window.confirm() which er stygt og ikke matcher branding.
+  type ConfirmState = {
+    open: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmLabel: string;
+    variant: "default" | "destructive";
+    onConfirm: () => void;
+  };
+  const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
+
   function setPolicyForPath(path: string, winner: "default" | "tenant") {
     setPolicies((prev) => ({ ...prev, [path]: winner }));
   }
@@ -136,51 +149,101 @@ export function ConfigToolsButton() {
       );
       return;
     }
-    if (!dryRun && mode === "overwrite-all") {
+
+    // D-149: smart-merge pre-check: krever dry-run først
+    if (!dryRun && mode === "smart-merge" && !result?.conflicts) {
+      setError("Kjør «Dry-run» først for å analysere konflikter og velge policies.");
+      return;
+    }
+
+    // D-149 (2026-02): destruktive modi krever styled confirm-dialog.
+    // Smart-merge uten «default vinner»-policies er ikke destruktivt —
+    // hopper over confirm i det tilfellet (samme oppførsel som legacy merge).
+    const defaultWinCount =
+      mode === "smart-merge"
+        ? Object.values(policies).filter((v) => v === "default").length
+        : 0;
+    const needsConfirm =
+      !dryRun &&
+      (mode === "overwrite-all" ||
+        mode === "cascade-from-parent" ||
+        (mode === "smart-merge" && defaultWinCount > 0));
+
+    if (needsConfirm) {
       const total = result?.total ?? "alle";
-      if (
-        !window.confirm(
-          `OVERSKRIV ${total} tenants med default.json?\n\n` +
-            `Dette sletter ALLE per-tenant endringer i client-config.\n` +
-            `Action audit-logges i tenant.notes.\n\nFortsette?`,
-        )
-      ) {
-        return;
+      let title: string;
+      let description: React.ReactNode;
+      let confirmLabel: string;
+      let variant: "default" | "destructive" = "default";
+
+      if (mode === "overwrite-all") {
+        title = `Overskriv ${total} tenants?`;
+        description = (
+          <>
+            <p>
+              Dette sletter <strong>ALLE</strong> per-tenant endringer i client-config
+              og restarter fra <code>default.json</code>.
+            </p>
+            <p className="mt-2 text-white/60">
+              Alle endringer audit-logges i <code>tenant.notes</code>.
+            </p>
+          </>
+        );
+        confirmLabel = "Overskriv alle";
+        variant = "destructive";
+      } else if (mode === "cascade-from-parent") {
+        const scope = parentScope.trim()
+          ? `SA '${parentScope.trim()}'`
+          : "ALLE SA-organisasjoner";
+        title = `Re-cascade SA-mal til ${total}?`;
+        description = (
+          <>
+            <p>
+              Overskriver alle ansattes lokale client-config med ferskt snapshot
+              fra {scope}.
+            </p>
+            <p className="mt-2 text-white/60">
+              Alle endringer audit-logges i <code>tenant.notes</code>.
+            </p>
+          </>
+        );
+        confirmLabel = "Re-cascade";
+      } else {
+        // smart-merge med default-vinn-paths
+        title = `Smart-merge ${total} tenants?`;
+        description = (
+          <>
+            <p>
+              {defaultWinCount} path(s) satt til «default vinner». Sensitive
+              paths (brand/backgrounds/categories/_meta) er default på «tenant
+              vinner» — dobbeltsjekk at du ikke har endret dem uten intensjon.
+            </p>
+            <p className="mt-2 text-white/60">
+              Alle endringer audit-logges i <code>tenant.notes</code>.
+            </p>
+          </>
+        );
+        confirmLabel = "Kjør smart-merge";
       }
+
+      setConfirmState({
+        open: true,
+        title,
+        description,
+        confirmLabel,
+        variant,
+        onConfirm: () => {
+          setConfirmState(null);
+          void executeRun(dryRun);
+        },
+      });
+      return;
     }
-    if (!dryRun && mode === "cascade-from-parent") {
-      const total = result?.total ?? "alle berørte ansatte";
-      const scope = parentScope.trim()
-        ? `SA '${parentScope.trim()}'`
-        : "ALLE SA-organisasjoner";
-      if (
-        !window.confirm(
-          `Re-cascade SA-mal til ${total} (${scope})?\n\n` +
-            `Dette overskriver alle ansattes lokale client-config med ferskt snapshot fra deres SA.\n` +
-            `Action audit-logges i tenant.notes.\n\nFortsette?`,
-        )
-      ) {
-        return;
-      }
-    }
-    // D-149: smart-merge kjør — krev at brukeren har kjørt dry-run først
-    if (!dryRun && mode === "smart-merge") {
-      if (!result?.conflicts) {
-        setError("Kjør Dry-run først for å analysere konflikter og velge policies.");
-        return;
-      }
-      const defaultWinCount = Object.values(policies).filter((v) => v === "default").length;
-      const total = result?.total ?? "alle";
-      if (
-        !window.confirm(
-          `Smart-merge ${total} tenants med ${defaultWinCount} path(s) satt til «default vinner»?\n\n` +
-            `Sensitive paths er default på «tenant vinner» — dobbeltsjekk at du ikke har endret dem uten intensjon.\n` +
-            `Alle endringer audit-logges i tenant.notes.\n\nFortsette?`,
-        )
-      ) {
-        return;
-      }
-    }
+
+    void executeRun(dryRun);
+  }
+
+  async function executeRun(dryRun: boolean) {
     setBusy(true);
     setError(null);
     if (dryRun) setResult(null);
@@ -494,16 +557,7 @@ export function ConfigToolsButton() {
                 </button>
               </div>
 
-              {/* Error */}
-              {error && (
-                <div
-                  data-testid="config-tools-error"
-                  className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2 flex items-start gap-1.5"
-                >
-                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-                  <span>{error}</span>
-                </div>
-              )}
+              {/* Error — flyttet til høyre kolonne (mer synlig) */}
 
               {/* Audit-info */}
               <div className="text-[10px] text-white/40 leading-relaxed pt-2 border-t border-white/10">
@@ -514,7 +568,20 @@ export function ConfigToolsButton() {
 
             {/* ═══ HØYRE KOLONNE — konflikt-tabell + resultater ═══════ */}
             <div className="overflow-y-auto p-5 space-y-4">
-              {!result && (
+              {/* Feilmelding — alltid synlig øverst */}
+              {error && (
+                <div
+                  data-testid="config-tools-error"
+                  className="rounded-md bg-red-500/15 border border-red-500/50 px-4 py-3 flex items-start gap-2.5"
+                >
+                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5 text-red-300" />
+                  <div className="text-sm text-red-100 leading-relaxed">
+                    {error}
+                  </div>
+                </div>
+              )}
+
+              {!result && !error && (
                 <div className="text-center py-16">
                   <div className="text-sm text-white/45 font-mono">
                     Kjør «Dry-run» for å se hva som vil skje.
@@ -784,6 +851,20 @@ export function ConfigToolsButton() {
           </div>
         </div>
       </div>
+
+      {/* D-149: Styled confirm-dialog for destruktive modi. Erstatter
+          browser-default window.confirm() som ikke matcher branding. */}
+      {confirmState && (
+        <ConfirmDialog
+          open={confirmState.open}
+          title={confirmState.title}
+          description={confirmState.description}
+          confirmLabel={confirmState.confirmLabel}
+          variant={confirmState.variant}
+          onConfirm={confirmState.onConfirm}
+          onCancel={() => setConfirmState(null)}
+        />
+      )}
     </>
   );
 }
