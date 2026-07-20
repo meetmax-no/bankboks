@@ -9,7 +9,7 @@
  * `default.json → analytics`-blokken (via useAppConfig). Mike kan justere
  * uten kode-endring.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -76,14 +76,28 @@ export function AnalyticsDashboard() {
   const [days, setDays] = useState<number>(analyticsCfg.defaultPeriodDays);
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [busy, setBusy] = useState(false);
+  const userSelectedRef = useRef(false);
 
-  // Hvis config-endring gjør at gjeldende `days` ikke lenger er en gyldig
-  // periode, hopp tilbake til default.
+  // Sync `days` med `defaultPeriodDays` når config lastes fra Upstash/fil.
+  // Uten dette blir første-render sin FALLBACK_CONFIG.defaultPeriodDays (30)
+  // sittende fast selv om ekte config har annen default. Klikk på pill etter
+  // load respekteres via userSelectedRef.
   useEffect(() => {
-    if (!analyticsCfg.periodDays.includes(days)) {
+    if (userSelectedRef.current) {
+      if (!analyticsCfg.periodDays.includes(days)) {
+        setDays(analyticsCfg.defaultPeriodDays);
+        userSelectedRef.current = false;
+      }
+    } else {
       setDays(analyticsCfg.defaultPeriodDays);
     }
-  }, [analyticsCfg, days]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsCfg]);
+
+  function handleSetDays(d: number) {
+    userSelectedRef.current = true;
+    setDays(d);
+  }
 
   useEffect(() => {
     setBusy(true);
@@ -109,7 +123,7 @@ export function AnalyticsDashboard() {
         {analyticsCfg.periodDays.map((d) => (
           <button
             key={d}
-            onClick={() => setDays(d)}
+            onClick={() => handleSetDays(d)}
             className={`text-xs px-3 py-1 rounded-full border transition ${
               days === d
                 ? "bg-amber-400/15 border-amber-400/60 text-amber-100"
