@@ -20,6 +20,31 @@
 **Ikke start uten Mike's eksplisitte godkjenning.** Rapporten inkluderer beslutningsstøtte (når det bør vente vs. når det bør prioriteres).
 
 ---
+### 📌 D-149 Next-morgen-liste (2026-02, uavklart etter dagens økt)
+
+**Status:** ⏳ Åpen — diskuteres neste økt
+
+**Item 1 — Plassering av audit-info-teksten**
+- I dag flyttet ("Hver mutasjon appender notis til tenant.notes for audit-trail. Tenants ser endringer innen 30 sek (browser-cache).") fra under Dry-run/Kjør-knappene i venstre kolonne til bunn av høyre kolonne.
+- Mike ikke 100% enig i plassering. Diskutere: skal den (a) bli der, (b) tilbake til venstre kolonne, (c) i modal-header, (d) fjernes helt (info er implicit).
+
+**Item 2 — Overwrite-all funksjonalitet — verifikasjon**
+- Mike ikke sikker på at overwrite-all fungerer som forventet. Konkret usikkerhet ikke spesifisert.
+- Neste økt: teste overwrite-all mot ekte tenant med lokale endringer, sjekk om ALLE branding-overrides slettes og config restartes fra default.json korrekt. Sjekke at existing._meta bevares (createdAt/createdBy) men resten overskrives.
+
+**Item 3 — Audit-logging: notes-felt vs dedikert log-fil**
+- I dag logges alle config-mutasjoner (merge/smart-merge/overwrite/cascade) til `tenant.notes`-feltet på TenantRecord via `appendAuditNote()`.
+- Mike lurer på: hvorfor ikke en dedikert log-fil / audit-log-tabell?
+- Neste økt: forklare arkitekturvalget. Alternativer:
+  - **Nå (notes-felt):** enkelt, alt lagret sammen med tenant-recorden, ingen ekstra Upstash-nøkkel per event
+  - **Alternativ (dedikert audit-log):** egen Upstash-list `audit:<subdomain>` med TTL, søkbar på hendelsestype, kan integreres med prometheus/loki
+  - Diskutere kompromiss: notes for kort audit-trail (siste 20 events), separat log for full audit-historie
+
+**Ingen kode-endring gjort nå — kun logging til backlog.**
+
+---
+
+
 ### 🌐 D-151 — Full i18n-dekning for SuperAdmin-UI
 
 **Status:** ⏳ Backlog (P1, 2026-02, konsistens/opprydding)
