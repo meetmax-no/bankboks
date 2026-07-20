@@ -517,7 +517,7 @@ export function CardModal({
                 <a
                   data-testid="card-cs-phone-link"
                   href={`tel:${draft.customerServicePhone}`}
-                  className="inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 text-sm transition"
+                  className="inline-flex items-center gap-1.5 text-violet-300 hover:text-violet-200 text-sm transition"
                 >
                   <Phone className="h-3.5 w-3.5" />
                   {draft.customerServicePhone}
@@ -544,7 +544,7 @@ export function CardModal({
                   href={draft.customerServiceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-blue-300 hover:text-blue-200 text-sm transition truncate"
+                  className="inline-flex items-center gap-1.5 text-violet-300 hover:text-violet-200 text-sm transition truncate"
                 >
                   <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
                   <span className="truncate">{draft.customerServiceUrl}</span>
@@ -690,7 +690,7 @@ export function CardModal({
                 data-testid="card-edit-btn"
                 onClick={() => setMode("edit")}
                 disabled={busy}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-xs font-semibold transition"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Rediger
@@ -719,7 +719,7 @@ export function CardModal({
                 data-testid="card-save-btn"
                 onClick={handleSave}
                 disabled={busy}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold transition disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-violet-500 hover:bg-violet-600 text-white text-xs font-semibold transition disabled:opacity-50"
               >
                 {busy ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -896,7 +896,7 @@ function PhotoSlot({
                 type="button"
                 data-testid={`${testId}-retake-btn`}
                 onClick={onCapture}
-                className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/65 hover:bg-blue-500 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white transition shadow-lg"
+                className="absolute top-1.5 left-1.5 w-7 h-7 rounded-full bg-black/65 hover:bg-violet-500 backdrop-blur-sm border border-white/30 flex items-center justify-center text-white transition shadow-lg"
                 title={t("card_modal.retake_tooltip")}
                 aria-label={`Ta nytt bilde av ${side}`}
               >
@@ -951,7 +951,7 @@ function PhotoSlot({
       type="button"
       data-testid={`${testId}-add-btn`}
       onClick={onCapture}
-      className="aspect-[1.586/1] rounded-lg border-2 border-dashed border-white/20 hover:border-blue-300/60 hover:bg-blue-500/5 flex flex-col items-center justify-center gap-1.5 text-white/55 hover:text-blue-200 transition"
+      className="aspect-[1.586/1] rounded-lg border-2 border-dashed border-white/20 hover:border-violet-300/60 hover:bg-violet-500/5 flex flex-col items-center justify-center gap-1.5 text-white/55 hover:text-violet-200 transition"
     >
       <Camera className="h-5 w-5" />
       <span className="text-[10px] font-semibold">{side}</span>
