@@ -82,18 +82,18 @@ const MODE_DESC: Record<Mode, string> = {
 };
 
 const ACTION_STYLE: Record<string, string> = {
-  migrated: "bg-emerald-500/10 text-emerald-300",
-  merged: "bg-emerald-500/10 text-emerald-300",
-  smart_merged: "bg-emerald-500/10 text-emerald-300",
-  overwritten: "bg-amber-500/10 text-amber-300",
-  cascaded: "bg-emerald-500/10 text-emerald-300",
-  skipped: "bg-white/5 text-white/55",
-  would_migrate: "bg-blue-500/10 text-blue-300",
-  would_merge: "bg-blue-500/10 text-blue-300",
-  would_smart_merge: "bg-blue-500/10 text-blue-300",
-  would_overwrite: "bg-amber-500/10 text-amber-300",
-  would_cascade: "bg-blue-500/10 text-blue-300",
-  error: "bg-red-500/10 text-red-300",
+  migrated: "bg-emerald-500/20 text-emerald-100 border border-emerald-500/40",
+  merged: "bg-emerald-500/20 text-emerald-100 border border-emerald-500/40",
+  smart_merged: "bg-emerald-500/20 text-emerald-100 border border-emerald-500/40",
+  overwritten: "bg-amber-500/20 text-amber-100 border border-amber-500/40",
+  cascaded: "bg-emerald-500/20 text-emerald-100 border border-emerald-500/40",
+  skipped: "bg-white/[0.06] text-white/70 border border-white/10",
+  would_migrate: "bg-blue-500/20 text-blue-100 border border-blue-500/40",
+  would_merge: "bg-blue-500/20 text-blue-100 border border-blue-500/40",
+  would_smart_merge: "bg-blue-500/20 text-blue-100 border border-blue-500/40",
+  would_overwrite: "bg-amber-500/20 text-amber-100 border border-amber-500/40",
+  would_cascade: "bg-blue-500/20 text-blue-100 border border-blue-500/40",
+  error: "bg-red-500/20 text-red-100 border border-red-500/40",
 };
 
 export function ConfigToolsButton() {
@@ -560,7 +560,7 @@ export function ConfigToolsButton() {
               {/* Error — flyttet til høyre kolonne (mer synlig) */}
 
               {/* Audit-info */}
-              <div className="text-[10px] text-white/40 leading-relaxed pt-2 border-t border-white/10">
+              <div className="text-[11px] text-white/65 leading-relaxed pt-2 border-t border-white/10">
                 Hver mutasjon appender notis til tenant.notes for audit-trail.
                 Tenants ser endringer innen 30 sek (browser-cache).
               </div>
