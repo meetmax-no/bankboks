@@ -20,11 +20,27 @@
 **Ikke start uten Mike's eksplisitte godkjenning.** Rapporten inkluderer beslutningsstøtte (når det bør vente vs. når det bør prioriteres).
 
 ---
+### 📊 D-149e — Firma-admin Analytics (aktivitetsvisning i firma-admin-konsoll)
+
+**Status:** ⏳ Backlog (P0, 2026-02, D-149-oppfølging)
+
+**Kontekst:** Firma-admin er en administrator-rolle uten egen konto/vault som drives fra `<prefix>-admin.kodovault.no`. Trenger å se aktivitetsdata for organisasjonens ansatte-tenants i sin admin-konsoll (ikke sin egen aktivitet — den finnes ikke).
+
+**Krav:**
+- Ny "Analytics"-fane/kort i `<prefix>-admin.kodovault.no`-konsollen
+- Viser aggregerte tellere for alle ansatte-tenants under samme SA (parentTenant = prefix)
+- Gjenbruk `analyzeConflicts`-mønster fra D-149d: én API-call → aggregat filtrert på prefix
+- Ny endepunkt: `GET /api/am-admin/analytics?days=<N>` (D-078-safe, ingen PII — kun aggregat-tellere per ansatt, ikke innhold)
+- UI: tilsvarende SuperAdmin-dashbordet men skalert til én organisasjon. KPI-kort (aktive ansatte, unlocks/writes-summering), AreaChart, top-active ansatte, churn-risk-liste, plan-fordeling ikke relevant (alle på samme plan under samme SA).
+
+**Estimat:** ~3-4 timer (endepunkt-filter + ny fane i firma-admin-konsollen + tester)
+
+---
+
+
 ### 🧰 Config-verktøy V2 — utsatte features (2026-02, D-149-oppfølging)
 
-**Kontekst:** V1 av "Konflikt-analyse-modus" bygges nå (path-basert policy-picker, sensitive paths flagged). Følgende ble bevisst utsatt til V2 etter Mike-beslutning:
-
-**V2-item 1 — Per-tenant overstyring i konflikt-analyzer**
+**Kontekst:** V1 av "Konflikt-analyse-modus" bygges nå (path-basert policy-picker, sensitive paths flagged). Følgende ble bevisst utsatt til V2 etter Mike-beslutning:**V2-item 1 — Per-tenant overstyring i konflikt-analyzer**
 - **Behov:** Kunne klikke "vis 38 tenants" på en konflikt-rad og eksludere spesifikke tenants fra en "default vinner"-beslutning (f.eks. én pilot-kunde som skal beholde sin tilpasning).
 - **Hvorfor utsatt:** V1 tvinger path-nivå-policy for forutsigbarhet. Edge-cases løses manuelt via TenantViewer først.
 - **Estimat:** ~2-3 timer (per-rad-drill-down UI + tenant-eksklusjonsliste i policy-body).
