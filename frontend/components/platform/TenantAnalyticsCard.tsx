@@ -211,20 +211,40 @@ export function TenantAnalyticsCard({ record }: Props) {
       {/* Area-chart */}
       <Card data-testid="tenant-analytics-chart">
         <Title>Aktivitet over tid</Title>
-        <Text className="text-xs mt-1">
+        <Text className="text-xs mt-1 text-white/45">
           Unlocks, writes og reads per dag
         </Text>
         {hasAnyActivity ? (
-          <AreaChart
-            className="mt-4 h-64"
-            data={series}
-            index="date"
-            categories={["unlocks", "writes", "reads"]}
-            colors={["amber", "violet", "sky"]}
-            yAxisWidth={40}
-            showLegend
-            showGridLines
-          />
+          <>
+            <AreaChart
+              className="mt-4 h-72"
+              data={series}
+              index="date"
+              categories={["unlocks", "writes", "reads"]}
+              colors={["amber", "violet", "sky"]}
+              yAxisWidth={56}
+              minValue={0}
+              valueFormatter={(v: number) => Math.round(v).toString()}
+              showLegend={false}
+              showGridLines
+              startEndOnly
+              curveType="monotone"
+            />
+            <div className="flex items-center justify-center gap-5 text-xs text-white/60 mt-4 flex-wrap">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />
+                Unlocks
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-violet-400" />
+                Writes
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="inline-block w-3 h-3 rounded-sm bg-sky-400" />
+                Reads
+              </span>
+            </div>
+          </>
         ) : (
           <div className="py-12 text-center">
             <Text className="text-white/45">

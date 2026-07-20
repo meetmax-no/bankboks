@@ -165,21 +165,41 @@ export function AnalyticsDashboard() {
           {/* Area-chart: aktivitet over tid */}
           <Card data-testid="analytics-line-chart">
             <Title>Aktivitet over tid</Title>
-            <Text className="text-xs mt-1">
+            <Text className="text-xs mt-1 text-white/45">
               Unlocks, writes og aktive tenants per dag
             </Text>
             {data.dailyAggregate.length > 0 ? (
-              <AreaChart
-                className="mt-4 h-72"
-                data={data.dailyAggregate}
-                index="date"
-                categories={["unlocks", "writes", "activeTenants"]}
-                colors={["amber", "violet", "emerald"]}
-                yAxisWidth={40}
-                showLegend
-                showGridLines
-                showAnimation
-              />
+              <>
+                <AreaChart
+                  className="mt-4 h-80"
+                  data={data.dailyAggregate}
+                  index="date"
+                  categories={["unlocks", "writes", "activeTenants"]}
+                  colors={["amber", "violet", "emerald"]}
+                  yAxisWidth={56}
+                  minValue={0}
+                  valueFormatter={(v: number) => Math.round(v).toString()}
+                  showLegend={false}
+                  showGridLines
+                  showAnimation
+                  startEndOnly
+                  curveType="monotone"
+                />
+                <div className="flex items-center justify-center gap-5 text-xs text-white/60 mt-4 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-3 rounded-sm bg-amber-400" />
+                    Unlocks
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-3 rounded-sm bg-violet-400" />
+                    Writes
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="inline-block w-3 h-3 rounded-sm bg-emerald-400" />
+                    Aktive tenants
+                  </span>
+                </div>
+              </>
             ) : (
               <Text className="text-white/45 py-8 text-center">
                 Ingen aktivitets-data ennå.
