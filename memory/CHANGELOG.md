@@ -3,6 +3,50 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-149d: Smart-merge (path-basert konflikt-analyse) i ConfigTools
+
+### Problem
+`merge`-modus i ConfigTools var **tenant-wins for ALT** — når Mike oppdaterte `analytics`-blokken i `default.json` og kjørte merge, ble tenants sine gamle verdier bevart (også for globale settings som skulle propagere). For 50-75 tenants er per-tenant-review ikke skalerbart.
+
+### Løsning
+Ny 5. modus: **`smart-merge`** — én policy-avgjørelse per PATH, ikke per tenant. Sensitive paths (`brand.*`, `backgrounds`, `categories`, `_meta.*`) er default på "tenant vinner"; alt annet default på "default vinner".
+
+### Backend
+
+**`lib/platform/config-conflict-analyzer.ts` (NY):**
+- `flattenPaths(obj)` — flater ut nested config til `Map<dot-path, value>`. Arrays som leaf-values (matcher Mikes intent om `analytics.periodDays` som enhet).
+- `analyzeConflicts(defaultTemplate, tenants[])` — returnerer `PathConflict[]` med per-path-aggregat: `tenantsMissing`, `tenantsMatchingDefault`, `tenantsInConflict`, `conflictingSubdomains`.
+- `smartMerge(tenant, default, policies)` — utfører merge basert på policy-map. Nye paths auto-legges til; kjente policy-paths følger valget; ukjente konflikt-paths defaulter til tenant-wins.
+- Filtrerer bort `_meta.client`, `_meta.createdAt`, `_meta.createdBy` — per-tenant unike, skal aldri pushes.
+- `isSensitivePath(path)` — sjekker om path starter med sensitiv top-level nøkkel.
+- `unflattenPaths(map)` — reverserer flatten for lagring.
+
+**`/api/admin/migrate-client-configs/route.ts`:**
+- `Mode`-type utvidet med `"smart-merge"`.
+- `MigrationSummary` utvidet med `conflicts?: PathConflict[]` og `smartMerged?: number`.
+- **Dry-run** for smart-merge kjører konflikt-analyse UTEN å skrive — returnerer tabell.
+- **Kjør** for smart-merge tar policies i POST-body: `{ policies: { "path": "default"|"tenant" } }`. Kaller `smartMerge()` per tenant, appender audit-notat med hvilke paths som ble "default vinner".
+
+### Frontend (`ConfigToolsButton.tsx`)
+
+- Panel-bredde: 480px → 620px for konflikt-tabellen.
+- Default valgt modus: `smart-merge` (var: `merge`).
+- Ny konflikt-tabell i result-panelet med kolonner: Path · ➕ (missing) · ✓ (matching) · ⚠ (conflict count) · Policy (radio-toggle).
+- Sensitive paths markert med `⚠` og lys amber-bakgrunn.
+- Bulk-knapper "Alle → default" (kun ikke-sensitive) og "Alle → tenant".
+- Dry-run auto-populerer policies med defaults (sensitive → tenant, alt annet → default).
+- Kjør krever dry-run først + confirm-dialog som viser antall "default vinner"-paths.
+
+### Verifisert
+- `yarn tsc --noEmit` ✓
+- `yarn lint:all` ✓ (7/7)
+- `yarn build` ✓ (30.6s)
+
+### Utsatt til V2 (logget i ROADMAP.md)
+- **Per-tenant overstyring** — drill-down på konflikt-rad for å eksludere spesifikke tenants
+- **Diff-visning per path** — histogram over hvilke verdier tenants faktisk har (`3 tenants: 30, 35 tenants: 60`)
+
+---
 ## 2026-02 — D-149b/c: Per-tenant analytics-tab + tenant-liste aktivitetspill
 
 ### B — Per-tenant Analytics-tab i TenantDetailCard

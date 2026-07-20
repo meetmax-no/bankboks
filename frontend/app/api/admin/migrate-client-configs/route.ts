@@ -24,6 +24,11 @@ import {
   readDefaultTemplate,
   type ClientConfigJson,
 } from "@/lib/platform/tenant-config-builder";
+import {
+  analyzeConflicts,
+  smartMerge,
+  type PathConflict,
+} from "@/lib/platform/config-conflict-analyzer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +37,8 @@ type Mode =
   | "skip-existing"
   | "merge"
   | "overwrite-all"
-  | "cascade-from-parent";
+  | "cascade-from-parent"
+  | "smart-merge";
 
 interface MigrationRow {
   subdomain: string;
@@ -42,10 +48,12 @@ interface MigrationRow {
     | "would_merge"
     | "would_overwrite"
     | "would_cascade"
+    | "would_smart_merge"
     | "migrated"
     | "merged"
     | "overwritten"
     | "cascaded"
+    | "smart_merged"
     | "error";
   reason?: string;
 }
@@ -61,6 +69,12 @@ interface MigrationSummary {
   skipped: number;
   errors: number;
   rows: MigrationRow[];
+  /** D-149 (2026-02): Path-basert konflikt-analyse. Kun satt når
+   *  mode=smart-merge og dryRun=true. UI viser dette som tabell med
+   *  policy-picker per konflikt-rad. */
+  conflicts?: PathConflict[];
+  /** D-149: Antall smart-merged tenants (kjør-modus). */
+  smartMerged?: number;
 }
 
 function parseMode(req: Request): Mode {
@@ -69,7 +83,8 @@ function parseMode(req: Request): Mode {
   if (
     m === "merge" ||
     m === "overwrite-all" ||
-    m === "cascade-from-parent"
+    m === "cascade-from-parent" ||
+    m === "smart-merge"
   )
     return m;
   return "skip-existing";
@@ -130,6 +145,7 @@ async function runMigration(
     includeSA: boolean;
   } = { includeB2C: true, includeSA: false },
   parentScope: string | null = null,
+  smartMergePolicies: Record<string, "default" | "tenant"> = {},
 ): Promise<MigrationSummary> {
   const tenants = await listTenants();
   // D-126/D-128 (2026-02 · Mike): kategorisering av tenants:
@@ -174,6 +190,7 @@ async function runMigration(
     skipped: 0,
     errors: 0,
     rows: [],
+    smartMerged: 0,
   };
 
   let template: ClientConfigJson | null = null;
@@ -193,6 +210,24 @@ async function runMigration(
         })),
       };
     }
+  }
+
+  // D-149 (2026-02): smart-merge dry-run kjører konflikt-analyse UTEN
+  // å skrive noe. Returner tidlig med aggregat-tabell — UI bruker denne
+  // som input til policy-pickeren.
+  if (mode === "smart-merge" && dryRun && template) {
+    const configPairs = await Promise.all(
+      candidates.map(async (t) => ({
+        subdomain: t.subdomain,
+        config: await getClientConfig(t.subdomain),
+      })),
+    );
+    summary.conflicts = analyzeConflicts(template, configPairs);
+    summary.rows = candidates.map((t) => ({
+      subdomain: t.subdomain,
+      action: "would_smart_merge",
+    }));
+    return summary;
   }
 
   // D-128: cache parent-configs for å unngå N+1 reads under cascade.
@@ -305,6 +340,52 @@ async function runMigration(
         continue;
       }
 
+      // ── Mode: smart-merge (D-149) ───────────────────────────────────
+      // Policy-map fra POST-body bestemmer hvem som vinner ved konflikt
+      // per path. Nye paths (missing i tenant) legges alltid til fra
+      // default. Ingen policy → tenant vinner (trygg default).
+      if (mode === "smart-merge") {
+        if (!existing) {
+          // Ingen eksisterende → bare initialiser fra default (samme som skip-migrer)
+          if (dryRun) {
+            summary.rows.push({
+              subdomain: t.subdomain,
+              action: "would_smart_merge",
+              reason: "initialiseres fra default",
+            });
+            continue;
+          }
+          const config = buildTenantConfig(template!, t.subdomain);
+          await putClientConfig(t.subdomain, config);
+          await appendAuditNote(
+            t.subdomain,
+            "client-config initialisert fra default (smart-merge: ingen eksisterende)",
+          );
+          summary.migrated++;
+          summary.rows.push({ subdomain: t.subdomain, action: "migrated" });
+          continue;
+        }
+        // Kjør smart-merge med gitte policies
+        const merged = smartMerge(existing, template!, smartMergePolicies);
+        // Bevar riktig _meta for tenant (client + createdAt uendret)
+        const finalConfig = buildTenantConfig(merged, t.subdomain);
+        await putClientConfig(t.subdomain, finalConfig);
+        const pathsChanged = Object.entries(smartMergePolicies)
+          .filter(([, v]) => v === "default")
+          .map(([k]) => k);
+        await appendAuditNote(
+          t.subdomain,
+          `client-config smart-merget med default. Default-vinn paths: ${pathsChanged.join(", ") || "(ingen — kun nye keys)"}`,
+        );
+        summary.smartMerged = (summary.smartMerged ?? 0) + 1;
+        summary.rows.push({
+          subdomain: t.subdomain,
+          action: "smart_merged",
+          reason: `${pathsChanged.length} path(s) fra default`,
+        });
+        continue;
+      }
+
       // ── Mode: cascade-from-parent ───────────────────────────────────
       // D-128 (2026-02 · Mike): re-spill SA-config til alle eksisterende
       // ansatte. Ansatt-recorden har `parentTenant = <prefix>` (D-103e),
@@ -385,11 +466,26 @@ export async function POST(req: Request) {
     const scope = onlyParents
       ? { includeB2C: false, includeSA: true }
       : { includeB2C: parseIncludeB2C(req), includeSA: parseIncludeSA(req) };
+    // D-149: smart-merge tar policies i body: { policies: { "path": "default"|"tenant" } }
+    let policies: Record<string, "default" | "tenant"> = {};
+    try {
+      const body = await req.json();
+      if (body && typeof body === "object" && body.policies && typeof body.policies === "object") {
+        for (const [k, v] of Object.entries(body.policies)) {
+          if (v === "default" || v === "tenant") {
+            policies[k] = v;
+          }
+        }
+      }
+    } catch {
+      /* ingen body / ikke JSON → tomme policies (tenant-wins fallback) */
+    }
     const summary = await runMigration(
       false,
       parseMode(req),
       scope,
       parseParentScope(req),
+      policies,
     );
     return NextResponse.json(summary);
   } catch (err) {

@@ -25,12 +25,23 @@ type Mode =
   | "skip-existing"
   | "merge"
   | "overwrite-all"
-  | "cascade-from-parent";
+  | "cascade-from-parent"
+  | "smart-merge";
 
 interface MigrationRow {
   subdomain: string;
   action: string;
   reason?: string;
+}
+
+interface PathConflict {
+  path: string;
+  sensitive: boolean;
+  defaultValue: unknown;
+  tenantsMissing: number;
+  tenantsMatchingDefault: number;
+  tenantsInConflict: number;
+  conflictingSubdomains: string[];
 }
 
 interface MigrationSummary {
@@ -44,10 +55,13 @@ interface MigrationSummary {
   skipped: number;
   errors: number;
   rows: MigrationRow[];
+  conflicts?: PathConflict[];
+  smartMerged?: number;
 }
 
 const MODE_LABELS: Record<Mode, string> = {
-  merge: "Merge (tenant-wins) — anbefalt",
+  merge: "Merge (tenant-wins) — legacy",
+  "smart-merge": "Smart-merge (konflikt-analyse) — anbefalt",
   "skip-existing": "Skip eksisterende (recovery)",
   "overwrite-all": "Overskriv ALLE ⚠",
   "cascade-from-parent": "Re-cascade SA-mal til alle ansatte",
@@ -55,7 +69,9 @@ const MODE_LABELS: Record<Mode, string> = {
 
 const MODE_DESC: Record<Mode, string> = {
   merge:
-    "Legger til nye felter fra default.json i alle tenants. Tenants egne endringer bevares.",
+    "Legger til nye felter fra default.json i alle tenants. Tenants egne endringer bevares (tenant-wins for ALT).",
+  "smart-merge":
+    "Analyserer konflikter per path og lar deg velge policy én gang per path (default vs tenant). Skalerer til 50-75 tenants. Sensitive paths (brand, backgrounds, categories) er default på tenant-wins.",
   "skip-existing":
     "Bygger client-config fra default for tenants som ennå ikke har en. Eksisterende tenants røres ikke.",
   "overwrite-all":
@@ -67,11 +83,13 @@ const MODE_DESC: Record<Mode, string> = {
 const ACTION_STYLE: Record<string, string> = {
   migrated: "bg-emerald-500/10 text-emerald-300",
   merged: "bg-emerald-500/10 text-emerald-300",
+  smart_merged: "bg-emerald-500/10 text-emerald-300",
   overwritten: "bg-amber-500/10 text-amber-300",
   cascaded: "bg-emerald-500/10 text-emerald-300",
   skipped: "bg-white/5 text-white/55",
   would_migrate: "bg-blue-500/10 text-blue-300",
   would_merge: "bg-blue-500/10 text-blue-300",
+  would_smart_merge: "bg-blue-500/10 text-blue-300",
   would_overwrite: "bg-amber-500/10 text-amber-300",
   would_cascade: "bg-blue-500/10 text-blue-300",
   error: "bg-red-500/10 text-red-300",
@@ -79,7 +97,7 @@ const ACTION_STYLE: Record<string, string> = {
 
 export function ConfigToolsButton() {
   const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("merge");
+  const [mode, setMode] = useState<Mode>("smart-merge");
   // D-128: scope-toggler for skip/merge/overwrite-all. B2B-ansatte er
   // ALDRI inkludert i disse — de styres via cascade-from-parent.
   const [includeB2C, setIncludeB2C] = useState(true);
@@ -88,6 +106,22 @@ export function ConfigToolsButton() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MigrationSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // D-149 (2026-02): policy-map for smart-merge. Nøkkel = path,
+  // verdi = "default" (default vinner) eller "tenant" (tenant vinner).
+  // Sensitive paths er default på "tenant"; alt annet på "default".
+  const [policies, setPolicies] = useState<Record<string, "default" | "tenant">>({});
+
+  function setPolicyForPath(path: string, winner: "default" | "tenant") {
+    setPolicies((prev) => ({ ...prev, [path]: winner }));
+  }
+
+  function bulkSetPolicies(paths: string[], winner: "default" | "tenant") {
+    setPolicies((prev) => {
+      const next = { ...prev };
+      for (const p of paths) next[p] = winner;
+      return next;
+    });
+  }
 
   async function run(dryRun: boolean) {
     if (busy) return;
@@ -129,6 +163,24 @@ export function ConfigToolsButton() {
         return;
       }
     }
+    // D-149: smart-merge kjør — krev at brukeren har kjørt dry-run først
+    if (!dryRun && mode === "smart-merge") {
+      if (!result?.conflicts) {
+        setError("Kjør Dry-run først for å analysere konflikter og velge policies.");
+        return;
+      }
+      const defaultWinCount = Object.values(policies).filter((v) => v === "default").length;
+      const total = result?.total ?? "alle";
+      if (
+        !window.confirm(
+          `Smart-merge ${total} tenants med ${defaultWinCount} path(s) satt til «default vinner»?\n\n` +
+            `Sensitive paths er default på «tenant vinner» — dobbeltsjekk at du ikke har endret dem uten intensjon.\n` +
+            `Alle endringer audit-logges i tenant.notes.\n\nFortsette?`,
+        )
+      ) {
+        return;
+      }
+    }
     setBusy(true);
     setError(null);
     if (dryRun) setResult(null);
@@ -147,6 +199,13 @@ export function ConfigToolsButton() {
         {
           method: dryRun ? "GET" : "POST",
           credentials: "same-origin",
+          // D-149: smart-merge trenger policies i body ved kjør
+          ...(mode === "smart-merge" && !dryRun
+            ? {
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ policies }),
+              }
+            : {}),
         },
       );
       const body = (await res.json()) as MigrationSummary | { error: string };
@@ -154,6 +213,26 @@ export function ConfigToolsButton() {
         throw new Error(("error" in body && body.error) || `HTTP ${res.status}`);
       }
       setResult(body);
+      // D-149: hvis smart-merge dry-run — populer policies med defaults
+      // (sensitive → tenant, alt annet → default) hvis brukeren ikke har
+      // satt policy allerede.
+      if (
+        mode === "smart-merge" &&
+        dryRun &&
+        "conflicts" in body &&
+        body.conflicts
+      ) {
+        setPolicies((prev) => {
+          const next = { ...prev };
+          for (const c of body.conflicts ?? []) {
+            if (c.tenantsInConflict === 0) continue;
+            if (!(c.path in next)) {
+              next[c.path] = c.sensitive ? "tenant" : "default";
+            }
+          }
+          return next;
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "network_error");
     } finally {
@@ -193,7 +272,7 @@ export function ConfigToolsButton() {
       </button>
       <div
         data-testid="config-tools-panel"
-        className="absolute right-0 top-full mt-1.5 z-20 w-[480px] p-4 rounded-lg bg-neutral-900 border border-white/15 shadow-2xl space-y-3"
+        className="absolute right-0 top-full mt-1.5 z-20 w-[620px] p-4 rounded-lg bg-neutral-900 border border-white/15 shadow-2xl space-y-3"
       >
         <div className="text-[10px] uppercase tracking-wide text-white/55 font-mono">
           Client-config bulk-verktøy
@@ -393,6 +472,11 @@ export function ConfigToolsButton() {
                   {result.merged} merget
                 </span>
               )}
+              {(result.smartMerged ?? 0) > 0 && (
+                <span className="text-emerald-300">
+                  {result.smartMerged} smart-merget
+                </span>
+              )}
               {result.overwritten > 0 && (
                 <span className="text-amber-300">
                   {result.overwritten} overskrevet
@@ -412,6 +496,150 @@ export function ConfigToolsButton() {
                 <span className="text-red-300">{result.errors} feil</span>
               )}
             </div>
+
+            {/* D-149: Konflikt-tabell (kun smart-merge dry-run) */}
+            {result.conflicts && result.conflicts.length > 0 && (
+              <div
+                data-testid="smart-merge-conflict-table"
+                className="border border-white/10 rounded-md overflow-hidden"
+              >
+                <div className="px-2 py-1.5 bg-white/5 flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-wide text-white/65 font-mono">
+                    Path-basert konflikt-analyse
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      data-testid="smart-merge-bulk-default"
+                      onClick={() =>
+                        bulkSetPolicies(
+                          (result.conflicts ?? [])
+                            .filter((c) => c.tenantsInConflict > 0 && !c.sensitive)
+                            .map((c) => c.path),
+                          "default",
+                        )
+                      }
+                      className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 font-mono"
+                      title="Sett alle ikke-sensitive konflikter til 'default vinner'"
+                    >
+                      Alle → default
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="smart-merge-bulk-tenant"
+                      onClick={() =>
+                        bulkSetPolicies(
+                          (result.conflicts ?? [])
+                            .filter((c) => c.tenantsInConflict > 0)
+                            .map((c) => c.path),
+                          "tenant",
+                        )
+                      }
+                      className="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white/75 border border-white/20 font-mono"
+                      title="Sett alle konflikter til 'tenant vinner'"
+                    >
+                      Alle → tenant
+                    </button>
+                  </div>
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  <table className="w-full text-[11px]">
+                    <thead className="sticky top-0 bg-neutral-900 border-b border-white/10">
+                      <tr className="text-left text-[10px] uppercase tracking-wide text-white/45">
+                        <th className="px-2 py-1 font-medium">Path</th>
+                        <th className="px-1 py-1 font-medium text-center" title="Uten (auto-legges til)">➕</th>
+                        <th className="px-1 py-1 font-medium text-center" title="Match default">✓</th>
+                        <th className="px-1 py-1 font-medium text-center" title="I konflikt">⚠</th>
+                        <th className="px-2 py-1 font-medium text-right">Policy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(result.conflicts ?? []).map((c) => {
+                        const hasConflict = c.tenantsInConflict > 0;
+                        const policy = policies[c.path] ?? (c.sensitive ? "tenant" : "default");
+                        return (
+                          <tr
+                            key={c.path}
+                            data-testid={`conflict-row-${c.path}`}
+                            className={`border-b border-white/5 ${
+                              hasConflict
+                                ? c.sensitive
+                                  ? "bg-amber-500/[0.04]"
+                                  : ""
+                                : "opacity-45"
+                            }`}
+                          >
+                            <td className="px-2 py-1 font-mono text-white/85">
+                              {c.sensitive && (
+                                <span
+                                  className="text-amber-400 mr-1"
+                                  title="Sensitiv path — default på tenant-wins"
+                                >
+                                  ⚠
+                                </span>
+                              )}
+                              {c.path}
+                            </td>
+                            <td className="px-1 py-1 text-center text-white/50">
+                              {c.tenantsMissing || "·"}
+                            </td>
+                            <td className="px-1 py-1 text-center text-emerald-400/70">
+                              {c.tenantsMatchingDefault || "·"}
+                            </td>
+                            <td className="px-1 py-1 text-center">
+                              {hasConflict ? (
+                                <span className="text-amber-300 font-mono">
+                                  {c.tenantsInConflict}
+                                </span>
+                              ) : (
+                                <span className="text-white/30">·</span>
+                              )}
+                            </td>
+                            <td className="px-2 py-1 text-right">
+                              {hasConflict ? (
+                                <div className="inline-flex rounded overflow-hidden border border-white/15">
+                                  <button
+                                    type="button"
+                                    data-testid={`policy-${c.path}-default`}
+                                    onClick={() => setPolicyForPath(c.path, "default")}
+                                    className={`px-2 py-0.5 text-[10px] font-mono transition ${
+                                      policy === "default"
+                                        ? "bg-blue-500/30 text-blue-200"
+                                        : "bg-transparent text-white/45 hover:text-white/70"
+                                    }`}
+                                  >
+                                    default
+                                  </button>
+                                  <button
+                                    type="button"
+                                    data-testid={`policy-${c.path}-tenant`}
+                                    onClick={() => setPolicyForPath(c.path, "tenant")}
+                                    className={`px-2 py-0.5 text-[10px] font-mono transition border-l border-white/15 ${
+                                      policy === "tenant"
+                                        ? "bg-white/20 text-white/85"
+                                        : "bg-transparent text-white/45 hover:text-white/70"
+                                    }`}
+                                  >
+                                    tenant
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-white/30 font-mono">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-2 py-1.5 bg-white/[0.02] text-[10px] text-white/45 border-t border-white/10">
+                  ⚠ = sensitiv path (brand/backgrounds/categories/_meta). Policy-endring krever ekstra oppmerksomhet.
+                  Klikk «Kjør» for å utføre smart-merge med valgte policies.
+                </div>
+              </div>
+            )}
+
             <ul className="max-h-60 overflow-y-auto space-y-1">
               {result.rows.map((row, i) => (
                 <li
