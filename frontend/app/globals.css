@@ -99,3 +99,56 @@ body {
      Subtil — påvirker IKKE ikoner (SVG, ikke tekst). */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   D-149 (2026-02) — Tremor AreaChart overrides for mørk bakgrunn
+   ──────────────────────────────────────────────────────────────────────
+   Tremor bruker Tailwind-klasser `text-tremor-content` og
+   `dark:text-dark-tremor-content` for akse-tekst. Vi har ikke ekstensen
+   av Tremor sin tailwind-theme config, så disse klassene mapper ingen
+   farge → SVG-tekst rendres som default (svart) mot vår mørke bakgrunn.
+
+   Fix: overskriv `fill` direkte på recharts SVG-elementene som Tremor
+   wrapper. Dette gjelder alle Tremor-grafer i appen (SuperAdmin Analytics
+   + per-tenant Analytics).
+
+   I tillegg: skjul dot-sirkler som recharts tegner på hver datapoint —
+   når alle verdier er 0 er punktene bare visuell støy.
+   ────────────────────────────────────────────────────────────────────── */
+
+/* Akse-tekst (X + Y ticks) */
+.recharts-cartesian-axis-tick-value,
+.recharts-cartesian-axis-tick text,
+.recharts-text.recharts-cartesian-axis-tick-value tspan {
+  fill: rgba(255, 255, 255, 0.55) !important;
+}
+
+/* Gridlinjer subtile */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Skjul default dots på Area — vi vil ha ren linje/fill uten støy-punkter */
+.recharts-area-dots,
+.recharts-area-dot {
+  display: none !important;
+}
+
+/* Behold activeDot (hover-dot) synlig, men gjør den fargerik i stedet for svart */
+.recharts-active-dot circle {
+  stroke-width: 2 !important;
+}
+
+/* Tooltip-boks: gi mørk-glass-bakgrunn så den ikke er hvit på mørk bg */
+.recharts-tooltip-wrapper .recharts-default-tooltip,
+.tremor-Tooltip-root {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+.recharts-tooltip-wrapper .recharts-default-tooltip .recharts-tooltip-label {
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
