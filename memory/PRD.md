@@ -33,6 +33,15 @@ Personlig kryptert passord-vault basert på design-DNA fra meetmax-no/Calender. 
 
 ## What's been implemented
 
+### ✅ 2026-02 — D-149a SuperAdmin Analytics (Tremor) (P0)
+- **Formål:** Gir Super-admin et visuelt oversikt-bilde over aktivitet på tvers av alle tenants. DAU/period-aktive, unlocks/writes-trender, top-active, churn-risk (60+ dager inaktiv) og plan-fordeling.
+- **Datakilde:** `TenantRecord.dailyActivity: { [dateISO]: { unlocks, writes, reads } }` bumpes gjennom throttled klient-heartbeat + intern RPC (`/api/internal/bump-activity`) fra `/api/vault/heartbeat`.
+- **API:** `GET /api/admin/analytics?days=30|90|365` (D-078-safe, KUN aggregat, ingen PII). Returnerer `totals`, `dailyAggregate`, `topActive`, `churnRisk`, `planDistribution`.
+- **UI:** `components/platform/AnalyticsDashboard.tsx` — bygget med `@tremor/react` (Card + Metric + AreaChart + BarList + Grid). Periode-picker (30/90/365 dager). Koblet inn som fane `admin-tab-analytics` i `app/platform/admin/page.tsx`.
+- **Files:** `app/api/admin/analytics/route.ts`, `app/api/internal/bump-activity/route.ts`, `app/api/vault/heartbeat/route.ts`, `components/platform/AnalyticsDashboard.tsx`, `lib/platform/tenant-store.ts` (dailyActivity-bump), `lib/__tests__/coverage-matrix-lint.test.ts` (EXEMPT for `/api/admin/analytics`).
+- **Statisk QA:** `yarn tsc --noEmit` ✓ · `yarn lint:all` ✓ (7/7 grønne, inkl. coverage-matrix + i18n-sync) · `yarn build` ✓ (35.7s).
+- **Ikke testet mot preview** (Upstash-lenke mangler i pod per Mike-direktiv). E2E-verifisering skjer i prod etter deploy.
+
 ### ✅ 2026-02 — D-145 Test connectivity-verktøy for B2B-parents (P1/UX)
 - **Bakgrunn:** Etter D-144 kan admin-host-attach failsoft-feile (Vercel API-hicke, rate-limit, etc.). Uten synlig signal risikerer Mike å opprette SuperAdmin før hosten er nåbar → e-post-lenken feiler for kunden. D-145 gir umiddelbart grønt/rødt-signal.
 - **Endpoint:** `POST /api/admin/tenants/[subdomain]/test-connectivity` — HEAD-request til `https://<subdomain>.kodovault.no/api/status` med 8s timeout. Returnerer `{ host, url, status: "ok"|"unreachable"|"tls_error"|"http_error"|"timeout", httpStatus, responseTimeMs, error? }`. Ingen PII, ingen state-endring.

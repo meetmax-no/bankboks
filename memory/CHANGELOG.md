@@ -3,6 +3,50 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-149a SuperAdmin Analytics (Tremor) (P0)
+
+### Hva som ble bygget
+
+**1. Data-pipeline (throttled aktivitets-tellere)**
+- `TenantRecord.dailyActivity?: Record<dateISO, { unlocks, writes, reads }>` bumpes via klient-heartbeat på vault-unlock/write-events.
+- Klient → `POST /api/vault/heartbeat` (per-tenant pod) → intern RPC → `POST /api/internal/bump-activity` (sentral) → `bumpDailyActivity(subdomain, kind)` i `lib/platform/tenant-store.ts`.
+- Throttling på klient-siden hindrer overtelling ved rask navigering.
+
+**2. Aggregert lese-endepunkt**
+- `GET /api/admin/analytics?days=30|90|365` (admin-session-guardet, ingen PII):
+  - `totals`: activeTenantsToday, activeTenantsLast30d, totalUnlocks/Writes/Reads i perioden, totalTenants
+  - `dailyAggregate[]`: per-dag unlocks + writes + reads + activeTenants
+  - `topActive[]`: top-10 rangert etter unlocks
+  - `churnRisk[]`: tenants uten aktivitet i 60+ dager
+  - `planDistribution`: `{ [plan]: { count, totalUnlocks30d } }`
+
+**3. UI (`components/platform/AnalyticsDashboard.tsx`)**
+- Bygget med `@tremor/react`: Card + Metric + AreaChart + BarList + Grid + Flex + Title + Text.
+- Periode-picker 30d/90d/365d (pill-buttons, amber-active-state).
+- 4 KPI-kort: Aktive i dag, Aktive siste Nd, Unlocks Nd (med snitt/dag), Writes Nd (med snitt/dag).
+- AreaChart: unlocks/writes/activeTenants per dag (amber/violet/emerald).
+- To BarList side-ved-side: Top 10 mest aktive (emerald) + Churn-risk 60+ dager (red).
+- Plan-fordeling som BarList (amber).
+- data-testid: `analytics-dashboard`, `analytics-period-{days}d`, `kpi-active-today`, `kpi-active-period`, `kpi-unlocks`, `kpi-writes`, `analytics-line-chart`, `analytics-top-active`, `analytics-churn-risk`, `analytics-plan-distribution`.
+
+**4. Wiring**
+- Ny fane `admin-tab-analytics` i `app/platform/admin/page.tsx` mellom "B2B" og "Test Tools".
+- Tab-tittel via eksisterende locale-nøkkel `admin_landing.module_analytics_title`.
+
+### Nye avhengigheter
+- `@tremor/react@^3.18.7`
+- `tailwindcss-animate@^1.0.7`
+
+### Statisk verifikasjon
+- `yarn tsc --noEmit` → 0 errors
+- `yarn lint:all` → 7/7 grønne (inkl. coverage-matrix-lint med `/api/admin/analytics` på EXEMPT)
+- `yarn build` → OK (35.7s, alle nye routes registrert som `ƒ` dynamic)
+
+### Ikke gjort
+- Ingen E2E-test mot preview (Upstash-lenke mangler i pod per Mike-direktiv). Verifiseres i prod etter deploy.
+- Firma-admin Analytics (D-149b) er neste task — samme datamodell, men filtrert på tenant-prefix.
+
+---
 ## 2026-02 — D-126 SuperAdmin client-config provisjonering + arv (P1)
 
 ### Hva som ble bygget

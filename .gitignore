@@ -588,3 +588,5 @@ frontend/public/clients/*.json
 !frontend/public/clients/default-th.json
 
 frontend/.next/cache/webpack/server-production/0.pack
+frontend/.next/cache/webpack/client-production/1.pack
+frontend/.next/cache/webpack/server-production/1.pack
