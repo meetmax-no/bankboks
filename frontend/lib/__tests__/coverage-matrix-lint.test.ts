@@ -146,6 +146,8 @@ const EXEMPT_ROUTES: Record<string, string> = {
     "SuperAdmin env-var reveal POST (D-147, 2026-02) — validerer ekstra reveal-passord via bcrypt-compare mot ADMIN_REVEAL_SECRETS_PASSWORD_HASH env-var. Returnerer alle Vercel env-vars med gruppekategorisering. Beskyttet av admin-session-middleware + separat passord. Verdier logges aldri; kun tilgangs-forsøk (timestamp + IP + UA).",
   "app/api/admin/analytics/route.ts":
     "SuperAdmin aggregate analytics GET (D-149, 2026-02) — leser dailyActivity på tvers av alle tenants, returnerer KPI-totals + dailyAggregate + topActive + churnRisk + planDistribution. Beskyttet av admin-session-middleware. Ingen PII, kun aggregat-tellere.",
+  "app/api/admin/analytics/diagnose/route.ts":
+    "SuperAdmin analytics diagnose GET/POST (D-149, 2026-02) — GET tester admin→admin RPC self-loop for å verifisere INTERNAL_RPC_SECRET og /api/internal/bump-activity-endepunkt. POST kaller bumpDailyActivity direkte (uten RPC) for å verifisere central-Upstash-write-path. Brukes fra Test Tools når analytics viser 0 aktivitet.",
   "app/api/admin/tenants/[subdomain]/create-org-admin/route.ts":
     "Mike oppretter første am-admin (Iter 20.2) — dekket av Matrise 6 i DECISIONS.md (Iter 20.6)",
 };

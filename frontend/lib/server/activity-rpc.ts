@@ -27,12 +27,14 @@ export async function bumpActivityViaRpc(
     process.env.ADMIN_INTERNAL_URL ?? ADMIN_INTERNAL_URL_FALLBACK;
   const secret = process.env.INTERNAL_RPC_SECRET;
   if (!secret) {
-    // Ingen secret satt (dev/preview) — no-op stille.
+    console.warn(
+      `[activity-rpc D-149] INTERNAL_RPC_SECRET mangler på tenant-pod — bump ${kind}/${subdomain} skipped`,
+    );
     return;
   }
 
   try {
-    await fetch(`${base}/api/internal/bump-activity`, {
+    const res = await fetch(`${base}/api/internal/bump-activity`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -40,9 +42,15 @@ export async function bumpActivityViaRpc(
       },
       body: JSON.stringify({ subdomain, kind }),
     });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "<no body>");
+      console.error(
+        `[activity-rpc D-149] bump ${kind}/${subdomain} → HTTP ${res.status} @ ${base}: ${text.slice(0, 200)}`,
+      );
+    }
   } catch (e) {
-    console.warn(
-      `[activity-rpc D-149] bump ${kind} for ${subdomain} failed:`,
+    console.error(
+      `[activity-rpc D-149] bump ${kind}/${subdomain} fetch failed @ ${base}:`,
       e instanceof Error ? e.message : String(e),
     );
   }

@@ -30,6 +30,7 @@ import { MailTestCard } from "@/components/platform/MailTestCard";
 import { EnvVarsCard } from "@/components/platform/EnvVarsCard";
 import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
+import { AnalyticsDiagnoseCard } from "@/components/platform/AnalyticsDiagnoseCard";
 import { AnalyticsDashboard } from "@/components/platform/AnalyticsDashboard";
 import { SubTabNav } from "@/components/platform/SubTabNav";
 type AdminTab = "tenants" | "b2b" | "analytics" | "test-tools";
@@ -208,6 +209,7 @@ export default function AdminLandingPage() {
               <>
                 <StripeTestCard />
                 <MailTestCard />
+                <AnalyticsDiagnoseCard />
               </>
             )}
             {testToolsSubTab === "env-system" && <EnvVarsCard />}
