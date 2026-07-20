@@ -14,8 +14,8 @@
 import { useState } from "react";
 import {
   AlertCircle,
+  Check,
   CheckCircle2,
-  ChevronDown,
   Loader2,
   Wrench,
   X,
@@ -256,7 +256,7 @@ export function ConfigToolsButton() {
   }
 
   return (
-    <div className="relative">
+    <>
       <button
         type="button"
         data-testid="config-tools-toggle-btn"
@@ -270,407 +270,520 @@ export function ConfigToolsButton() {
         <X className="h-3 w-3" />
         Lukk
       </button>
+
+      {/* D-149 (2026-02): Full modal med backdrop. Klikk-utenfor lukker
+          IKKE — kun X-knapp/Lukk-knapp. Beskytter policy-valg fra
+          utilsiktet lukking. */}
       <div
-        data-testid="config-tools-panel"
-        className="absolute right-0 top-full mt-1.5 z-20 w-[620px] p-4 rounded-lg bg-neutral-900 border border-white/15 shadow-2xl space-y-3"
+        data-testid="config-tools-modal-backdrop"
+        className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto"
       >
-        <div className="text-[10px] uppercase tracking-wide text-white/55 font-mono">
-          Client-config bulk-verktøy
-        </div>
-
-        {/* Modus-selector */}
-        <fieldset className="space-y-1.5">
-          {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
-            <label
-              key={m}
-              className={`flex items-start gap-2 px-2 py-1.5 rounded-md cursor-pointer transition ${
-                mode === m
-                  ? "bg-white/10 border border-white/20"
-                  : "bg-black/30 border border-transparent hover:bg-black/40"
-              }`}
-            >
-              <input
-                type="radio"
-                data-testid={`config-tools-mode-${m}`}
-                name="mode"
-                value={m}
-                checked={mode === m}
-                onChange={() => {
-                  setMode(m);
-                  setResult(null);
-                }}
-                className="mt-0.5"
-              />
-              <span className="flex-1">
-                <span className="text-xs font-mono text-white/90">
-                  {MODE_LABELS[m]}
-                </span>
-                <span className="block text-[10px] text-white/55 mt-0.5">
-                  {MODE_DESC[m]}
-                </span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-
-        {/* Scope-toggler (D-128) — skjult i cascade-modus (irrelevant der) */}
-        {mode !== "cascade-from-parent" && (
-          <div className="space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wide text-white/55 font-mono">
-              Hvem skal denne kjøringen treffe?
+        <div
+          data-testid="config-tools-panel"
+          className="w-full max-w-[1200px] my-4 rounded-xl bg-neutral-900 border border-white/15 shadow-2xl flex flex-col max-h-[calc(100vh-3rem)]"
+        >
+          {/* Header — sticky */}
+          <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-white/10 flex-shrink-0">
+            <div className="text-xs uppercase tracking-wide text-white/70 font-mono">
+              Client-config bulk-verktøy
             </div>
-            <label
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition border ${
-                includeB2C
-                  ? "bg-blue-500/10 border-blue-500/40"
-                  : "bg-black/30 border-transparent hover:bg-black/40"
-              }`}
-            >
-              <input
-                type="checkbox"
-                data-testid="config-tools-include-b2c-toggle"
-                checked={includeB2C}
-                onChange={(e) => {
-                  setIncludeB2C(e.target.checked);
-                  setResult(null);
-                }}
-                className="cursor-pointer"
-              />
-              <span className="flex-1">
-                <span className="text-xs font-mono text-white/90">
-                  Inkluder B2C-tenants
-                </span>
-                <span className="block text-[10px] text-white/55 mt-0.5">
-                  Privat-kunder med ekte Vercel-prosjekt. Standard valg.
-                </span>
-              </span>
-            </label>
-            <label
-              className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition border ${
-                includeSA
-                  ? "bg-purple-500/10 border-purple-500/40"
-                  : "bg-black/30 border-transparent hover:bg-black/40"
-              }`}
-            >
-              <input
-                type="checkbox"
-                data-testid="config-tools-include-sa-toggle"
-                checked={includeSA}
-                onChange={(e) => {
-                  setIncludeSA(e.target.checked);
-                  setResult(null);
-                }}
-                className="cursor-pointer"
-              />
-              <span className="flex-1">
-                <span className="text-xs font-mono text-white/90">
-                  Inkluder SA (B2B parent-tenants)
-                </span>
-                <span className="block text-[10px] text-white/55 mt-0.5">
-                  <code>&lt;prefix&gt;-admin</code>-malene. Av som standard — slå på
-                  bevisst når du vil treffe SA-konfig.
-                </span>
-              </span>
-            </label>
-            <div className="text-[10px] text-amber-300/80 leading-relaxed px-1">
-              ℹ️ B2B-ansatte (children) treffes ALDRI av disse modusene. Bruk
-              «Re-cascade» for å oppdatere ansatte fra sin SA.
-            </div>
-          </div>
-        )}
-
-        {/* Parent-scope (D-128) — kun synlig i cascade-modus */}
-        {mode === "cascade-from-parent" && (
-          <div className="px-2 py-1.5 rounded-md bg-emerald-500/5 border border-emerald-500/30 space-y-1">
-            <label
-              htmlFor="config-tools-parent-scope"
-              className="text-[10px] uppercase tracking-wide text-emerald-300 font-mono block"
-            >
-              SA-prefix å cascade fra (valgfri)
-            </label>
-            <input
-              id="config-tools-parent-scope"
-              data-testid="config-tools-parent-scope"
-              type="text"
-              value={parentScope}
-              onChange={(e) => {
-                setParentScope(e.target.value);
+            <button
+              type="button"
+              data-testid="config-tools-close-btn"
+              onClick={() => {
+                setOpen(false);
                 setResult(null);
+                setError(null);
+                setPolicies({});
               }}
-              placeholder="f.eks. mm (uten -admin)"
-              className="w-full text-xs font-mono px-2 py-1 rounded bg-black/40 border border-white/15 text-white placeholder:text-white/30 focus:outline-none focus:border-emerald-500/60"
-            />
-            <p className="text-[10px] text-white/55 leading-relaxed">
-              Tom = re-cascade ALLE SA-organisasjoner. Skriv f.eks.{" "}
-              <code>mm</code> for å bare oppdatere ansatte under{" "}
-              <code>mm-admin</code>.
-            </p>
+              className="p-1.5 rounded-md bg-white/5 hover:bg-white/10 border border-white/15 text-white/70 hover:text-white transition"
+              aria-label="Lukk"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        )}
 
-        {/* Action-knapper */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            data-testid="config-tools-dry-run-btn"
-            onClick={() => void run(true)}
-            disabled={busy}
-            className="text-xs px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-medium flex items-center gap-1.5 transition"
-          >
-            {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-            Dry-run
-          </button>
-          <button
-            type="button"
-            data-testid="config-tools-run-btn"
-            onClick={() => void run(false)}
-            disabled={busy}
-            className={`text-xs px-3 py-1.5 rounded-md disabled:opacity-50 text-white font-medium flex items-center gap-1.5 transition ${
-              mode === "overwrite-all"
-                ? "bg-red-600 hover:bg-red-500"
-                : mode === "cascade-from-parent"
-                  ? "bg-emerald-600 hover:bg-emerald-500"
-                  : "bg-blue-600 hover:bg-blue-500"
-            }`}
-          >
-            {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-            Kjør
-          </button>
-        </div>
+          {/* Body — grid med sticky venstre-kolonne */}
+          <div className="grid grid-cols-[340px_1fr] gap-0 overflow-hidden flex-1">
+            {/* ═══ VENSTRE KOLONNE — sticky ═══════════════════════════ */}
+            <div className="border-r border-white/10 overflow-y-auto p-5 space-y-5 self-start sticky top-0">
+              {/* Modus-selector */}
+              <fieldset className="space-y-1.5">
+                <legend className="text-[10px] uppercase tracking-wide text-white/55 font-mono mb-2">
+                  Modus
+                </legend>
+                {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+                  <label
+                    key={m}
+                    className={`flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer transition border ${
+                      mode === m
+                        ? "bg-white/10 border-white/20"
+                        : "bg-black/30 border-transparent hover:bg-black/40"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      data-testid={`config-tools-mode-${m}`}
+                      name="mode"
+                      value={m}
+                      checked={mode === m}
+                      onChange={() => {
+                        setMode(m);
+                        setResult(null);
+                        setPolicies({});
+                      }}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded-full border-2 transition ${
+                        mode === m
+                          ? "border-violet-400 bg-violet-500"
+                          : "border-white/30"
+                      }`}
+                    />
+                    <span className="flex-1">
+                      <span className="text-xs font-mono text-white/90 block">
+                        {MODE_LABELS[m]}
+                      </span>
+                      <span className="block text-[10px] text-white/55 mt-0.5 leading-relaxed">
+                        {MODE_DESC[m]}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
 
-        {/* Error */}
-        {error && (
-          <div
-            data-testid="config-tools-error"
-            className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-md px-2 py-1.5"
-          >
-            <AlertCircle className="h-3 w-3 inline mr-1" />
-            {error}
-          </div>
-        )}
-
-        {/* Resultat */}
-        {result && (
-          <div data-testid="config-tools-result" className="space-y-2">
-            <div className="text-[10px] font-mono text-white/65 flex items-center gap-3 flex-wrap">
-              {result.dryRun ? (
-                <span className="text-blue-300">DRY-RUN</span>
-              ) : (
-                <span className="text-emerald-300 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  UTFØRT
-                </span>
-              )}
-              <span>{result.total} totalt</span>
-              {result.migrated > 0 && (
-                <span className="text-emerald-300">
-                  {result.migrated} migrert
-                </span>
-              )}
-              {result.merged > 0 && (
-                <span className="text-emerald-300">
-                  {result.merged} merget
-                </span>
-              )}
-              {(result.smartMerged ?? 0) > 0 && (
-                <span className="text-emerald-300">
-                  {result.smartMerged} smart-merget
-                </span>
-              )}
-              {result.overwritten > 0 && (
-                <span className="text-amber-300">
-                  {result.overwritten} overskrevet
-                </span>
-              )}
-              {result.cascaded > 0 && (
-                <span className="text-emerald-300">
-                  {result.cascaded} re-cascaded
-                </span>
-              )}
-              {result.skipped > 0 && (
-                <span className="text-white/55">
-                  {result.skipped} hoppet over
-                </span>
-              )}
-              {result.errors > 0 && (
-                <span className="text-red-300">{result.errors} feil</span>
-              )}
-            </div>
-
-            {/* D-149: Konflikt-tabell (kun smart-merge dry-run) */}
-            {result.conflicts && result.conflicts.length > 0 && (
-              <div
-                data-testid="smart-merge-conflict-table"
-                className="border border-white/10 rounded-md overflow-hidden"
-              >
-                <div className="px-2 py-1.5 bg-white/5 flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-wide text-white/65 font-mono">
-                    Path-basert konflikt-analyse
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      data-testid="smart-merge-bulk-default"
-                      onClick={() =>
-                        bulkSetPolicies(
-                          (result.conflicts ?? [])
-                            .filter((c) => c.tenantsInConflict > 0 && !c.sensitive)
-                            .map((c) => c.path),
-                          "default",
-                        )
-                      }
-                      className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 font-mono"
-                      title="Sett alle ikke-sensitive konflikter til 'default vinner'"
+              {/* Scope-toggler (D-128) — skjult i cascade-modus */}
+              {mode !== "cascade-from-parent" && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] uppercase tracking-wide text-white/55 font-mono">
+                    Hvem skal treffes?
+                  </div>
+                  <label
+                    className={`flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer transition border ${
+                      includeB2C
+                        ? "bg-blue-500/10 border-blue-500/40"
+                        : "bg-black/30 border-transparent hover:bg-black/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid="config-tools-include-b2c-toggle"
+                      checked={includeB2C}
+                      onChange={(e) => {
+                        setIncludeB2C(e.target.checked);
+                        setResult(null);
+                      }}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded border-2 transition flex items-center justify-center ${
+                        includeB2C
+                          ? "border-blue-400 bg-blue-500"
+                          : "border-white/30"
+                      }`}
                     >
-                      Alle → default
-                    </button>
-                    <button
-                      type="button"
-                      data-testid="smart-merge-bulk-tenant"
-                      onClick={() =>
-                        bulkSetPolicies(
-                          (result.conflicts ?? [])
-                            .filter((c) => c.tenantsInConflict > 0)
-                            .map((c) => c.path),
-                          "tenant",
-                        )
-                      }
-                      className="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white/75 border border-white/20 font-mono"
-                      title="Sett alle konflikter til 'tenant vinner'"
+                      {includeB2C && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                    </span>
+                    <span className="flex-1">
+                      <span className="text-xs font-mono text-white/90 block">
+                        Inkluder B2C-tenants
+                      </span>
+                      <span className="block text-[10px] text-white/55 mt-0.5">
+                        Privat-kunder med ekte Vercel-prosjekt. Standard valg.
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className={`flex items-start gap-2 px-3 py-2 rounded-md cursor-pointer transition border ${
+                      includeSA
+                        ? "bg-purple-500/10 border-purple-500/40"
+                        : "bg-black/30 border-transparent hover:bg-black/40"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      data-testid="config-tools-include-sa-toggle"
+                      checked={includeSA}
+                      onChange={(e) => {
+                        setIncludeSA(e.target.checked);
+                        setResult(null);
+                      }}
+                      className="sr-only"
+                    />
+                    <span
+                      className={`mt-0.5 flex-shrink-0 w-3.5 h-3.5 rounded border-2 transition flex items-center justify-center ${
+                        includeSA
+                          ? "border-purple-400 bg-purple-500"
+                          : "border-white/30"
+                      }`}
                     >
-                      Alle → tenant
-                    </button>
+                      {includeSA && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                    </span>
+                    <span className="flex-1">
+                      <span className="text-xs font-mono text-white/90 block">
+                        Inkluder SA (B2B parent-tenants)
+                      </span>
+                      <span className="block text-[10px] text-white/55 mt-0.5 leading-relaxed">
+                        <code>&lt;prefix&gt;-admin</code>-malene. Slå på når du vil treffe SA-konfig.
+                      </span>
+                    </span>
+                  </label>
+                  <div className="text-[10px] text-amber-300/80 leading-relaxed px-1">
+                    ℹ B2B-ansatte treffes ALDRI av disse modusene. Bruk «Re-cascade» for å oppdatere ansatte fra sin SA.
                   </div>
                 </div>
-                <div className="max-h-72 overflow-y-auto">
-                  <table className="w-full text-[11px]">
-                    <thead className="sticky top-0 bg-neutral-900 border-b border-white/10">
-                      <tr className="text-left text-[10px] uppercase tracking-wide text-white/45">
-                        <th className="px-2 py-1 font-medium">Path</th>
-                        <th className="px-1 py-1 font-medium text-center" title="Uten (auto-legges til)">➕</th>
-                        <th className="px-1 py-1 font-medium text-center" title="Match default">✓</th>
-                        <th className="px-1 py-1 font-medium text-center" title="I konflikt">⚠</th>
-                        <th className="px-2 py-1 font-medium text-right">Policy</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(result.conflicts ?? []).map((c) => {
-                        const hasConflict = c.tenantsInConflict > 0;
-                        const policy = policies[c.path] ?? (c.sensitive ? "tenant" : "default");
-                        return (
-                          <tr
-                            key={c.path}
-                            data-testid={`conflict-row-${c.path}`}
-                            className={`border-b border-white/5 ${
-                              hasConflict
-                                ? c.sensitive
-                                  ? "bg-amber-500/[0.04]"
-                                  : ""
-                                : "opacity-45"
-                            }`}
-                          >
-                            <td className="px-2 py-1 font-mono text-white/85">
-                              {c.sensitive && (
-                                <span
-                                  className="text-amber-400 mr-1"
-                                  title="Sensitiv path — default på tenant-wins"
-                                >
-                                  ⚠
+              )}
+
+              {/* Parent-scope — kun cascade-modus */}
+              {mode === "cascade-from-parent" && (
+                <div className="px-3 py-2 rounded-md bg-emerald-500/5 border border-emerald-500/30 space-y-1.5">
+                  <label
+                    htmlFor="config-tools-parent-scope"
+                    className="text-[10px] uppercase tracking-wide text-emerald-300 font-mono block"
+                  >
+                    SA-prefix å cascade fra (valgfri)
+                  </label>
+                  <input
+                    id="config-tools-parent-scope"
+                    data-testid="config-tools-parent-scope"
+                    type="text"
+                    value={parentScope}
+                    onChange={(e) => {
+                      setParentScope(e.target.value);
+                      setResult(null);
+                    }}
+                    placeholder="f.eks. mm (uten -admin)"
+                    className="w-full text-xs font-mono px-3 py-1.5 rounded-md bg-white/5 border border-white/15 focus:border-white/30 text-white placeholder:text-white/30 outline-none"
+                  />
+                  <p className="text-[10px] text-white/55 leading-relaxed">
+                    Tom = re-cascade ALLE SA-organisasjoner. Skriv f.eks.{" "}
+                    <code>mm</code> for å bare oppdatere ansatte under{" "}
+                    <code>mm-admin</code>.
+                  </p>
+                </div>
+              )}
+
+              {/* Action-knapper */}
+              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  data-testid="config-tools-dry-run-btn"
+                  onClick={() => void run(true)}
+                  disabled={busy}
+                  className="flex-1 text-xs px-3 py-2 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-medium flex items-center justify-center gap-1.5 transition"
+                >
+                  {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Dry-run
+                </button>
+                <button
+                  type="button"
+                  data-testid="config-tools-run-btn"
+                  onClick={() => void run(false)}
+                  disabled={busy}
+                  className={`flex-1 text-xs px-3 py-2 rounded-md disabled:opacity-50 text-white font-medium flex items-center justify-center gap-1.5 transition ${
+                    mode === "overwrite-all"
+                      ? "bg-red-600 hover:bg-red-500"
+                      : mode === "cascade-from-parent"
+                        ? "bg-emerald-600 hover:bg-emerald-500"
+                        : "bg-violet-600 hover:bg-violet-500"
+                  }`}
+                >
+                  {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+                  Kjør
+                </button>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div
+                  data-testid="config-tools-error"
+                  className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2 flex items-start gap-1.5"
+                >
+                  <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Audit-info */}
+              <div className="text-[10px] text-white/40 leading-relaxed pt-2 border-t border-white/10">
+                Hver mutasjon appender notis til tenant.notes for audit-trail.
+                Tenants ser endringer innen 30 sek (browser-cache).
+              </div>
+            </div>
+
+            {/* ═══ HØYRE KOLONNE — konflikt-tabell + resultater ═══════ */}
+            <div className="overflow-y-auto p-5 space-y-4">
+              {!result && (
+                <div className="text-center py-16">
+                  <div className="text-sm text-white/45 font-mono">
+                    Kjør «Dry-run» for å se hva som vil skje.
+                  </div>
+                  <div className="text-[11px] text-white/30 mt-2 max-w-md mx-auto">
+                    Ingen endringer skrives før du klikker «Kjør».
+                    Smart-merge viser en konflikt-tabell der du kan velge policy per path.
+                  </div>
+                </div>
+              )}
+
+              {result && (
+                <>
+                  {/* Sammendrag */}
+                  <div className="text-xs font-mono text-white/70 flex items-center gap-3 flex-wrap pb-3 border-b border-white/10">
+                    {result.dryRun ? (
+                      <span className="text-blue-300 uppercase tracking-wide">DRY-RUN</span>
+                    ) : (
+                      <span className="text-emerald-300 flex items-center gap-1 uppercase tracking-wide">
+                        <CheckCircle2 className="h-3 w-3" />
+                        UTFØRT
+                      </span>
+                    )}
+                    <span className="text-white/90">{result.total} totalt</span>
+                    {result.migrated > 0 && <span className="text-emerald-300">{result.migrated} migrert</span>}
+                    {result.merged > 0 && <span className="text-emerald-300">{result.merged} merget</span>}
+                    {(result.smartMerged ?? 0) > 0 && <span className="text-emerald-300">{result.smartMerged} smart-merget</span>}
+                    {result.overwritten > 0 && <span className="text-amber-300">{result.overwritten} overskrevet</span>}
+                    {result.cascaded > 0 && <span className="text-emerald-300">{result.cascaded} re-cascaded</span>}
+                    {result.skipped > 0 && <span className="text-white/55">{result.skipped} hoppet over</span>}
+                    {result.errors > 0 && <span className="text-red-300">{result.errors} feil</span>}
+                  </div>
+
+                  {/* Sensitive-seksjon øverst (kun ved smart-merge dry-run) */}
+                  {result.conflicts && result.conflicts.some((c) => c.sensitive && c.tenantsInConflict > 0) && (
+                    <div
+                      data-testid="smart-merge-sensitive-section"
+                      className="rounded-md bg-amber-500/[0.08] border border-amber-500/40 p-3 space-y-2"
+                    >
+                      <div className="flex items-center gap-2 text-amber-200 text-xs font-semibold">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Sensitive paths med konflikt
+                      </div>
+                      <div className="text-[11px] text-amber-100/75 leading-relaxed">
+                        Følgende paths er tenant-eide (branding/backgrounds/kategorier). Default = «tenant vinner». Endre bare hvis du bevisst vil overskrive.
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {result.conflicts
+                          .filter((c) => c.sensitive && c.tenantsInConflict > 0)
+                          .map((c) => {
+                            const policy = policies[c.path] ?? "tenant";
+                            return (
+                              <div
+                                key={`sens-${c.path}`}
+                                className="flex items-center justify-between gap-2 px-2 py-1 rounded bg-black/30 border border-amber-500/20"
+                              >
+                                <span className="font-mono text-[11px] text-amber-100/90 truncate">
+                                  {c.path}
                                 </span>
-                              )}
-                              {c.path}
-                            </td>
-                            <td className="px-1 py-1 text-center text-white/50">
-                              {c.tenantsMissing || "·"}
-                            </td>
-                            <td className="px-1 py-1 text-center text-emerald-400/70">
-                              {c.tenantsMatchingDefault || "·"}
-                            </td>
-                            <td className="px-1 py-1 text-center">
-                              {hasConflict ? (
-                                <span className="text-amber-300 font-mono">
-                                  {c.tenantsInConflict}
-                                </span>
-                              ) : (
-                                <span className="text-white/30">·</span>
-                              )}
-                            </td>
-                            <td className="px-2 py-1 text-right">
-                              {hasConflict ? (
-                                <div className="inline-flex rounded overflow-hidden border border-white/15">
+                                <div className="inline-flex rounded overflow-hidden border border-white/15 flex-shrink-0">
                                   <button
                                     type="button"
-                                    data-testid={`policy-${c.path}-default`}
                                     onClick={() => setPolicyForPath(c.path, "default")}
                                     className={`px-2 py-0.5 text-[10px] font-mono transition ${
                                       policy === "default"
-                                        ? "bg-blue-500/30 text-blue-200"
-                                        : "bg-transparent text-white/45 hover:text-white/70"
+                                        ? "bg-red-500/40 text-red-100"
+                                        : "bg-transparent text-white/40 hover:text-white/70"
                                     }`}
                                   >
                                     default
                                   </button>
                                   <button
                                     type="button"
-                                    data-testid={`policy-${c.path}-tenant`}
                                     onClick={() => setPolicyForPath(c.path, "tenant")}
                                     className={`px-2 py-0.5 text-[10px] font-mono transition border-l border-white/15 ${
                                       policy === "tenant"
-                                        ? "bg-white/20 text-white/85"
-                                        : "bg-transparent text-white/45 hover:text-white/70"
+                                        ? "bg-amber-500/30 text-amber-100"
+                                        : "bg-transparent text-white/40 hover:text-white/70"
                                     }`}
                                   >
                                     tenant
                                   </button>
                                 </div>
-                              ) : (
-                                <span className="text-[10px] text-white/30 font-mono">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="px-2 py-1.5 bg-white/[0.02] text-[10px] text-white/45 border-t border-white/10">
-                  ⚠ = sensitiv path (brand/backgrounds/categories/_meta). Policy-endring krever ekstra oppmerksomhet.
-                  Klikk «Kjør» for å utføre smart-merge med valgte policies.
-                </div>
-              </div>
-            )}
-
-            <ul className="max-h-60 overflow-y-auto space-y-1">
-              {result.rows.map((row, i) => (
-                <li
-                  key={i}
-                  data-testid={`config-tools-row-${row.subdomain}`}
-                  className={`flex items-center gap-2 px-2 py-1 rounded text-[11px] font-mono ${
-                    ACTION_STYLE[row.action] ?? "bg-white/5 text-white/55"
-                  }`}
-                >
-                  <span className="flex-1 truncate">{row.subdomain}</span>
-                  <span className="text-[10px] uppercase">{row.action}</span>
-                  {row.reason && (
-                    <span
-                      className="text-[10px] text-white/40 truncate max-w-[180px]"
-                      title={row.reason}
-                    >
-                      {row.reason}
-                    </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
                   )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
 
-        <div className="text-[10px] text-white/40 leading-relaxed pt-1 border-t border-white/10 flex items-start gap-1">
-          <ChevronDown className="h-3 w-3 mt-0.5 flex-shrink-0" />
-          Hver mutasjon appender notis til tenant.notes for audit-trail.
-          Tenants ser endringer innen 30 sek (browser-cache).
+                  {/* Konflikt-tabell */}
+                  {result.conflicts && result.conflicts.length > 0 && (
+                    <div
+                      data-testid="smart-merge-conflict-table"
+                      className="border border-white/10 rounded-md overflow-hidden flex flex-col"
+                    >
+                      <div className="px-3 py-2 bg-white/5 flex items-center justify-between gap-2 border-b border-white/10">
+                        <span className="text-[10px] uppercase tracking-wide text-white/65 font-mono">
+                          Path-basert konflikt-analyse ({result.conflicts.filter((c) => c.tenantsInConflict > 0).length} med konflikt)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            data-testid="smart-merge-bulk-default"
+                            onClick={() =>
+                              bulkSetPolicies(
+                                (result.conflicts ?? [])
+                                  .filter((c) => c.tenantsInConflict > 0 && !c.sensitive)
+                                  .map((c) => c.path),
+                                "default",
+                              )
+                            }
+                            className="text-[10px] px-2 py-0.5 rounded bg-blue-500/15 hover:bg-blue-500/25 text-blue-200 border border-blue-500/30 font-mono"
+                            title="Sett alle ikke-sensitive konflikter til 'default vinner'"
+                          >
+                            Alle → default
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="smart-merge-bulk-tenant"
+                            onClick={() =>
+                              bulkSetPolicies(
+                                (result.conflicts ?? [])
+                                  .filter((c) => c.tenantsInConflict > 0)
+                                  .map((c) => c.path),
+                                "tenant",
+                              )
+                            }
+                            className="text-[10px] px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white/75 border border-white/20 font-mono"
+                            title="Sett alle konflikter til 'tenant vinner'"
+                          >
+                            Alle → tenant
+                          </button>
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto">
+                        <table className="w-full text-[11px]">
+                          <thead className="sticky top-0 bg-neutral-900 border-b border-white/10 z-10">
+                            <tr className="text-left text-[10px] uppercase tracking-wide text-white/45">
+                              <th className="px-3 py-1.5 font-medium">Path</th>
+                              <th className="px-2 py-1.5 font-medium text-center" title="Uten (auto-legges til)">
+                                ➕
+                              </th>
+                              <th className="px-2 py-1.5 font-medium text-center" title="Match default">
+                                ✓
+                              </th>
+                              <th className="px-2 py-1.5 font-medium text-center" title="I konflikt">
+                                ⚠
+                              </th>
+                              <th className="px-3 py-1.5 font-medium text-right">Policy</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(result.conflicts ?? []).map((c) => {
+                              const hasConflict = c.tenantsInConflict > 0;
+                              const policy = policies[c.path] ?? (c.sensitive ? "tenant" : "default");
+                              return (
+                                <tr
+                                  key={c.path}
+                                  data-testid={`conflict-row-${c.path}`}
+                                  className={`border-b border-white/5 ${
+                                    hasConflict
+                                      ? c.sensitive
+                                        ? "bg-amber-500/[0.04]"
+                                        : ""
+                                      : "opacity-45"
+                                  }`}
+                                >
+                                  <td className="px-3 py-1.5 font-mono text-white/85">
+                                    {c.sensitive && (
+                                      <span
+                                        className="text-amber-400 mr-1"
+                                        title="Sensitiv path — default på tenant-wins"
+                                      >
+                                        ⚠
+                                      </span>
+                                    )}
+                                    {c.path}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center text-white/50">
+                                    {c.tenantsMissing || "·"}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center text-emerald-400/70">
+                                    {c.tenantsMatchingDefault || "·"}
+                                  </td>
+                                  <td className="px-2 py-1.5 text-center">
+                                    {hasConflict ? (
+                                      <span className="text-amber-300 font-mono">
+                                        {c.tenantsInConflict}
+                                      </span>
+                                    ) : (
+                                      <span className="text-white/30">·</span>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right">
+                                    {hasConflict ? (
+                                      <div className="inline-flex rounded overflow-hidden border border-white/15">
+                                        <button
+                                          type="button"
+                                          data-testid={`policy-${c.path}-default`}
+                                          onClick={() => setPolicyForPath(c.path, "default")}
+                                          className={`px-2 py-0.5 text-[10px] font-mono transition ${
+                                            policy === "default"
+                                              ? "bg-blue-500/30 text-blue-200"
+                                              : "bg-transparent text-white/45 hover:text-white/70"
+                                          }`}
+                                        >
+                                          default
+                                        </button>
+                                        <button
+                                          type="button"
+                                          data-testid={`policy-${c.path}-tenant`}
+                                          onClick={() => setPolicyForPath(c.path, "tenant")}
+                                          className={`px-2 py-0.5 text-[10px] font-mono transition border-l border-white/15 ${
+                                            policy === "tenant"
+                                              ? "bg-white/20 text-white/85"
+                                              : "bg-transparent text-white/45 hover:text-white/70"
+                                          }`}
+                                        >
+                                          tenant
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-white/30 font-mono">—</span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tenant-liste (resultater per rad) */}
+                  <div className="space-y-1">
+                    <div className="text-[10px] uppercase tracking-wide text-white/55 font-mono">
+                      Tenants behandlet
+                    </div>
+                    <ul className="space-y-1">
+                      {result.rows.map((row, i) => (
+                        <li
+                          key={i}
+                          data-testid={`config-tools-row-${row.subdomain}`}
+                          className={`flex items-center gap-2 px-3 py-1.5 rounded text-[11px] font-mono ${
+                            ACTION_STYLE[row.action] ?? "bg-white/5 text-white/55"
+                          }`}
+                        >
+                          <span className="flex-1 truncate">{row.subdomain}</span>
+                          <span className="text-[10px] uppercase">{row.action}</span>
+                          {row.reason && (
+                            <span
+                              className="text-[10px] text-white/40 truncate max-w-[240px]"
+                              title={row.reason}
+                            >
+                              {row.reason}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
