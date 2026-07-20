@@ -12,10 +12,12 @@
  *   - Area-chart over daglig aktivitet (siste 30d)
  *   - Rå tabell (ekspanderbar) for granulær innsikt
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, Metric, Text, Title, AreaChart, Grid } from "@tremor/react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { TenantRecord } from "@/lib/platform/tenant-types";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { clampAnalyticsConfig } from "@/lib/config";
 
 interface Props {
   record: TenantRecord;
@@ -112,8 +114,22 @@ function activityBadge(daysSince: number | null): {
 }
 
 export function TenantAnalyticsCard({ record }: Props) {
-  const [days, setDays] = useState<7 | 30 | 90 | 365>(30);
+  const { config } = useAppConfig();
+  const analyticsCfg = useMemo(
+    () => clampAnalyticsConfig(config.analytics),
+    [config.analytics],
+  );
+
+  const [days, setDays] = useState<number>(analyticsCfg.defaultPeriodDays);
   const [showRawTable, setShowRawTable] = useState(false);
+
+  // Hvis config endres slik at gjeldende `days` ikke er en gyldig periode
+  // lenger, resett til default.
+  useEffect(() => {
+    if (!analyticsCfg.periodDays.includes(days)) {
+      setDays(analyticsCfg.defaultPeriodDays);
+    }
+  }, [analyticsCfg, days]);
 
   const lastActivityDate = useMemo(
     () => findLastActivityDate(record.dailyActivity),
@@ -159,7 +175,7 @@ export function TenantAnalyticsCard({ record }: Props) {
           <Text className="text-xs uppercase tracking-wider text-white/45">
             Periode:
           </Text>
-          {([7, 30, 90, 365] as const).map((d) => (
+          {analyticsCfg.periodDays.map((d) => (
             <button
               key={d}
               onClick={() => setDays(d)}
