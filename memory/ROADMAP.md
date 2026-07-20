@@ -20,6 +20,25 @@
 **Ikke start uten Mike's eksplisitte godkjenning.** Rapporten inkluderer beslutningsstøtte (når det bør vente vs. når det bør prioriteres).
 
 ---
+### 🧰 Config-verktøy V2 — utsatte features (2026-02, D-149-oppfølging)
+
+**Kontekst:** V1 av "Konflikt-analyse-modus" bygges nå (path-basert policy-picker, sensitive paths flagged). Følgende ble bevisst utsatt til V2 etter Mike-beslutning:
+
+**V2-item 1 — Per-tenant overstyring i konflikt-analyzer**
+- **Behov:** Kunne klikke "vis 38 tenants" på en konflikt-rad og eksludere spesifikke tenants fra en "default vinner"-beslutning (f.eks. én pilot-kunde som skal beholde sin tilpasning).
+- **Hvorfor utsatt:** V1 tvinger path-nivå-policy for forutsigbarhet. Edge-cases løses manuelt via TenantViewer først.
+- **Estimat:** ~2-3 timer (per-rad-drill-down UI + tenant-eksklusjonsliste i policy-body).
+
+**V2-item 2 — Diff-visning på hver konflikt-rad**
+- **Behov:** Klikk på path → se faktiske ulike verdier. F.eks. `analytics.defaultPeriodDays`: "3 tenants har `30`, 35 tenants har `60`, default sier `7`". Hjelper ved policy-valg.
+- **Hvorfor utsatt:** V1 viser bare aggregat-tellere ("X i konflikt"). Nok for Mikes umiddelbare use-case.
+- **Estimat:** ~1-2 timer (verdi-histogram per path + collapse/expand UI).
+
+**Kombinert V2-estimat:** ~3-5 timer.
+
+---
+
+
 
 ### P1-PRE-LAUNCH-B — Tenant lifecycle 3-stegs modell (Inaktiv → Arkivert → Slettet)
 **Status:** ⏳ Backlog (Mike 2026-02-01: "Vi må lage Vei 2. Jeg kan selv rydde via firma-admin i mellomtiden.")
