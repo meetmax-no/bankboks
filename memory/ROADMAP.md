@@ -20,6 +20,35 @@
 **Ikke start uten Mike's eksplisitte godkjenning.** Rapporten inkluderer beslutningsstøtte (når det bør vente vs. når det bør prioriteres).
 
 ---
+### 🌐 D-151 — Full i18n-dekning for SuperAdmin-UI
+
+**Status:** ⏳ Backlog (P1, 2026-02, konsistens/opprydding)
+
+**Kontekst:** SuperAdmin-siden (`admin.kodovault.no`) er i dag **delvis i18n-et** — noen komponenter bruker `useLocale`/`t()`, andre har hardkodet norsk. Mike ønsker full engelsk-støtte også for SA så internasjonale samarbeidspartnere/co-admins kan bruke verktøyet.
+
+**Komponenter som mangler i18n (må ryddes opp):**
+- `components/platform/ConfigToolsButton.tsx` (D-149d smart-merge-verktøy)
+- `components/platform/AnalyticsDashboard.tsx` (D-149a SuperAdmin analytics)
+- `components/platform/TenantAnalyticsCard.tsx` (D-149b per-tenant analytics)
+- `components/platform/AnalyticsDiagnoseCard.tsx` (D-149 diagnose-verktøy)
+- `components/platform/LastActivityPill.tsx` (D-149c pill i tenant-listen)
+- `components/platform/EnvVarsCard.tsx` (D-147 ENV-viewer)
+- `components/platform/OrgAdminListCard.tsx`, `OrphanInvitesCard.tsx`
+- Deler av `TenantViewer.tsx` som ennå har hardkodet norsk
+
+**Krav:**
+- Alle strenger via `t("admin.<domain>.<key>")`
+- Oppdatere alle 4 locale-filer (no/en/fr/da) med nye nøkler
+- `yarn lint:i18n-sync` grønn (alle språk i sync)
+- Bevare eksisterende i18n-nøkler der de finnes
+
+**Estimat:** ~5-7 timer (~130-180 nye nøkler × 4 språk + refactor per komponent)
+
+**Prioritet:** Kan tas etter at D-149-suiten er ferdig og B2B-parenter (D-149e) er levert.
+
+---
+
+
 ### 📊 D-149e — Firma-admin Analytics (aktivitetsvisning i firma-admin-konsoll)
 
 **Status:** ⏳ Backlog (P0, 2026-02, D-149-oppfølging)
