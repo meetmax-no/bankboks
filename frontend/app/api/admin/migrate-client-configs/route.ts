@@ -302,6 +302,22 @@ async function runMigration(
           summary.rows.push({ subdomain: t.subdomain, action: "migrated" });
           continue;
         }
+        // D-149 (2026-02): sjekk om merge faktisk endrer noe. Hvis
+        // tenant er identisk med resultatet av mergeTenantWithDefault,
+        // finnes det ingenting å merge — rapporter som skipped med
+        // grunn i stedet for misvisende "would_merge".
+        const wouldBeMerged = mergeTenantWithDefault(existing, template!);
+        const actuallyChanges =
+          JSON.stringify(existing) !== JSON.stringify(wouldBeMerged);
+        if (!actuallyChanges) {
+          summary.skipped++;
+          summary.rows.push({
+            subdomain: t.subdomain,
+            action: "skipped",
+            reason: "ingen endring — allerede i sync med default",
+          });
+          continue;
+        }
         if (dryRun) {
           summary.rows.push({
             subdomain: t.subdomain,
@@ -309,8 +325,7 @@ async function runMigration(
           });
           continue;
         }
-        const merged = mergeTenantWithDefault(existing, template!);
-        await putClientConfig(t.subdomain, merged);
+        await putClientConfig(t.subdomain, wouldBeMerged);
         await appendAuditNote(
           t.subdomain,
           "client-config merget med default (tenant-wins)",
