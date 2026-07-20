@@ -256,7 +256,9 @@ export function TenantAnalyticsCard({ record }: Props) {
               colors={["amber", "violet", "sky"]}
               yAxisWidth={56}
               minValue={0}
-              valueFormatter={(v: number) => Math.round(v).toString()}
+              valueFormatter={(v: number) =>
+                Number.isInteger(v) ? v.toString() : ""
+              }
               showLegend={false}
               showGridLines
               startEndOnly
