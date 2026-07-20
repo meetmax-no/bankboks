@@ -353,10 +353,15 @@ async function runMigration(
 
       // ── Mode: overwrite-all ─────────────────────────────────────────
       if (mode === "overwrite-all") {
-        // D-149 (2026-02): sjekk om overskriving faktisk endrer noe.
-        // Hvis tenant allerede er identisk med default-templaten (etter
-        // _meta-bevaring), er overskriving en no-op.
-        const wouldBe = buildTenantConfig(template!, t.subdomain);
+        // D-149 (2026-02): overskriv med default MEN bevar tenantens
+        // opprinnelige _meta (client/createdAt/createdBy). Hvis det som
+        // ville blitt skrevet er identisk med existing, hopper vi over.
+        const wouldBe: ClientConfigJson = existing
+          ? {
+              ...(template as ClientConfigJson),
+              _meta: (existing._meta ?? {}) as Record<string, unknown>,
+            }
+          : buildTenantConfig(template!, t.subdomain);
         const actuallyChanges =
           !existing || JSON.stringify(existing) !== JSON.stringify(wouldBe);
         if (!actuallyChanges) {
@@ -410,10 +415,11 @@ async function runMigration(
           summary.rows.push({ subdomain: t.subdomain, action: "migrated" });
           continue;
         }
-        // Kjør smart-merge med gitte policies
-        const merged = smartMerge(existing, template!, smartMergePolicies);
-        // Bevar riktig _meta for tenant (client + createdAt uendret)
-        const finalConfig = buildTenantConfig(merged, t.subdomain);
+        // Kjør smart-merge med gitte policies. smartMerge bevarer allerede
+        // tenantens eksisterende _meta.client/createdAt/createdBy, så vi
+        // trenger IKKE å kalle buildTenantConfig etterpå — den ville
+        // overskrevet createdAt og gjort skip-sjekken meningsløs.
+        const finalConfig = smartMerge(existing, template!, smartMergePolicies);
         // D-149 (2026-02): sjekk om smart-merge faktisk endrer noe. Om
         // policies ikke overskriver noe og alle paths finnes, blir det
         // en no-op.
@@ -460,10 +466,15 @@ async function runMigration(
           });
           continue;
         }
-        // D-149 (2026-02): sjekk om cascade faktisk endrer noe. Hvis
-        // ansattens config allerede er identisk med SA-snapshot (etter
-        // _meta-bevaring), er cascade en no-op.
-        const wouldBe = buildTenantConfig(parentConfig, t.subdomain);
+        // D-149 (2026-02): sjekk om cascade faktisk endrer noe. Bevar
+        // tenantens opprinnelige _meta og sammenlign — createdAt skal
+        // ikke endres bare fordi vi kaller putClientConfig.
+        const wouldBe: ClientConfigJson = existing
+          ? {
+              ...(parentConfig as ClientConfigJson),
+              _meta: (existing._meta ?? {}) as Record<string, unknown>,
+            }
+          : buildTenantConfig(parentConfig, t.subdomain);
         const actuallyChanges =
           !existing || JSON.stringify(existing) !== JSON.stringify(wouldBe);
         if (!actuallyChanges) {

@@ -368,8 +368,8 @@ export function ConfigToolsButton() {
 
           {/* Body — grid med sticky venstre-kolonne */}
           <div className="grid grid-cols-[340px_1fr] gap-0 overflow-hidden flex-1">
-            {/* ═══ VENSTRE KOLONNE — sticky ═══════════════════════════ */}
-            <div className="border-r border-white/10 overflow-y-auto p-5 space-y-5 self-start sticky top-0">
+            {/* ═══ VENSTRE KOLONNE — fyller grid-cellen ══════════════ */}
+            <div className="border-r border-white/10 overflow-y-auto p-5 space-y-5">
               {/* Modus-selector */}
               <fieldset className="space-y-1.5">
                 <legend className="text-[10px] uppercase tracking-wide text-white/55 font-mono mb-2">

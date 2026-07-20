@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only verifisering av D-149d smart-merge bug-fix i /api/admin/migrate-client-configs. SA-auth ikke tilgjengelig i preview (Upstash mangler per Mike-direktiv), så testet at endepunktet kompilerer og svarer med 401 uten auth for alle relevante modi. Verifiserte fix i kildekoden via code review.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "route.ts line 422: smart-merge kjør-modus bruker nå smartMerge(existing, template!, policies) direkte og kaller IKKE buildTenantConfig etterpå. Rot-årsak (createdAt-overskriving) er eliminert.",
+    "route.ts line 426-434: JSON.stringify-basert deep-equality-sjekk mellom existing og finalConfig fungerer nå fordi _meta.createdAt bevares av smartMerge (config-conflict-analyzer.ts linje 189-193).",
+    "route.ts line 359-374 (overwrite-all) og line 472-488 (cascade): begge bevarer existing._meta via spread + eksplisitt _meta-override før JSON-compare. Samme mønster som smart-merge — konsistent.",
+    "config-conflict-analyzer.ts linje 118-123 og 189-193: smartMerge bevarer korrekt _meta.client/createdAt/createdBy fra tenant selv når policy=default.",
+    "Kildekoden matcher det problem-statementet beskriver som fix — buildTenantConfig-kallet etter smartMerge er fjernet."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (kompilerings- og auth-verifisering)", "frontend": "N/A (skippet per direktiv)"},
+  "test_credentials": "Ikke tilgjengelig i preview (SA-session krever admin.kodovault.no + Upstash)",
+  "seed_data_creation": "Ingen",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Testing utført med curl mot både public URL (https://bankboks-handover.preview.emergentagent.com — returnerer 404 fordi FastAPI-backend ikke har denne ruten) og localhost:3000 hvor Next.js kjører. Localhost:3000 gir 401 for alle 5 test-scenarioer (GET smart-merge/overwrite-all/merge/cascade-from-parent + POST smart-merge med {policies:{}}) — dvs. middleware fungerer, endepunkt kompilerer. Full runtime-test av dry-run/skip-logikk krever ekte tenant-data i Upstash + SA-session, som ikke er mulig i preview. Mike vil verifisere i prod.",
+  "verification_results": {
+    "GET smart-merge?includeB2C=true&includeSA=true": "401 (localhost:3000) — kompilert OK",
+    "POST smart-merge (body {policies:{}})": "401 (localhost:3000) — kompilert OK",
+    "GET overwrite-all?includeB2C=true": "401 (localhost:3000) — kompilert OK",
+    "GET merge?includeB2C=true": "401 (localhost:3000) — kompilert OK",
+    "GET cascade-from-parent": "401 (localhost:3000) — kompilert OK",
+    "Public URL (bankboks-handover.preview.emergentagent.com/api/admin/*)": "404 — FastAPI-backend på REACT_APP_BACKEND_URL har ikke Next.js-rutene. Dette er forventet: /api/admin/migrate-client-configs er en Next.js-rute som lever i /app/frontend, ikke i FastAPI-backend. I prod-deployment (Vercel) er dette samme origin."
+  },
+  "rca of the issue": "Bug 1 RCA: buildTenantConfig(merged, subdomain) satte alltid _meta.createdAt = new Date().toISOString(), som gjorde at JSON.stringify(existing) !== JSON.stringify(finalConfig) ALLTID var true — skip-sjekken kunne aldri fyre. Fix: dropp buildTenantConfig-kallet i smart-merge kjør-modus siden smartMerge allerede bevarer tenant _meta. Verifisert korrekt implementert i route.ts:422. Bug 2 (UI): ikke testet — utenfor scope for backend-only testing."
+}
