@@ -7,6 +7,9 @@ module.exports = {
     "./app/**/*.{ts,tsx}",
     "./src/**/*.{ts,tsx}",
     "*.{js,ts,jsx,tsx,mdx}",
+    // D-149 (2026-02): Tremor content-paths så deres komponenter blir
+    // detektert av Tailwind purge/JIT.
+    "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
     container: {

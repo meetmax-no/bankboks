@@ -146,10 +146,6 @@ const EXEMPT_ROUTES: Record<string, string> = {
     "SuperAdmin env-var reveal POST (D-147, 2026-02) — validerer ekstra reveal-passord via bcrypt-compare mot ADMIN_REVEAL_SECRETS_PASSWORD_HASH env-var. Returnerer alle Vercel env-vars med gruppekategorisering. Beskyttet av admin-session-middleware + separat passord. Verdier logges aldri; kun tilgangs-forsøk (timestamp + IP + UA).",
   "app/api/admin/analytics/route.ts":
     "SuperAdmin aggregate analytics GET (D-149, 2026-02) — leser dailyActivity på tvers av alle tenants, returnerer KPI-totals + dailyAggregate + topActive + churnRisk + planDistribution. Beskyttet av admin-session-middleware. Ingen PII, kun aggregat-tellere.",
-  "app/api/internal/bump-activity/route.ts":
-    "Internal RPC POST (D-149, 2026-02) — kalles fra vault-pods (uten CENTRAL_KV_* per D-071) for å bumpe dailyActivity på central Upstash. Beskyttet av Bearer INTERNAL_RPC_SECRET. Failsoft — returnerer 200 uansett så analytics aldri blokkerer vault-flyt.",
-  "app/api/vault/heartbeat/route.ts":
-    "Vault unlock heartbeat POST (D-149, 2026-02) — kalles av klient etter vellykket unlock, bumper dailyActivity.unlocks via internal RPC. Host-guard beskyttet (D-099). Failsoft — 200 uansett.",
   "app/api/admin/tenants/[subdomain]/create-org-admin/route.ts":
     "Mike oppretter første am-admin (Iter 20.2) — dekket av Matrise 6 i DECISIONS.md (Iter 20.6)",
 };
