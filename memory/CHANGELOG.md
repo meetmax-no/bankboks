@@ -3,6 +3,25 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-149a oppfølging: konfigurerbare periode-verdier + heartbeat wiring
+
+### Justering etter Mike-review
+
+1. **`analytics`-blokk lagt til i `default.json`** (`periodDays`, `defaultPeriodDays`, `churnRiskDays`, `topActiveLimit`). Mike kan justere periode-alternativene uten kode-endring — populeres til alle eksisterende Upstash-configs via `ConfigToolsButton` (merge-mode, inkluder SA + B2C).
+2. **`AppConfig.analytics?: AnalyticsConfig`** + `clampAnalyticsConfig()` i `lib/config.ts` — clamps til trygge grenser (periodDays 1-3650 unike sorterte heltall, churnRiskDays 7-365, topActiveLimit 1-100). Sikrer at korrupt JSON ikke krasjer dashbordet.
+3. **`AnalyticsDashboard.tsx`** leser nå periode + churn + top-limit fra `useAppConfig().config.analytics`. Periode-pills bygges dynamisk. Churn-tittel viser faktisk terskel-verdi. Auto-fallback til default hvis current selection ikke lenger er i periodDays etter config-endring.
+4. **`GET /api/admin/analytics`** tar nå `?churnDays=<n>&topLimit=<n>` (defaults 60/10). Max period bumpet til 3650 dager (var 365).
+5. **Heartbeat-wiring i `useVault.ts`**: fire-and-forget POST til `/api/vault/heartbeat` etter vellykket unlock i alle 3 unlock-paths (setup, master-unlock, biometric-unlock). Uten dette ble `unlocks`-telleren aldri bumpet, så unlock-linjen i AreaChart forble null. Feiler stille — analytics blokkerer aldri unlock-flyten.
+
+### Statisk verifikasjon
+- `yarn tsc --noEmit` → 0 errors
+- `yarn lint:all` → 7/7 grønne
+- `yarn build` → OK (33.4s)
+
+### Prod-migrering (Mike-oppgave)
+Etter deploy: `admin.kodovault.no/platform/admin` → Test Tools → ConfigToolsButton → mode `merge` + Inkluder SA + B2C → dry-run → utfør. Alle tenants får `analytics`-blokken i Upstash.
+
+---
 ## 2026-02 — D-149a SuperAdmin Analytics (Tremor) (P0)
 
 ### Hva som ble bygget
