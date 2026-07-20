@@ -223,10 +223,26 @@ async function runMigration(
       })),
     );
     summary.conflicts = analyzeConflicts(template, configPairs);
-    summary.rows = candidates.map((t) => ({
-      subdomain: t.subdomain,
-      action: "would_smart_merge",
-    }));
+    // Per-tenant: sjekk om smart-merge (uten policies satt = kun add-missing)
+    // faktisk vil endre tenantens config. Hvis identisk → skipped, ellers
+    // would_smart_merge. Uten denne sjekken ble alle tenants alltid
+    // rapportert som WOULD_SMART_MERGE selv om alt allerede var i sync.
+    summary.rows = configPairs.map(({ subdomain, config }) => {
+      if (!config) {
+        return { subdomain, action: "would_smart_merge" as const, reason: "ingen eksisterende — vil initialiseres" };
+      }
+      const merged = smartMerge(config, template, {});
+      const changes = JSON.stringify(config) !== JSON.stringify(merged);
+      if (!changes) {
+        summary.skipped++;
+        return {
+          subdomain,
+          action: "skipped" as const,
+          reason: "ingen endring — allerede i sync med default",
+        };
+      }
+      return { subdomain, action: "would_smart_merge" as const };
+    });
     return summary;
   }
 
@@ -337,6 +353,21 @@ async function runMigration(
 
       // ── Mode: overwrite-all ─────────────────────────────────────────
       if (mode === "overwrite-all") {
+        // D-149 (2026-02): sjekk om overskriving faktisk endrer noe.
+        // Hvis tenant allerede er identisk med default-templaten (etter
+        // _meta-bevaring), er overskriving en no-op.
+        const wouldBe = buildTenantConfig(template!, t.subdomain);
+        const actuallyChanges =
+          !existing || JSON.stringify(existing) !== JSON.stringify(wouldBe);
+        if (!actuallyChanges) {
+          summary.skipped++;
+          summary.rows.push({
+            subdomain: t.subdomain,
+            action: "skipped",
+            reason: "ingen endring — allerede identisk med default",
+          });
+          continue;
+        }
         if (dryRun) {
           summary.rows.push({
             subdomain: t.subdomain,
@@ -344,8 +375,7 @@ async function runMigration(
           });
           continue;
         }
-        const config = buildTenantConfig(template!, t.subdomain);
-        await putClientConfig(t.subdomain, config);
+        await putClientConfig(t.subdomain, wouldBe);
         await appendAuditNote(
           t.subdomain,
           "client-config OVERSKREVET med default (tenant-endringer slettet)",
@@ -384,6 +414,18 @@ async function runMigration(
         const merged = smartMerge(existing, template!, smartMergePolicies);
         // Bevar riktig _meta for tenant (client + createdAt uendret)
         const finalConfig = buildTenantConfig(merged, t.subdomain);
+        // D-149 (2026-02): sjekk om smart-merge faktisk endrer noe. Om
+        // policies ikke overskriver noe og alle paths finnes, blir det
+        // en no-op.
+        if (JSON.stringify(existing) === JSON.stringify(finalConfig)) {
+          summary.skipped++;
+          summary.rows.push({
+            subdomain: t.subdomain,
+            action: "skipped",
+            reason: "ingen endring — allerede i sync med valgte policies",
+          });
+          continue;
+        }
         await putClientConfig(t.subdomain, finalConfig);
         const pathsChanged = Object.entries(smartMergePolicies)
           .filter(([, v]) => v === "default")
@@ -418,6 +460,21 @@ async function runMigration(
           });
           continue;
         }
+        // D-149 (2026-02): sjekk om cascade faktisk endrer noe. Hvis
+        // ansattens config allerede er identisk med SA-snapshot (etter
+        // _meta-bevaring), er cascade en no-op.
+        const wouldBe = buildTenantConfig(parentConfig, t.subdomain);
+        const actuallyChanges =
+          !existing || JSON.stringify(existing) !== JSON.stringify(wouldBe);
+        if (!actuallyChanges) {
+          summary.skipped++;
+          summary.rows.push({
+            subdomain: t.subdomain,
+            action: "skipped",
+            reason: `ingen endring — allerede i sync med SA '${parentPrefix}-admin'`,
+          });
+          continue;
+        }
         if (dryRun) {
           summary.rows.push({
             subdomain: t.subdomain,
@@ -426,8 +483,7 @@ async function runMigration(
           });
           continue;
         }
-        const childConfig = buildTenantConfig(parentConfig, t.subdomain);
-        await putClientConfig(t.subdomain, childConfig);
+        await putClientConfig(t.subdomain, wouldBe);
         await appendAuditNote(
           t.subdomain,
           `client-config re-cascaded fra SA '${parentPrefix}-admin' (bulk)`,
