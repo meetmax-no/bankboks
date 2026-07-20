@@ -75,7 +75,17 @@ function findLastActivityDate(
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const daysParam = url.searchParams.get("days") ?? "30";
-  const days = Math.max(1, Math.min(365, parseInt(daysParam, 10) || 30));
+  const days = Math.max(1, Math.min(3650, parseInt(daysParam, 10) || 30));
+  const churnDaysParam = url.searchParams.get("churnDays") ?? "60";
+  const churnRiskThreshold = Math.max(
+    7,
+    Math.min(3650, parseInt(churnDaysParam, 10) || 60),
+  );
+  const topLimitParam = url.searchParams.get("topLimit") ?? "10";
+  const topActiveLimit = Math.max(
+    1,
+    Math.min(100, parseInt(topLimitParam, 10) || 10),
+  );
   const cutoffIso = daysAgoIso(days);
   const today = todayIso();
 
@@ -171,7 +181,7 @@ export async function GET(req: Request) {
     const daysSince = lastActivityDate === null
       ? 9999
       : daysBetween(lastActivityDate, today);
-    if (daysSince >= 60) {
+    if (daysSince >= churnRiskThreshold) {
       churnRiskRaw.push({ tenant, lastActivityDate, daysSinceActivity: daysSince });
     }
   }
@@ -188,7 +198,7 @@ export async function GET(req: Request) {
 
   const topActive = topActiveRaw
     .sort((a, b) => b.unlocks30d - a.unlocks30d)
-    .slice(0, 10)
+    .slice(0, topActiveLimit)
     .map(({ tenant, unlocks30d, writes30d }) => ({
       subdomain: tenant.subdomain,
       companyName: tenant.companyName ?? tenant.email,
@@ -223,6 +233,6 @@ export async function GET(req: Request) {
     topActive,
     churnRisk,
     planDistribution,
-    period: { days, cutoffIso, todayIso: today },
+    period: { days, cutoffIso, todayIso: today, churnRiskDays: churnRiskThreshold, topActiveLimit },
   });
 }

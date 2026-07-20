@@ -164,6 +164,24 @@ export type SideBlobReEncrypter = (
   newPwd: string,
 ) => Promise<void>;
 
+/**
+ * D-149 (2026-02) — Fire-and-forget POST til `/api/vault/heartbeat` etter
+ * vellykket unlock. Server bumper `dailyActivity.unlocks[today]++` via
+ * internal RPC. Feiler stille — analytics må ALDRI blokkere unlock-flyten.
+ */
+function fireHeartbeat(): void {
+  if (typeof window === "undefined") return;
+  try {
+    void fetch("/api/vault/heartbeat", {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* graceful */
+  }
+}
+
 export function useVault(
   optsOrAutoLock: UseVaultOpts | number = {},
   legacyForceMaster?: number,
@@ -374,6 +392,7 @@ export function useVault(
       markMasterUsedNow();
       reportEvent("unlock-success");
       setStatus("unlocked");
+      fireHeartbeat();
       await refreshBiometric();
       // Trigger cards-blob (eller andre side-blobs) som bruker samme master-pwd
       try {
@@ -412,6 +431,7 @@ export function useVault(
       markMasterUsedNow();
       reportEvent("unlock-success");
       setStatus("unlocked");
+      fireHeartbeat();
       await refreshBiometric();
       try {
         await onMasterUnlockRef.current?.(masterPassword);
@@ -453,6 +473,7 @@ export function useVault(
     markUnlockedNow();
     reportEvent("unlock-biometric");
     setStatus("unlocked");
+    fireHeartbeat();
     await refreshBiometric();
     try {
       await onMasterUnlockRef.current?.(masterPassword);

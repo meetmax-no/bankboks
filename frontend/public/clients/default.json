@@ -34,6 +34,13 @@
     "tenantProvisioningLogMax": 100
   },
 
+  "analytics": {
+    "periodDays": [30, 90, 365],
+    "defaultPeriodDays": 30,
+    "churnRiskDays": 60,
+    "topActiveLimit": 10
+  },
+
   "register": {
     "resumeWindowMinutes": 60
   },

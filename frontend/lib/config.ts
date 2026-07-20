@@ -82,6 +82,17 @@ export interface AppConfig {
   backgrounds: BackgroundImage[];
   rotate: BackgroundRotateMode;
   /**
+   * D-149 (2026-02) — SuperAdmin Analytics-konfigurasjon. Leses av
+   * `AnalyticsDashboard.tsx` (kun admin-pod). Kan justeres i default.json
+   * uten å bygge om koden.
+   *
+   * - periodDays: hvilke tidsvinduer periode-pickeren tilbyr (default [30,90,365])
+   * - defaultPeriodDays: periode som er valgt ved åpning (må være i periodDays)
+   * - churnRiskDays: terskel for "churn-risk"-tabellen (default 60)
+   * - topActiveLimit: hvor mange rader top-active viser (default 10)
+   */
+  analytics?: AnalyticsConfig;
+  /**
    * Mørkleggings-overlay over HELE bg-bildet (0-1). Samme verdi i begge
    * browsere. Standard 0.10 — bildet beholder ~90% av sin opprinnelige
    * lys/farge. Sett til 0 for ingen mørkning, opp mot 0.5 for kraftigere
@@ -154,6 +165,55 @@ export interface IdsFeatureConfig {
   enabled: boolean;
   /** Vis 🆔-knappen i AppHeader + MobileBottomBar. Default true når enabled. */
   showInApp: boolean;
+}
+
+/**
+ * D-149 (2026-02) — SuperAdmin Analytics-konfigurasjon.
+ */
+export interface AnalyticsConfig {
+  /** Hvilke tidsvinduer periode-pickeren tilbyr. Default [30, 90, 365]. */
+  periodDays: number[];
+  /** Periode valgt ved åpning. Må være i `periodDays`. Default 30. */
+  defaultPeriodDays: number;
+  /** Terskel for "churn-risk"-tabellen (dager uten aktivitet). Default 60. */
+  churnRiskDays: number;
+  /** Hvor mange rader top-active viser. Default 10. */
+  topActiveLimit: number;
+}
+
+export const DEFAULT_ANALYTICS_CONFIG: AnalyticsConfig = {
+  periodDays: [30, 90, 365],
+  defaultPeriodDays: 30,
+  churnRiskDays: 60,
+  topActiveLimit: 10,
+};
+
+/**
+ * Clamp og sanitiser bruker-oppgitte analytics-verdier. Hindrer at en
+ * korrupt JSON krasjer dashbordet. periodDays må være unike, sorterte,
+ * positive heltall (1-3650 dager). defaultPeriodDays må være i periodDays.
+ */
+export function clampAnalyticsConfig(
+  input: Partial<AnalyticsConfig> | undefined,
+): AnalyticsConfig {
+  const cfg = { ...DEFAULT_ANALYTICS_CONFIG, ...(input || {}) };
+  const rawPeriods = Array.isArray(cfg.periodDays)
+    ? cfg.periodDays
+    : DEFAULT_ANALYTICS_CONFIG.periodDays;
+  const cleaned = Array.from(
+    new Set(
+      rawPeriods
+        .map((n) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : NaN))
+        .filter((n) => Number.isFinite(n) && n >= 1 && n <= 3650),
+    ),
+  ).sort((a, b) => a - b);
+  const periodDays = cleaned.length > 0 ? cleaned : DEFAULT_ANALYTICS_CONFIG.periodDays;
+  const defaultPeriodDays = periodDays.includes(cfg.defaultPeriodDays)
+    ? cfg.defaultPeriodDays
+    : periodDays[0];
+  const churnRiskDays = clampNum(cfg.churnRiskDays, 7, 365, DEFAULT_ANALYTICS_CONFIG.churnRiskDays);
+  const topActiveLimit = clampNum(cfg.topActiveLimit, 1, 100, DEFAULT_ANALYTICS_CONFIG.topActiveLimit);
+  return { periodDays, defaultPeriodDays, churnRiskDays, topActiveLimit };
 }
 
 export interface PackagesConfig {
@@ -244,4 +304,5 @@ export const FALLBACK_CONFIG: AppConfig = {
   },
   image: DEFAULT_IMAGE_CONFIG,
   defaultLocale: "no",
+  analytics: DEFAULT_ANALYTICS_CONFIG,
 };

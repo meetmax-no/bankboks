@@ -3,9 +3,13 @@
  * Ko | Do · Vault — D-149 (2026-02) — SuperAdmin Analytics (Tremor)
  *
  * Bruker @tremor/react for KPI-cards, area-chart og bar-list. Data
- * fra `GET /api/admin/analytics?days=30|90|365`.
+ * fra `GET /api/admin/analytics?days=<N>&churnDays=<M>&topLimit=<K>`.
+ *
+ * Konfigurasjon: periode-verdier + churn-terskel + top-limit leses fra
+ * `default.json → analytics`-blokken (via useAppConfig). Mike kan justere
+ * uten kode-endring.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Card,
@@ -17,6 +21,8 @@ import {
   Grid,
   Flex,
 } from "@tremor/react";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { clampAnalyticsConfig } from "@/lib/config";
 
 type AnalyticsResponse = {
   totals: {
@@ -51,22 +57,47 @@ type AnalyticsResponse = {
     customerType: string;
   }>;
   planDistribution: Record<string, { count: number; totalUnlocks30d: number }>;
-  period: { days: number; cutoffIso: string; todayIso: string };
+  period: {
+    days: number;
+    cutoffIso: string;
+    todayIso: string;
+    churnRiskDays: number;
+    topActiveLimit: number;
+  };
 };
 
 export function AnalyticsDashboard() {
-  const [days, setDays] = useState<30 | 90 | 365>(30);
+  const { config } = useAppConfig();
+  const analyticsCfg = useMemo(
+    () => clampAnalyticsConfig(config.analytics),
+    [config.analytics],
+  );
+
+  const [days, setDays] = useState<number>(analyticsCfg.defaultPeriodDays);
   const [data, setData] = useState<AnalyticsResponse | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Hvis config-endring gjør at gjeldende `days` ikke lenger er en gyldig
+  // periode, hopp tilbake til default.
+  useEffect(() => {
+    if (!analyticsCfg.periodDays.includes(days)) {
+      setDays(analyticsCfg.defaultPeriodDays);
+    }
+  }, [analyticsCfg, days]);
+
   useEffect(() => {
     setBusy(true);
-    fetch(`/api/admin/analytics?days=${days}`, { credentials: "include" })
+    const params = new URLSearchParams({
+      days: String(days),
+      churnDays: String(analyticsCfg.churnRiskDays),
+      topLimit: String(analyticsCfg.topActiveLimit),
+    });
+    fetch(`/api/admin/analytics?${params.toString()}`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => setData(d as AnalyticsResponse))
       .catch(() => toast.error("Kunne ikke hente analytics"))
       .finally(() => setBusy(false));
-  }, [days]);
+  }, [days, analyticsCfg.churnRiskDays, analyticsCfg.topActiveLimit]);
 
   return (
     <div className="space-y-5" data-testid="analytics-dashboard">
@@ -75,7 +106,7 @@ export function AnalyticsDashboard() {
         <Text className="text-xs uppercase tracking-wider text-white/45">
           Periode:
         </Text>
-        {([30, 90, 365] as const).map((d) => (
+        {analyticsCfg.periodDays.map((d) => (
           <button
             key={d}
             onClick={() => setDays(d)}
@@ -157,7 +188,7 @@ export function AnalyticsDashboard() {
           {/* Top-aktive + Churn-risk side ved side */}
           <Grid numItemsMd={2} className="gap-4">
             <Card data-testid="analytics-top-active">
-              <Title>Top 10 mest aktive</Title>
+              <Title>Top {analyticsCfg.topActiveLimit} mest aktive</Title>
               <Text className="text-xs mt-1">Ranking etter unlocks {days}d</Text>
               {data.topActive.length > 0 ? (
                 <BarList
@@ -176,7 +207,7 @@ export function AnalyticsDashboard() {
             </Card>
 
             <Card data-testid="analytics-churn-risk">
-              <Title>Churn-risk (60+ dager inaktiv)</Title>
+              <Title>Churn-risk ({analyticsCfg.churnRiskDays}+ dager inaktiv)</Title>
               <Text className="text-xs mt-1">Tenants uten aktivitet</Text>
               {data.churnRisk.length > 0 ? (
                 <BarList
