@@ -92,6 +92,7 @@ function makeRecord(
     locale: null,
     notes: null,
     provisioningLog: [],
+    dailyActivity: null,
   };
   return { ...base, ...overrides };
 }

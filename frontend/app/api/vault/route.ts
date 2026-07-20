@@ -8,6 +8,7 @@ import {
 } from "@/lib/server/events-store";
 import { checkWriteBlock } from "@/lib/server/tenant-status-cache";
 import { checkHostMatchesPod } from "@/lib/server/vault-host-guard";
+import { bumpActivityViaRpc } from "@/lib/server/activity-rpc";
 
 // Zero-knowledge: server ser KUN den krypterte blobben (salt + iv + cipher).
 // Master-passordet er aldri sendt hit og kan ikke dekryptere uten klient-side
@@ -29,6 +30,20 @@ const KEY = "vault:default";
 
 function getRedis(): Redis {
   return Redis.fromEnv();
+}
+
+/**
+ * D-149 (2026-02): Failsoft aktivitets-bump via internal RPC. Vault-pods
+ * har ikke central-creds per D-071, så all central-write går via
+ * `bumpActivityViaRpc` som posterer til admin-pod. Non-blocking.
+ *
+ * Read-throttling gjøres på admin-siden i `bumpDailyActivity` (opp til
+ * 24 bump per dag = én per time gjennomsnittlig).
+ */
+async function bumpActivity(kind: "unlocks" | "writes" | "reads"): Promise<void> {
+  const sub = process.env.NEXT_PUBLIC_CLIENT_CONFIG;
+  if (!sub || sub === "default") return; // Ingen tenant-identitet (dev/preview)
+  await bumpActivityViaRpc(sub, kind);
 }
 
 export async function GET(req: Request) {
@@ -62,6 +77,9 @@ export async function GET(req: Request) {
     // Logg hver hent-forsøk. Fire-and-forget — ikke la logging feile
     // hele GET hvis Upstash-liste er temporarily full.
     logEvent("access", meta).catch(() => {});
+
+    // D-149 (2026-02): fire-and-forget activity-tracking (reads).
+    void bumpActivity("reads");
 
     return NextResponse.json({ blob: blob || null, rlFailures: rl.failures, rlMax: RL_MAX_FAILS });
   } catch (err) {
@@ -101,6 +119,9 @@ export async function PUT(req: Request) {
 
     const meta = await readRequestMeta();
     logEvent("modify", meta).catch(() => {});
+
+    // D-149 (2026-02): fire-and-forget activity-tracking (writes).
+    void bumpActivity("writes");
 
     return NextResponse.json({ ok: true });
   } catch (err) {

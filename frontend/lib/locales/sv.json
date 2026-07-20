@@ -985,6 +985,7 @@
   "admin_landing.module_tenants_title": "Tenants",
   "admin_landing.module_b2b_title": "B2B-licenser",
   "admin_landing.module_test_tools_title": "Test Tools",
+  "admin_landing.module_analytics_title": "Analytics",
   "admin_tenants.loading": "Laddar…",
   "admin_tenants.count": "{n} tenants",
   "admin_tenants.refresh": "Uppdatera",

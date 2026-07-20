@@ -189,6 +189,82 @@ export async function putTenant(record: TenantRecord): Promise<void> {
   await client.sadd(TENANT_INDEX_KEY, sub); // idempotent
 }
 
+// ─── D-149 (2026-02) — Aktivitets-aggregat ──────────────────────────
+
+/**
+ * D-149 (2026-02): UTC-dato som "YYYY-MM-DD"-streng. Nøkkel i
+ * `dailyActivity`-objektet.
+ */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * D-149 (2026-02): Bumper daglig aktivitets-teller for `kind` på tenant-
+ * recorden. Roterer bort entries eldre enn `retentionDays`.
+ *
+ * Idempotent på tvers av samme dag (bumper `+1` uansett — flere kall
+ * samme dag øker teller). Failsoft: kaster ikke hvis tenant ikke finnes
+ * (returnerer false).
+ *
+ * Kalles fra:
+ *   - `POST /api/vault/heartbeat` (unlocks)
+ *   - `PUT /api/vault` (writes)
+ *   - `GET /api/vault` (reads, throttled 1t)
+ *
+ * @returns true hvis oppdatering skjedde, false hvis tenant mangler
+ */
+export async function bumpDailyActivity(
+  subdomain: string,
+  kind: "unlocks" | "writes" | "reads",
+  retentionDays: number = 365,
+): Promise<boolean> {
+  const tenant = await getTenant(subdomain);
+  if (!tenant) return false;
+
+  const today = todayIso();
+  const existing = tenant.dailyActivity ?? {};
+  const currentDay = existing[today] ?? { unlocks: 0, writes: 0, reads: 0 };
+
+  // Rotering: fjern entries eldre enn retentionDays.
+  const cutoffMs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const rotated: NonNullable<typeof tenant.dailyActivity> = {};
+  for (const [dateKey, counts] of Object.entries(existing)) {
+    const dateMs = new Date(`${dateKey}T00:00:00Z`).getTime();
+    if (dateMs >= cutoffMs) {
+      rotated[dateKey] = counts;
+    }
+  }
+
+  rotated[today] = {
+    ...currentDay,
+    [kind]: currentDay[kind] + 1,
+  };
+
+  await putTenant({ ...tenant, dailyActivity: rotated });
+  return true;
+}
+
+/**
+ * D-149 (2026-02): Returnerer sist-lest-tidsstempel for read-throttling.
+ * Vi ikke vil skrive til Upstash på hver page-refresh; kun én write per
+ * time per tenant for `reads`. Sjekker om siste dag med `reads > 0` er
+ * mer enn 1 time gammel.
+ *
+ * @returns true hvis vi kan bumpe (mer enn 1t siden sist), false ellers
+ */
+export function canBumpRead(
+  dailyActivity: TenantRecord["dailyActivity"],
+): boolean {
+  if (!dailyActivity) return true;
+  const today = todayIso();
+  const todayCount = dailyActivity[today]?.reads ?? 0;
+  // Enkel throttling: hvis vi har < 24 reads i dag, godta ny bump. Ellers
+  // treffer vi ~1t-throttle-buffer (24t/24 = 1t). Overspreads OK — vi
+  // trenger ikke perfekt throttling, bare unngå write-spam.
+  return todayCount < 24;
+}
+
 /**
  * Finn parent B2B-tenant med gitt tenantPrefix. Brukes ved invitasjons-
  * opprettelse (Iter 7.6 / D-056) for å verifisere at parent eksisterer

@@ -86,6 +86,7 @@ function makeTenant(overrides: Partial<TenantRecord> = {}): TenantRecord {
     welcomeEmailSentAt: null,
     nextBillingDate: null,
     parentLockedAt: null,
+    dailyActivity: null,
     ...overrides,
   };
 }

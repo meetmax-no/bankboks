@@ -14,6 +14,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  BarChart3,
   FlaskConical,
   Lock,
   ShieldCheck,
@@ -29,8 +30,9 @@ import { MailTestCard } from "@/components/platform/MailTestCard";
 import { EnvVarsCard } from "@/components/platform/EnvVarsCard";
 import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
+import { AnalyticsDashboard } from "@/components/platform/AnalyticsDashboard";
 import { SubTabNav } from "@/components/platform/SubTabNav";
-type AdminTab = "tenants" | "b2b" | "test-tools";
+type AdminTab = "tenants" | "b2b" | "analytics" | "test-tools";
 // D-148 (2026-02): Test Tools splittet i sub-taber for lesbarhet.
 type TestToolsSubTab = "b2b-info" | "testing" | "env-system";
 
@@ -161,6 +163,13 @@ export default function AdminLandingPage() {
             label={t("admin_landing.module_b2b_title")}
           />
           <TabButton
+            active={tab === "analytics"}
+            onClick={() => setTab("analytics")}
+            testId="admin-tab-analytics"
+            icon={<BarChart3 className="h-3.5 w-3.5" />}
+            label={t("admin_landing.module_analytics_title")}
+          />
+          <TabButton
             active={tab === "test-tools"}
             onClick={() => setTab("test-tools")}
             testId="admin-tab-test-tools"
@@ -173,6 +182,8 @@ export default function AdminLandingPage() {
       {/* Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         {tab === "tenants" && <TenantViewer defaultCustomerType="b2c" />}
+        {tab === "b2b" && <TenantViewer defaultCustomerType="b2b" />}
+        {tab === "analytics" && <AnalyticsDashboard />}
         {tab === "test-tools" && (
           <>
             {/* D-148 (2026-02): sub-taber gjør Test Tools mer oversiktlig
@@ -202,7 +213,6 @@ export default function AdminLandingPage() {
             {testToolsSubTab === "env-system" && <EnvVarsCard />}
           </>
         )}
-        {tab === "b2b" && <TenantViewer defaultCustomerType="b2b" />}
       </div>
     </div>
   );

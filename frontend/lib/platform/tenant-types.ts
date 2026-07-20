@@ -266,6 +266,29 @@ export type TenantRecord = {
    * (selv om feltet forsvinner med recorden ved sletting).
    */
   deletedNotificationSentAt: string | null;
+
+  /**
+   * D-149 (2026-02): Daglig aggregat-aktivitet for analytics. Nivå 2 —
+   * per-dag-tellere som roterer automatisk etter
+   * `client-config.analytics.retentionDays` (default 365).
+   *
+   * Nøkkel: ISO-dato "YYYY-MM-DD" (UTC-dag).
+   * Verdi: { unlocks, writes, reads } per dag.
+   *
+   * Ingen event-nivå-logging, ingen PII. Bumpes av
+   * `POST /api/vault/heartbeat` (unlock), `PUT /api/vault` (write) og
+   * `GET /api/vault` throttled 1t/tenant (read).
+   *
+   * `null` for tenants opprettet før D-149. Første aktivitet initialiserer
+   * objektet.
+   */
+  dailyActivity: {
+    [dateISO: string]: {
+      unlocks: number;
+      writes: number;
+      reads: number;
+    };
+  } | null;
 };
 
 /**
@@ -450,5 +473,6 @@ export function buildTenantRecord(
     locale: input.locale ?? null,
     notes: s(input.notes),
     provisioningLog: [],
+    dailyActivity: null,
   };
 }

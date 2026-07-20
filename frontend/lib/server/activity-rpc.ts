@@ -1,0 +1,49 @@
+/**
+ * Ko | Do · Vault — D-149 (2026-02) — Vault-pod → admin RPC klient
+ *
+ * Kalles fra vault-rutene for å bumpe activity-tellere på central
+ * Upstash. Vault-pods har ikke CENTRAL_KV_* env-vars per D-071
+ * isolation, så all central-write må gå via internal RPC.
+ *
+ * Mønster identisk med `tenant-status-cache.ts` (D-077).
+ *
+ * Failsoft: kaster aldri. Logger warn og fortsetter.
+ */
+
+const ADMIN_INTERNAL_URL_FALLBACK = "https://admin.kodovault.no";
+
+/**
+ * D-149 — fire-and-forget activity-bump. Vault-request fortsetter selv
+ * hvis admin-pod er nede eller INTERNAL_RPC_SECRET mangler.
+ *
+ * @param subdomain — tenant-subdomain (fra NEXT_PUBLIC_CLIENT_CONFIG)
+ * @param kind — hva som skal bumpes
+ */
+export async function bumpActivityViaRpc(
+  subdomain: string,
+  kind: "unlocks" | "writes" | "reads",
+): Promise<void> {
+  const base =
+    process.env.ADMIN_INTERNAL_URL ?? ADMIN_INTERNAL_URL_FALLBACK;
+  const secret = process.env.INTERNAL_RPC_SECRET;
+  if (!secret) {
+    // Ingen secret satt (dev/preview) — no-op stille.
+    return;
+  }
+
+  try {
+    await fetch(`${base}/api/internal/bump-activity`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${secret}`,
+      },
+      body: JSON.stringify({ subdomain, kind }),
+    });
+  } catch (e) {
+    console.warn(
+      `[activity-rpc D-149] bump ${kind} for ${subdomain} failed:`,
+      e instanceof Error ? e.message : String(e),
+    );
+  }
+}
