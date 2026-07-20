@@ -528,42 +528,55 @@ export function ConfigToolsButton() {
               )}
 
               {/* Action-knapper */}
-              <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-                <button
-                  type="button"
-                  data-testid="config-tools-dry-run-btn"
-                  onClick={() => void run(true)}
-                  disabled={busy}
-                  className="flex-1 text-xs px-3 py-2 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-medium flex items-center justify-center gap-1.5 transition"
-                >
-                  {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Dry-run
-                </button>
-                <button
-                  type="button"
-                  data-testid="config-tools-run-btn"
-                  onClick={() => void run(false)}
-                  disabled={busy}
-                  className={`flex-1 text-xs px-3 py-2 rounded-md disabled:opacity-50 text-white font-medium flex items-center justify-center gap-1.5 transition ${
-                    mode === "overwrite-all"
-                      ? "bg-red-600 hover:bg-red-500"
-                      : mode === "cascade-from-parent"
-                        ? "bg-emerald-600 hover:bg-emerald-500"
-                        : "bg-violet-600 hover:bg-violet-500"
-                  }`}
-                >
-                  {busy && <Loader2 className="h-3 w-3 animate-spin" />}
-                  Kjør
-                </button>
-              </div>
+              {(() => {
+                // D-149 (2026-02): Kjør er disabled hvis dry-run allerede
+                // har vist at ingen tenants faktisk vil endres. Ellers
+                // ville brukeren kunne trigge en meningsløs operasjon.
+                const nothingToRun =
+                  result !== null &&
+                  result.dryRun &&
+                  result.rows.length > 0 &&
+                  result.rows.every((r) => r.action === "skipped");
+                return (
+                  <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+                    <button
+                      type="button"
+                      data-testid="config-tools-dry-run-btn"
+                      onClick={() => void run(true)}
+                      disabled={busy}
+                      className="flex-1 text-xs px-3 py-2 rounded-md bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white font-medium flex items-center justify-center gap-1.5 transition"
+                    >
+                      {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Dry-run
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="config-tools-run-btn"
+                      onClick={() => void run(false)}
+                      disabled={busy || nothingToRun}
+                      title={
+                        nothingToRun
+                          ? "Ingen endringer å utføre — alle tenants er allerede i sync."
+                          : undefined
+                      }
+                      className={`flex-1 text-xs px-3 py-2 rounded-md disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium flex items-center justify-center gap-1.5 transition ${
+                        mode === "overwrite-all"
+                          ? "bg-red-600 hover:bg-red-500"
+                          : mode === "cascade-from-parent"
+                            ? "bg-emerald-600 hover:bg-emerald-500"
+                            : "bg-violet-600 hover:bg-violet-500"
+                      }`}
+                    >
+                      {busy && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Kjør
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* Error — flyttet til høyre kolonne (mer synlig) */}
 
-              {/* Audit-info */}
-              <div className="text-[11px] text-white/65 leading-relaxed pt-2 border-t border-white/10">
-                Hver mutasjon appender notis til tenant.notes for audit-trail.
-                Tenants ser endringer innen 30 sek (browser-cache).
-              </div>
+              {/* Audit-info flyttet til høyre kolonne — mer plass der. */}
             </div>
 
             {/* ═══ HØYRE KOLONNE — konflikt-tabell + resultater ═══════ */}
@@ -847,6 +860,12 @@ export function ConfigToolsButton() {
                   </div>
                 </>
               )}
+
+              {/* Audit-info nederst i høyre kolonne */}
+              <div className="text-[11px] text-white/65 leading-relaxed pt-4 border-t border-white/10 mt-6">
+                Hver mutasjon appender notis til tenant.notes for audit-trail.
+                Tenants ser endringer innen 30 sek (browser-cache).
+              </div>
             </div>
           </div>
         </div>
