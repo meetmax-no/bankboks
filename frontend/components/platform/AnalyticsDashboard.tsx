@@ -177,6 +177,8 @@ export function AnalyticsDashboard() {
                 colors={["amber", "violet", "emerald"]}
                 yAxisWidth={40}
                 showLegend
+                showGridLines
+                showAnimation
               />
             ) : (
               <Text className="text-white/45 py-8 text-center">

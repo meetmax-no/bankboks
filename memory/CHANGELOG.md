@@ -3,6 +3,37 @@
 Kronologisk logg av leveranser. For arkitektur-beslutninger: se [`DECISIONS.md`](./DECISIONS.md). For roadmap: se [`ROADMAP.md`](./ROADMAP.md).
 
 ---
+## 2026-02 — D-149b/c: Per-tenant analytics-tab + tenant-liste aktivitetspill
+
+### B — Per-tenant Analytics-tab i TenantDetailCard
+
+Ny nivå-1-tab **"Analytics"** plassert mellom `Oversikt` og `Lisens & B2B` (eller `Stripe & Fakturaer` for ikke-B2B-parents). Bruker `record.dailyActivity` direkte — ingen ekstra API-kall.
+
+**Innhold (`components/platform/TenantAnalyticsCard.tsx`):**
+- **Header-pill:** "Sist aktiv: 2026-07-20 · Aktiv i dag" med fargekoding (grønn <7d, amber <30d, rød ≥30d, grå aldri). Periode-picker 7/30/90/365 dager.
+- **4 KPI-kort:** Unlocks / Writes / Reads / Aktive dager for valgt periode med snitt per dag.
+- **AreaChart:** Tremor med `unlocks/writes/reads` per dag. Bruker `buildDailySeries()` som fyller inn null-dager slik at grafen ikke får hopp. Tomme perioder viser "Ingen aktivitet i denne perioden".
+- **Rå daglig tabell (kollapsbar):** Full dag-for-dag oversikt med tomme dager grået ut.
+
+### C — LastActivityPill på hver rad i tenant-listen
+
+Ny komponent `components/platform/LastActivityPill.tsx`:
+- Kompakt pill, høyre-justert i tenant-list-raden med `pr-[45px]` for luft mot dato/slett-ikonet
+- Fargeterskler: <7d grønn / <30d amber / ≥30d rød / aldri grå
+- Tooltip viser eksakt siste aktivitets-dato
+- Ingen ekstra API-kall — leser `tn.dailyActivity` som allerede er med i listResponse
+- `data-testid="tenant-last-activity-pill"`
+
+### Diverse
+- AnalyticsDashboard AreaChart: la til `showGridLines` + `showAnimation` for jevnere rendering.
+- TenantDetailCard header-tab-array utvidet med `analytics`-fane.
+
+### Verifisert
+- `yarn tsc --noEmit` ✓
+- `yarn lint:all` ✓ (7/7)
+- `yarn build` ✓ (35.8s)
+
+---
 ## 2026-02 — D-149a P0 hotfix: ADMIN_INTERNAL_URL typo-guard + diagnose-verktøy
 
 ### Rot-årsak

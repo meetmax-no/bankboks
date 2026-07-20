@@ -31,6 +31,8 @@ import { formatShortDate } from "@/lib/format-date";
 import { Button } from "@/components/Button";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DarkSelect } from "@/components/platform/DarkSelect";
+import { TenantAnalyticsCard } from "@/components/platform/TenantAnalyticsCard";
+import { LastActivityPill } from "@/components/platform/LastActivityPill";
 import { PRIMARY_THEME } from "@/lib/feature-theme";
 import type {
   CreateTenantInput,
@@ -799,6 +801,12 @@ export function TenantViewer({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* D-149c (2026-02): Sist aktiv-pill. Ingen aktivitet =
+                      diskret grå; grønn <7d, amber <30d, rød ≥30d.
+                      45px høyre-padding for luft mot dato/slett-ikonet. */}
+                  <span className="pr-[45px]">
+                    <LastActivityPill dailyActivity={tn.dailyActivity} />
+                  </span>
                   <span className="text-[11px] text-white/40 hidden sm:inline">
                     {formatShortDate(tn.createdAt, locale)}
                   </span>
@@ -1336,7 +1344,7 @@ function TenantDetailCard({
   // "Oversikt" er aktiv (Selskap / Kontakt / Plan & Kommunikasjon /
   // Faktura-adresse). "Firmadata"-fanen (kortvarig D-106-eksperiment)
   // fjernet — innholdet bor nå som nivå-2 "Selskap".
-  type Tab = "oversikt" | "lisens" | "fakturering" | "system";
+  type Tab = "oversikt" | "analytics" | "lisens" | "fakturering" | "system";
   type OversiktSubTab =
     | "selskap"
     | "kontakt"
@@ -1351,6 +1359,7 @@ function TenantDetailCard({
 
   const tabs: { id: Tab; label: string; show: boolean }[] = [
     { id: "oversikt", label: "Oversikt", show: true },
+    { id: "analytics", label: "Analytics", show: true },
     { id: "lisens", label: "Lisens & B2B", show: isB2BParent },
     { id: "fakturering", label: "Stripe & Fakturaer", show: true },
     { id: "system", label: "System", show: true },
@@ -1515,6 +1524,12 @@ function TenantDetailCard({
           className="-mt-1"
         />
       )}
+
+      {/* ═══ TAB 1.5: ANALYTICS (D-149) ═══════════════════════════ */}
+      {activeTab === "analytics" && (
+        <TenantAnalyticsCard record={record} />
+      )}
+
 
       {/* ═══ TAB 1: OVERSIKT ═══════════════════════════════════════ */}
       {activeTab === "oversikt" && oversiktSubTab === "plan-kommunikasjon" && (
