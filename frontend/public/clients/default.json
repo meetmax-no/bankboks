@@ -35,8 +35,8 @@
   },
 
   "analytics": {
-    "periodDays": [7, 30, 90, 365],
-    "defaultPeriodDays": 30,
+    "periodDays": [3, 7, 30, 90, 365],
+    "defaultPeriodDays": 7,
     "churnRiskDays": 60,
     "topActiveLimit": 10
   },
