@@ -26,6 +26,7 @@ import {
 import { SubscriptionInfoCard } from "@/components/SubscriptionInfoCard";
 import { useLocale } from "@/lib/i18n-context";
 import { formatLongDate } from "@/lib/format-date";
+import { useIsAdminHost } from "@/hooks/useIsAdminHost";
 
 /** Status-set fra /api/billing/checkout-info (Iter 19.5). */
 type CheckoutInfoStatus =
@@ -88,6 +89,11 @@ export function BackupAdminTab({
 }: BackupAdminTabProps) {
   const { t, locale } = useLocale();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // D-153 (2026-02): "Slett vault og konto" skjules på admin-hoster
+  // (admin.kodovault.no + <prefix>-admin.kodovault.no) — administrator-
+  // roller har ingen egen bruker-konto å slette, og knappen ville prøvd
+  // å slette hoved-Mikes SA-vault ved uhell.
+  const isAdminHost = useIsAdminHost();
 
   const [plan, setPlan] = useState<CheckoutInfoPlan>("unknown");
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
@@ -237,34 +243,37 @@ export function BackupAdminTab({
         </p>
       </div>
 
-      {/* Farlig sone — nederst, rose-border, to-stegs bekreftelse i dialog */}
-      <div className="pt-2">
-        <div className="border-t border-white/10 my-3" aria-hidden="true" />
-        <div
-          data-testid="settings-danger-zone"
-          className="rounded-2xl border border-rose-400/30 bg-rose-500/[0.04] p-4"
-        >
-          <div className="flex items-center gap-2.5 mb-3">
-            <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-400/30 flex items-center justify-center">
-              <Trash2 className="h-4 w-4 text-rose-300" />
-            </div>
-            <span className="text-sm font-semibold text-rose-100">
-              {t("settings.danger_zone_title")}
-            </span>
-          </div>
-          <p className="text-[11px] text-white/55 leading-relaxed mb-3">
-            {t("settings.danger_zone_desc")}
-          </p>
-          <button
-            type="button"
-            data-testid="settings-delete-vault-account"
-            onClick={onDeleteVaultAndAccount}
-            className="w-full px-4 py-2.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-sm font-semibold text-rose-100 transition focus:outline-none focus:ring-2 focus:ring-rose-300/50"
+      {/* Farlig sone — nederst, rose-border, to-stegs bekreftelse i dialog.
+          D-153 (2026-02): skjult på admin-hoster (SA + firma-admin). */}
+      {!isAdminHost && (
+        <div className="pt-2">
+          <div className="border-t border-white/10 my-3" aria-hidden="true" />
+          <div
+            data-testid="settings-danger-zone"
+            className="rounded-2xl border border-rose-400/30 bg-rose-500/[0.04] p-4"
           >
-            {t("settings.danger_zone_button")}
-          </button>
+            <div className="flex items-center gap-2.5 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-400/30 flex items-center justify-center">
+                <Trash2 className="h-4 w-4 text-rose-300" />
+              </div>
+              <span className="text-sm font-semibold text-rose-100">
+                {t("settings.danger_zone_title")}
+              </span>
+            </div>
+            <p className="text-[11px] text-white/55 leading-relaxed mb-3">
+              {t("settings.danger_zone_desc")}
+            </p>
+            <button
+              type="button"
+              data-testid="settings-delete-vault-account"
+              onClick={onDeleteVaultAndAccount}
+              className="w-full px-4 py-2.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/40 text-sm font-semibold text-rose-100 transition focus:outline-none focus:ring-2 focus:ring-rose-300/50"
+            >
+              {t("settings.danger_zone_button")}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
