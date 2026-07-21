@@ -977,7 +977,7 @@
   "package.error_wrong_pwd_or_corrupt": "Feil passord eller korrupt fil",
   "vault.error_biometric_not_active": "Biometric er ikke aktivert",
   "admin_landing.title": "Ko | Do · Admin",
-  "admin_landing.subtitle": "Platform-konsoll (v4.3 Iter 1)",
+  "admin_landing.subtitle": "v2.0",
   "admin_landing.jump_to_vault": "Min vault",
   "admin_landing.module_tenants_title": "Tenants",
   "admin_landing.module_b2b_title": "B2B-lisenser",
