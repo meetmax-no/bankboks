@@ -2,4 +2,4 @@
 // klient-komponenter. Selve `lib/branding.ts` bruker `node:fs` og er kun
 // server-side.
 
-export const APP_VERSION = "v4.5.0";
+export const APP_VERSION = "v2.0";
