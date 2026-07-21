@@ -881,9 +881,6 @@
   "admin_tenants.error_reserved": "Subdomain is reserved.",
   "admin_tenants.subdomain_checking": "Checking availability…",
   "admin_tenants.subdomain_available": "Available ✓",
-  "admin_landing.jump_to_test": "Test page",
-  "admin_landing.jump_to_test_aria": "Jump to /platform/test (plan picker stub)",
-  "admin_landing.jump_to_test_tooltip": "Stub for plan selection (Iter 3) — wired to Stripe in Iter 11",
   "platform_test.title": "Ko | Do · Test",
   "platform_test.subtitle": "Plan picker (v4.3 Iter 3 stub)",
   "platform_test.back_to_admin": "Back to admin",
@@ -1493,5 +1490,6 @@
   "am_admin_settings.logout_all_busy": "Logging out…",
   "am_admin_settings.logout_all_confirm": "Are you sure? All your active sessions will be ended.",
   "am_admin_settings.logout_all_success": "All sessions ended — logging in again…",
-  "am_admin_settings.logout_all_failed": "Could not log out all devices."
+  "am_admin_settings.logout_all_failed": "Could not log out all devices.",
+  "admin_landing": {}
 }

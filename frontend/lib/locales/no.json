@@ -873,9 +873,6 @@
   "admin_tenants.error_reserved": "Subdomenet er reservert.",
   "admin_tenants.subdomain_checking": "Sjekker tilgjengelighet…",
   "admin_tenants.subdomain_available": "Ledig ✓",
-  "admin_landing.jump_to_test": "Test-side",
-  "admin_landing.jump_to_test_aria": "Hopp til /platform/test (plan-velger stub)",
-  "admin_landing.jump_to_test_tooltip": "Stub-side for plan-valg (Iter 3) — kobles til Stripe i Iter 11",
   "platform_test.title": "Ko | Do · Test",
   "platform_test.subtitle": "Plan-velger (v4.3 Iter 3 stub)",
   "platform_test.back_to_admin": "Tilbake til admin",
@@ -1493,5 +1490,6 @@
   "am_admin_settings.logout_all_busy": "Logger ut…",
   "am_admin_settings.logout_all_confirm": "Er du sikker? Alle dine pågående sessions vil bli avsluttet.",
   "am_admin_settings.logout_all_success": "Alle sessions avsluttet — logger inn på nytt…",
-  "am_admin_settings.logout_all_failed": "Klarte ikke å logge ut alle enheter."
+  "am_admin_settings.logout_all_failed": "Klarte ikke å logge ut alle enheter.",
+  "admin_landing": {}
 }

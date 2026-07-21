@@ -18,7 +18,6 @@ import {
   FlaskConical,
   Lock,
   ShieldCheck,
-  Sparkles,
   Users,
   Vault,
   Wrench,
@@ -31,16 +30,16 @@ import { MailTestCard } from "@/components/platform/MailTestCard";
 import { EnvVarsCard } from "@/components/platform/EnvVarsCard";
 import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
-import { AnalyticsDiagnoseCard } from "@/components/platform/AnalyticsDiagnoseCard";
 import { AnalyticsDashboard } from "@/components/platform/AnalyticsDashboard";
 import { ConfigToolsCard } from "@/components/platform/ConfigToolsCard";
 import { RateLimitCard } from "@/components/platform/RateLimitCard";
+import { TestSideCard } from "@/components/platform/TestSideCard";
 import { SubTabNav } from "@/components/platform/SubTabNav";
 type AdminTab = "tenants" | "b2b" | "analytics" | "admin-tools" | "test-tools";
 // D-152 (2026-02): Admin Tools skilt ut fra Test Tools. Config-Verktøy
 // og Rate-Limit flyttet inn fra TenantViewer-header for konsistens.
 type AdminToolsSubTab = "config-tools" | "b2b-info" | "env-system";
-type TestToolsSubTab = "testing" | "rate-limit";
+type TestToolsSubTab = "testing" | "rate-limit" | "test-side";
 
 export default function AdminLandingPage() {
   const { t } = useLocale();
@@ -121,17 +120,6 @@ export default function AdminLandingPage() {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            <Link
-              data-testid="admin-jump-to-test-btn"
-              href="/platform/test"
-              prefetch={false}
-              className="inline-flex items-center justify-center gap-1.5 h-10 px-3 text-sm rounded-full bg-amber-400/10 hover:bg-amber-400/15 text-amber-200 hover:text-amber-100 border border-amber-300/30 hover:border-amber-300/50 transition font-medium"
-              aria-label={t("admin_landing.jump_to_test_aria")}
-              title={t("admin_landing.jump_to_test_tooltip")}
-            >
-              <Sparkles className="h-4 w-4" />
-              <span className="hidden sm:inline">{t("admin_landing.jump_to_test")}</span>
-            </Link>
             <Link
               data-testid="admin-jump-to-vault-btn"
               href="/"
@@ -226,12 +214,13 @@ export default function AdminLandingPage() {
         )}
         {tab === "test-tools" && (
           <>
-            {/* D-148/D-152 (2026-02): Test Tools — Testing (Stripe/Mail/
-                Analytics-diagnose) + Rate-Limit (flyttet fra TenantViewer). */}
+            {/* D-148/D-152 (2026-02): Test Tools — Testing (Stripe/Mail),
+                Rate-Limit, og Test-side (flyttet fra admin-header). */}
             <SubTabNav<TestToolsSubTab>
               items={[
                 { id: "testing", label: "Testing", show: true },
                 { id: "rate-limit", label: "Rate-Limit", show: true },
+                { id: "test-side", label: "Test-side", show: true },
               ]}
               active={testToolsSubTab}
               onChange={setTestToolsSubTab}
@@ -241,10 +230,10 @@ export default function AdminLandingPage() {
               <>
                 <StripeTestCard />
                 <MailTestCard />
-                <AnalyticsDiagnoseCard />
               </>
             )}
             {testToolsSubTab === "rate-limit" && <RateLimitCard />}
+            {testToolsSubTab === "test-side" && <TestSideCard />}
           </>
         )}
       </div>

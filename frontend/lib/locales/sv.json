@@ -881,9 +881,6 @@
   "admin_tenants.error_reserved": "Subdomänen är reserverad.",
   "admin_tenants.subdomain_checking": "Kontrollerar tillgänglighet…",
   "admin_tenants.subdomain_available": "Ledigt ✓",
-  "admin_landing.jump_to_test": "Test-sida",
-  "admin_landing.jump_to_test_aria": "Hoppa till /platform/test (planväljare stub)",
-  "admin_landing.jump_to_test_tooltip": "Stub för planval (Iter 3) — kopplas till Stripe i Iter 11",
   "platform_test.title": "Ko | Do · Test",
   "platform_test.subtitle": "Planväljare (v4.3 Iter 3 stub)",
   "platform_test.back_to_admin": "Tillbaka till admin",
@@ -1493,5 +1490,6 @@
   "am_admin_settings.logout_all_busy": "Loggar ut…",
   "am_admin_settings.logout_all_confirm": "Är du säker? Alla dina pågående sessioner kommer att avslutas.",
   "am_admin_settings.logout_all_success": "Alla sessioner avslutade — loggar in igen…",
-  "am_admin_settings.logout_all_failed": "Kunde inte logga ut alla enheter."
+  "am_admin_settings.logout_all_failed": "Kunde inte logga ut alla enheter.",
+  "admin_landing": {}
 }
