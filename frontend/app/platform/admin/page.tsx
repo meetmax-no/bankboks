@@ -33,19 +33,21 @@ import { OrgAdminListCard } from "@/components/platform/OrgAdminListCard";
 import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
 import { AnalyticsDiagnoseCard } from "@/components/platform/AnalyticsDiagnoseCard";
 import { AnalyticsDashboard } from "@/components/platform/AnalyticsDashboard";
+import { ConfigToolsCard } from "@/components/platform/ConfigToolsCard";
+import { RateLimitCard } from "@/components/platform/RateLimitCard";
 import { SubTabNav } from "@/components/platform/SubTabNav";
 type AdminTab = "tenants" | "b2b" | "analytics" | "admin-tools" | "test-tools";
-// D-152 (2026-02): Admin Tools skilt ut fra Test Tools. Testing forblir
-// under Test Tools; B2B-info og ENV System flyttet til Admin Tools.
-type AdminToolsSubTab = "b2b-info" | "env-system";
-type TestToolsSubTab = "testing";
+// D-152 (2026-02): Admin Tools skilt ut fra Test Tools. Config-Verktøy
+// og Rate-Limit flyttet inn fra TenantViewer-header for konsistens.
+type AdminToolsSubTab = "config-tools" | "b2b-info" | "env-system";
+type TestToolsSubTab = "testing" | "rate-limit";
 
 export default function AdminLandingPage() {
   const { t } = useLocale();
   const { vault } = useVaultRuntime();
   const [tab, setTab] = useState<AdminTab>("tenants");
   const [adminToolsSubTab, setAdminToolsSubTab] =
-    useState<AdminToolsSubTab>("b2b-info");
+    useState<AdminToolsSubTab>("config-tools");
   const [testToolsSubTab, setTestToolsSubTab] =
     useState<TestToolsSubTab>("testing");
 
@@ -199,11 +201,12 @@ export default function AdminLandingPage() {
         {tab === "analytics" && <AnalyticsDashboard />}
         {tab === "admin-tools" && (
           <>
-            {/* D-152 (2026-02): Admin Tools — B2B-rydding + ENV-viewer,
-                flyttet fra Test Tools for tydeligere skille mellom
-                admin-daglig-arbeid og testing. */}
+            {/* D-152 (2026-02): Admin Tools — Config-Verktøy + B2B-rydding
+                + ENV-viewer. Config-Verktøy og Rate-Limit flyttet inn fra
+                TenantViewer-header for konsistens. */}
             <SubTabNav<AdminToolsSubTab>
               items={[
+                { id: "config-tools", label: "Config-Verktøy", show: true },
                 { id: "b2b-info", label: "B2B Info om Tenants", show: true },
                 { id: "env-system", label: "ENV System", show: true },
               ]}
@@ -211,6 +214,7 @@ export default function AdminLandingPage() {
               onChange={setAdminToolsSubTab}
               testIdPrefix="admin-tools-subtab"
             />
+            {adminToolsSubTab === "config-tools" && <ConfigToolsCard />}
             {adminToolsSubTab === "b2b-info" && (
               <>
                 <OrgAdminListCard />
@@ -222,11 +226,13 @@ export default function AdminLandingPage() {
         )}
         {tab === "test-tools" && (
           <>
-            {/* D-148/D-152 (2026-02): Test Tools inneholder nå bare
-                Testing-sub-tab (Stripe/Mail/Analytics-diagnose). B2B-info
-                og ENV System flyttet til Admin Tools. */}
+            {/* D-148/D-152 (2026-02): Test Tools — Testing (Stripe/Mail/
+                Analytics-diagnose) + Rate-Limit (flyttet fra TenantViewer). */}
             <SubTabNav<TestToolsSubTab>
-              items={[{ id: "testing", label: "Testing", show: true }]}
+              items={[
+                { id: "testing", label: "Testing", show: true },
+                { id: "rate-limit", label: "Rate-Limit", show: true },
+              ]}
               active={testToolsSubTab}
               onChange={setTestToolsSubTab}
               testIdPrefix="test-tools-subtab"
@@ -238,6 +244,7 @@ export default function AdminLandingPage() {
                 <AnalyticsDiagnoseCard />
               </>
             )}
+            {testToolsSubTab === "rate-limit" && <RateLimitCard />}
           </>
         )}
       </div>
