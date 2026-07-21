@@ -21,6 +21,7 @@ import {
   Sparkles,
   Users,
   Vault,
+  Wrench,
 } from "lucide-react";
 import { useLocale } from "@/lib/i18n-context";
 import { useVaultRuntime } from "@/lib/vault-runtime";
@@ -33,16 +34,20 @@ import { OrphanInvitesCard } from "@/components/platform/OrphanInvitesCard";
 import { AnalyticsDiagnoseCard } from "@/components/platform/AnalyticsDiagnoseCard";
 import { AnalyticsDashboard } from "@/components/platform/AnalyticsDashboard";
 import { SubTabNav } from "@/components/platform/SubTabNav";
-type AdminTab = "tenants" | "b2b" | "analytics" | "test-tools";
-// D-148 (2026-02): Test Tools splittet i sub-taber for lesbarhet.
-type TestToolsSubTab = "b2b-info" | "testing" | "env-system";
+type AdminTab = "tenants" | "b2b" | "analytics" | "admin-tools" | "test-tools";
+// D-152 (2026-02): Admin Tools skilt ut fra Test Tools. Testing forblir
+// under Test Tools; B2B-info og ENV System flyttet til Admin Tools.
+type AdminToolsSubTab = "b2b-info" | "env-system";
+type TestToolsSubTab = "testing";
 
 export default function AdminLandingPage() {
   const { t } = useLocale();
   const { vault } = useVaultRuntime();
   const [tab, setTab] = useState<AdminTab>("tenants");
+  const [adminToolsSubTab, setAdminToolsSubTab] =
+    useState<AdminToolsSubTab>("b2b-info");
   const [testToolsSubTab, setTestToolsSubTab] =
-    useState<TestToolsSubTab>("b2b-info");
+    useState<TestToolsSubTab>("testing");
 
   // v4.3 Iter 2.x — CMD+R / hard navigation logger ut.
   //
@@ -171,6 +176,13 @@ export default function AdminLandingPage() {
             label={t("admin_landing.module_analytics_title")}
           />
           <TabButton
+            active={tab === "admin-tools"}
+            onClick={() => setTab("admin-tools")}
+            testId="admin-tab-admin-tools"
+            icon={<Wrench className="h-3.5 w-3.5" />}
+            label="Admin Tools"
+          />
+          <TabButton
             active={tab === "test-tools"}
             onClick={() => setTab("test-tools")}
             testId="admin-tab-test-tools"
@@ -185,26 +197,40 @@ export default function AdminLandingPage() {
         {tab === "tenants" && <TenantViewer defaultCustomerType="b2c" />}
         {tab === "b2b" && <TenantViewer defaultCustomerType="b2b" />}
         {tab === "analytics" && <AnalyticsDashboard />}
-        {tab === "test-tools" && (
+        {tab === "admin-tools" && (
           <>
-            {/* D-148 (2026-02): sub-taber gjør Test Tools mer oversiktlig
-                — separerer B2B-rydding, test-flyter og system-info. */}
-            <SubTabNav<TestToolsSubTab>
+            {/* D-152 (2026-02): Admin Tools — B2B-rydding + ENV-viewer,
+                flyttet fra Test Tools for tydeligere skille mellom
+                admin-daglig-arbeid og testing. */}
+            <SubTabNav<AdminToolsSubTab>
               items={[
                 { id: "b2b-info", label: "B2B Info om Tenants", show: true },
-                { id: "testing", label: "Testing", show: true },
                 { id: "env-system", label: "ENV System", show: true },
               ]}
-              active={testToolsSubTab}
-              onChange={setTestToolsSubTab}
-              testIdPrefix="test-tools-subtab"
+              active={adminToolsSubTab}
+              onChange={setAdminToolsSubTab}
+              testIdPrefix="admin-tools-subtab"
             />
-            {testToolsSubTab === "b2b-info" && (
+            {adminToolsSubTab === "b2b-info" && (
               <>
                 <OrgAdminListCard />
                 <OrphanInvitesCard />
               </>
             )}
+            {adminToolsSubTab === "env-system" && <EnvVarsCard />}
+          </>
+        )}
+        {tab === "test-tools" && (
+          <>
+            {/* D-148/D-152 (2026-02): Test Tools inneholder nå bare
+                Testing-sub-tab (Stripe/Mail/Analytics-diagnose). B2B-info
+                og ENV System flyttet til Admin Tools. */}
+            <SubTabNav<TestToolsSubTab>
+              items={[{ id: "testing", label: "Testing", show: true }]}
+              active={testToolsSubTab}
+              onChange={setTestToolsSubTab}
+              testIdPrefix="test-tools-subtab"
+            />
             {testToolsSubTab === "testing" && (
               <>
                 <StripeTestCard />
@@ -212,7 +238,6 @@ export default function AdminLandingPage() {
                 <AnalyticsDiagnoseCard />
               </>
             )}
-            {testToolsSubTab === "env-system" && <EnvVarsCard />}
           </>
         )}
       </div>
