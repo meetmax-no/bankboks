@@ -65,7 +65,17 @@ Kopien skal UT AV HUSET. E-post er den eneste riktige mekanismen. Kundens postka
 
 **Bevisst utelatt:** spam-filtrering/innboks-plassering. Vi bruker ikke energi på det.
 
-**Må avklares før bygging:** D-021 «smart re-kryptering» — bruker klient-eksporten et eget backup-passord? I så fall kan serveren kun produsere en master-passord-kryptert konvolutt, og import-flyten må godta begge formater. Dette avgjør hvordan gjenoppretting ser ut, og må leses i koden før første linje skrives.
+**D-021-spørsmålet er lukket — verifisert i koden 2026-09-04.** Eksporten bruker master-passordet. Det finnes ikke noe eget backup-passord noe sted:
+- `useVault/useCards/useIds.fetchBlobForBackup()` henter chiffertekst-blobben rått fra Upstash («backup skal alltid speile Upstash, ikke RAM»).
+- `buildEnvelope()` i `lib/backup.ts` pakker blobbene i en JSON-konvolutt. Ingen dekryptering, ingen re-kryptering, ingen nøkkel involvert.
+- Fil-header sier det rett ut: *«Master-passordet er aldri i fila. Den som importerer må kunne låse opp hver valgte blob med samme master-passord som ble brukt ved eksport.»*
+- «Smart re-kryptering» i D-021 gjelder kun IMPORT-siden — når fila ble laget med et *annet* master-passord enn dagens.
+
+**Konsekvens for nattjobben:** serveren kan produsere en byte-identisk fil uten å ha noen nøkkel — den pakker chiffertekst den allerede lagrer. Import-flyten godtar den uendret. Ingen nytt format, ingen dobbel-støtte, ingenting å bygge på import-siden.
+
+**Én ting kunden må få vite:** mailen fra mars åpnes med master-passordet du hadde i mars. Bytter du master-passord, er gamle mailer fortsatt gyldige — men med det gamle passordet. Import håndterer dette allerede (D-021 pkt. 3–4: re-krypterer til dagens passord). Dette må stå i aktiveringsteksten, ikke gjemmes i en FAQ.
+
+**Småting sett i samme kodesti (ikke fikset, ikke blokkerende):** `describeScope()` i `lib/backup.ts` har kun en `full`-snarvei for `vault + cards` — full eksport av alle tre blobene får filnavnet `kodo-vault-backup-cards-ids-vault-…json`. Og `blobLabels` i `app/page.tsx` mangler `ids`, så toasten viser rå ID-en «ids» i stedet for «ID-er». Begge er kosmetiske etterslep fra v3.2 (ID-er lagt til uten at disse to ble oppdatert).
 
 **Estimat:** ~2 dager (nattjobb + dirty-flagg + aktiveringsflyt + status i UI). +0,5 dag for påminnelse, adressebytte-varsel og bounce-håndtering.
 
@@ -260,5 +270,5 @@ Hvis 2+ er ja → jobb med det først.
 
 ---
 
-**Sist oppdatert:** 2026-09-04 (la inn P0 #2B kunde-backup på e-post)
+**Sist oppdatert:** 2026-09-04 (la inn P0 #2B kunde-backup på e-post; D-021-spørsmålet verifisert og lukket)
 **Neste review:** Etter Stripe-beslutning + Backup-implementasjon (vår egen + kundens)
