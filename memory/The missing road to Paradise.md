@@ -36,6 +36,38 @@
 - SuperAdmin "Backup alle firmaer nå"-knapp
 - Restore-UI-flyt (les JSON → oppretter tenant + admin + invites + notes tilbake)
 **Estimat:** ~1 dag for cron + eksport-lokasjon. +1 dag for bulk-knapp + restore-UI.
+**Avgrensning:** Dette er VÅR backup av sentral-data (tenant-register, CENTRAL_ENCRYPTION_KEY, provisjonering). Kundens egen kopi av vault-innholdet er en helt annen sak — se #2B.
+
+### 2B. Kunde-backup på e-post (B2C) — nattlig, kryptert
+**Status:** Designet 2026-09-04 (Mike + Claude). Ikke bygget. Ingen kode-spor i repoet.
+**Kilde:** Designsamtale 2026-09-04. Erstatter den udokumenterte «kunde-backup-planen» som viste seg ikke å eksistere noe sted.
+
+**Problem:**
+Kunden forventer at noen tar backup. Vi vil ikke ha det ansvaret — det er ikke våre data, og å ta det ville krevd full eskalering av risiko og kostnad (versjonering, gjenfinning av «riktig» versjon, restore-ansvar, support når kunden velger feil versjon). Samtidig er sannsynligheten stor for at kunden GLEMMER manuell eksport. Når det først smeller — feil hos Upstash, en programfeil, en slettet konto — hjelper det ikke å peke på en side der det står svart på hvitt at det er kundens eget ansvar. Skaden er skjedd uansett hvem som har rett.
+
+**Prinsipp:**
+Kopien skal UT AV HUSET. E-post er den eneste riktige mekanismen. Kundens postkasse blir versjonsarkivet, og e-postdatoen er versjonsmarkøren. Ko|Do beholder ingen ekstra kopi og tar ikke ansvar for å finne fram en bestemt versjon.
+
+**Utenfor scope:** Tilbakerulling/versjonering inne i appen. Det kan bygges som en egen betalt tjeneste senere — men ikke i en app som Ko|Do Vault.
+
+**Slik virker det:**
+1. **Aktivering er manuell.** Aldri default på.
+2. **Master-passordet må tastes inn på nytt ved aktivering.** Det ligger ikke i minnet. Det gjør to ting samtidig: bekrefter at det er eieren som står der, og lar oss måle styrken.
+3. **For svakt master-passord → ingen e-post-backup.** Kun manuell eksport. MERK: det er *ingen* styrkekrav når master-passordet settes — det er kundens valg. Kravet gjelder kun for å sende filen ut av huset.
+4. **E-postadresse:** default = adressen fra registrering, men redigerbar. Master-passordet er autoriteten (jf. D-035). Ingen bekreftelsesrunde med lenke — det legger bare et lag med kompleksitet. En avkryssingsboks holder: «Jeg bekrefter at [adresse] er min, og at jeg leser den.»
+5. **Bytte av backup-adresse varsler den gamle adressen.** Det er den ene tingen som fanger en kapret økt.
+6. **Første fil sendes umiddelbart ved aktivering** — ikke om natten. Kunden skal se at det virker mens han sitter der.
+7. **Endring setter et flagg.** Endring i vault / kort / ID-er setter `backupDirty` i tenant-Upstash. Nattjobben plukker kun de skitne og nullstiller flagget. Ingen endring = ingen mail. **Mailen ER versjonen** — har kunden ikke endret noe på ett år, er fjorårets mail fortsatt den gyldige kopien.
+8. **Serveren dekrypterer aldri.** Nattjobben pakker chiffertekst den allerede har i en `.json`-konvolutt og legger den ved. Zero-knowledge er urørt.
+9. **Appen viser alltid to datoer:** *Sist endret* og *Sist sendt*. Er «sist endret» nyere enn «sist sendt», er noe galt — og da sier appen fra. Det gjør stillhet synlig.
+10. **Påminnelse for de som ikke har aktivert:** popup ved opplåsing (ikke midt i arbeidet), tre valg — «Aktiver nå» / «Minn meg om 14 dager» (cookie/localStorage 14 d) / «Jeg tar backup selv» (lengre snooze, ~6 mnd, men skrus aldri helt av — hele poenget er at folk glemmer).
+11. **Harde leveringsfeil fanges:** bounce, avvist adresse, full postkasse rapporteres fra Resend → advarsel ved neste opplåsing.
+
+**Bevisst utelatt:** spam-filtrering/innboks-plassering. Vi bruker ikke energi på det.
+
+**Må avklares før bygging:** D-021 «smart re-kryptering» — bruker klient-eksporten et eget backup-passord? I så fall kan serveren kun produsere en master-passord-kryptert konvolutt, og import-flyten må godta begge formater. Dette avgjør hvordan gjenoppretting ser ut, og må leses i koden før første linje skrives.
+
+**Estimat:** ~2 dager (nattjobb + dirty-flagg + aktiveringsflyt + status i UI). +0,5 dag for påminnelse, adressebytte-varsel og bounce-håndtering.
 
 ---
 
@@ -199,15 +231,16 @@ Lav prio.
 ## 🎯 Anbefalt rekkefølge før launch (kun app-scope)
 
 1. **Stripe subscription-beslutning** (P0 #1) → 30 min beslutning + 1–2 dager
-2. **Backup-strategi** (P0 #2) → 1 dag
-3. **Overvåking (Sentry + Uptime)** (P1 #5) → 3 timer
-4. **PII-redaktering** (P1 #3) → 3.5 dager
-5. **Faktura-nummerering + Stripe-locale** (P1 #6 + #9) → 1.5 timer samlet
-6. **Rate-limit-audit** (P1 #7) → 0.5 dag
-7. **Trial-varsler verifisering** (P1 #8) → 1 time
-8. **i18n SV/DA utfylt** (P2 #11) → 0.5 dag
+2. **Backup-strategi — vår egen** (P0 #2) → 1 dag
+3. **Kunde-backup på e-post** (P0 #2B) → ~2 dager
+4. **Overvåking (Sentry + Uptime)** (P1 #5) → 3 timer
+5. **PII-redaktering** (P1 #3) → 3.5 dager
+6. **Faktura-nummerering + Stripe-locale** (P1 #6 + #9) → 1.5 timer samlet
+7. **Rate-limit-audit** (P1 #7) → 0.5 dag
+8. **Trial-varsler verifisering** (P1 #8) → 1 time
+9. **i18n SV/DA utfylt** (P2 #11) → 0.5 dag
 
-**Total for launch-klart app-side:** ~8–10 dager fokusert arbeid.
+**Total for launch-klart app-side:** ~10–12 dager fokusert arbeid.
 
 **Lifecycle-modellen** (P1 #4) kan komme etter launch — du rydder manuelt i mellomtiden.
 
@@ -219,7 +252,7 @@ Marketing-siden (M1 + M2) håndteres parallelt i eget spor.
 
 1. **Blokkerer det inntekt?** (Stripe subscription = ja)
 2. **Åpner det angrepsflate?** (PII-redaktering = ja)
-3. **Skjuler det katastroferisiko?** (Backup, Overvåking = ja)
+3. **Skjuler det katastroferisiko?** (Backup, Kunde-backup, Overvåking = ja)
 4. **Kreves det for norsk lov?** (Bokføringslov = ja; GDPR-sider hører til marketing-repo)
 5. **Blokkerer det B2B-salg?** (Passkeys/2FA = ofte ja)
 
@@ -227,5 +260,5 @@ Hvis 2+ er ja → jobb med det først.
 
 ---
 
-**Sist oppdatert:** 2026-02-01
-**Neste review:** Etter Stripe-beslutning + Backup-implementasjon
+**Sist oppdatert:** 2026-09-04 (la inn P0 #2B kunde-backup på e-post)
+**Neste review:** Etter Stripe-beslutning + Backup-implementasjon (vår egen + kundens)
